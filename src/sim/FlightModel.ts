@@ -225,8 +225,6 @@ export class FlightModel {
     this.time += dt;
 
     this.throttleLever = clamp(this.throttleLever + input.throttle * C.engine.leverRatePerS * dt, 0, 1);
-    this.engine.step(dt, this.throttleLever);
-    this.throttle = this.engine.power;
     this.flapDeg = approach(this.flapDeg, this.flapTargetDeg, C.flaps.rateDegPerS * dt);
     this.flaps = this.flapDeg / maxFlapDeg(C);
     this.gear = approach(this.gear, this.gearTarget, dt / C.gear.transitTimeS);
@@ -238,6 +236,9 @@ export class FlightModel {
     const ux = this.vx - air.wx;
     const uy = this.vy - air.wy;
     const V = Math.hypot(ux, uy);
+    this.engine.step(dt, this.throttleLever, V);
+    // HUD power shows delivered thrust fraction (includes soft CHT derate).
+    this.throttle = this.engine.power * this.engine.thrustFactor();
     const gamma = V > 1 ? Math.atan2(uy, ux) : 0;
     const alpha = this.pitch - gamma;
     this.aoa = alpha;
@@ -337,7 +338,8 @@ export class FlightModel {
     } else {
       let ail = rollStick;
       // In a stall the wings do not level themselves – the dropped wing stays down.
-      if (this.assists.wingLeveler && !this.stalled && Math.abs(rollStick) < 0.05) ail = clamp(-1.4 * this.roll - 1.1 * this.rollRate, -0.6, 0.6);
+      // Leveler is soft so clear-air bumps still need a hand on the yoke.
+      if (this.assists.wingLeveler && !this.stalled && Math.abs(rollStick) < 0.05) ail = clamp(-0.85 * this.roll - 0.7 * this.rollRate, -0.4, 0.4);
       else if (Math.abs(rollStick) >= 0.05) ail = clamp((rollStick * R.maxRollRate - this.rollRate) * 2.5, -1, 1);
       this.aileron = approach(this.aileron, ail, C.controls.elevatorRatePerS * dt);
       const pHat = (this.rollRate * span) / (2 * Math.max(V, 5));

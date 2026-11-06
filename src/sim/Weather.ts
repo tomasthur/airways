@@ -92,7 +92,8 @@ export class Weather {
     this.windDir = opts.windDir ?? Math.round((270 + r() * 80) / 10) * 10;
     this.windKt = opts.windKt ?? Math.round(4 + r() * 14);
     this.headwind = this.windKt * KT * Math.cos(((this.windDir - RUNWAY_HEADING) * Math.PI) / 180);
-    this.baseTurbulence = opts.turbulence ?? 0.35 + r() * 0.35;
+    // Clear-air baseline is a notch livelier so cruise still needs attention between cells.
+    this.baseTurbulence = opts.turbulence ?? 0.5 + r() * 0.4;
 
     if (opts.storms === false) return;
     const roll = r();
@@ -159,20 +160,36 @@ export class Weather {
     // Continuous turbulence: two octaves of noise in space, slowly evolving in time.
     const n1 = noise(x / 85 + t * 0.07, seed);
     const n2 = noise(x / 260 - t * 0.03, seed + 17);
-    wy += level * 1.1 * (0.65 * n1 + 0.35 * n2);
-    wx += level * 1.2 * noise(x / 140 + t * 0.05, seed + 31);
+    wy += level * 1.35 * (0.65 * n1 + 0.35 * n2);
+    wx += level * 1.35 * noise(x / 140 + t * 0.05, seed + 31);
     if (rough > 0) wy += rough * 3.6 * noise(x / 38 + t * 0.35, seed + 59);
 
     // Discrete vertical gusts ("1 − cos" shape): the aircraft is suddenly lifted or dropped.
     const seg = Math.floor(x / 380);
-    if (hash(seg, seed + 101) < 0.25 + 0.3 * Math.min(1, level)) {
+    if (hash(seg, seed + 101) < 0.4 + 0.35 * Math.min(1, level)) {
       const len = 70 + hash(seg, seed + 103) * 150;
       const start = seg * 380 + hash(seg, seed + 107) * (380 - len);
       const s = (x - start) / len;
       if (s > 0 && s < 1) {
         const sign = hash(seg, seed + 109) < 0.55 ? -1 : 1;
-        const amp = (1.4 + hash(seg, seed + 113) * 2.4) * (0.5 + level);
+        const amp = (1.7 + hash(seg, seed + 113) * 2.6) * (0.55 + level);
         wy += sign * amp * 0.5 * (1 - Math.cos(2 * Math.PI * s)) * smooth(0, 15, height);
+      }
+    }
+
+    // Cruise thermals / sinkers: short pulses around cruise altitudes so level flight wanders.
+    const cruise = smooth(60, 120, height) * (1 - smooth(550, 750, height));
+    if (cruise > 0.05) {
+      const tSeg = Math.floor(x / 520 + t * 0.02);
+      if (hash(tSeg, seed + 211) < 0.55) {
+        const len = 90 + hash(tSeg, seed + 213) * 160;
+        const start = tSeg * 520 + hash(tSeg, seed + 217) * (520 - len);
+        const s = (x - start) / len;
+        if (s > 0 && s < 1) {
+          const sign = hash(tSeg, seed + 219) < 0.48 ? -1 : 1;
+          const amp = (1.2 + hash(tSeg, seed + 223) * 2.1) * cruise;
+          wy += sign * amp * 0.5 * (1 - Math.cos(2 * Math.PI * s));
+        }
       }
     }
 
@@ -181,7 +198,7 @@ export class Weather {
 
     out.wx = wx;
     out.wy = wy;
-    out.rollGust = level * 0.035 * noise(x / 70 + t * 0.4, seed + 47);
+    out.rollGust = level * 0.05 * noise(x / 70 + t * 0.4, seed + 47);
     out.turbulence = level;
     out.rain = rain;
     out.cloud = cloud;

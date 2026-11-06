@@ -6,6 +6,8 @@ export interface HudData {
   altitude: number;
   verticalSpeed: number;
   power: number;
+  /** Normalised cylinder-head temperature 0..1. */
+  cht: number;
   flapsDeg: number;
   flapsTargetDeg: number;
   gear: number;
@@ -13,6 +15,8 @@ export interface HudData {
   progress: number;
   distanceKm: number;
   phase: string;
+  destCode: string;
+  destRunway: string;
 }
 
 export interface ChecklistView {
@@ -30,7 +34,7 @@ export interface ChecklistView {
   next: keyof ChecklistView['done'] | null;
 }
 
-export type WarningKey = 'stall' | 'overspeed' | 'gear' | 'sink' | 'flaps' | 'terrain';
+export type WarningKey = 'stall' | 'overspeed' | 'gear' | 'sink' | 'flaps' | 'terrain' | 'cht';
 
 /** DOM HUD. Writes to the DOM only when values change. */
 export class Hud {
@@ -113,6 +117,13 @@ export class Hud {
     this.text('power', Math.round(d.power * 100).toString());
     this.style('powerBar', 'transform', `scaleX(${d.power.toFixed(3)})`);
 
+    const cht = Math.max(0, Math.min(1, d.cht));
+    this.text('cht', Math.round(cht * 100).toString());
+    this.style('chtBar', 'transform', `scaleX(${cht.toFixed(3)})`);
+    const chtFill = this.ref('chtBar');
+    const chtTone = cht >= 0.9 ? 'hot' : cht >= 0.78 ? 'caution' : '';
+    this.cls(chtFill, 'chtFill', `bar-fill cht${chtTone ? ` ${chtTone}` : ''}`);
+
     const flapsMoving = Math.abs(d.flapsDeg - d.flapsTargetDeg) > 0.3;
     const flapsDown = d.flapsTargetDeg > 0;
     this.text('flaps', flapsMoving ? `${d.flapsTargetDeg > d.flapsDeg ? 'EXT' : 'RET'} ${d.flapsTargetDeg}°` : flapsDown ? `DOWN ${d.flapsTargetDeg}°` : 'UP');
@@ -124,8 +135,18 @@ export class Hud {
     const p = Math.max(0, Math.min(1, d.progress));
     this.style('trackFill', 'width', `${(p * 100).toFixed(2)}%`);
     this.style('trackPlane', 'left', `${(p * 100).toFixed(2)}%`);
-    this.text('distance', d.distanceKm > 0.05 ? `VIE ${d.distanceKm.toFixed(1)} km` : 'VIE runway 29');
+    this.text(
+      'distance',
+      d.distanceKm > 0.05 ? `${d.destCode} ${d.distanceKm.toFixed(1)} km` : `${d.destCode} runway ${d.destRunway}`,
+    );
     this.text('phase', d.phase);
+  }
+
+  setMissionRoute(fromCode: string, fromCity: string, toCode: string, toCity: string): void {
+    this.text('routeFromCode', fromCode);
+    this.text('routeFromCity', fromCity.toUpperCase());
+    this.text('routeToCity', toCity.toUpperCase());
+    this.text('routeToCode', toCode);
   }
 
   setFps(fps: number): void {
@@ -144,8 +165,16 @@ export class Hud {
     this.text('hint', text);
   }
 
-  setWarnings(active: Record<WarningKey, boolean>): void {
-    for (const [key, el] of this.warnEls) this.cls(el, `warn.${key}`, `warn${el.classList.contains('amber') ? ' amber' : ''}${active[key] ? ' on' : ''}`);
+  setWarnings(active: Record<WarningKey, boolean>, chtHot = false): void {
+    for (const [key, el] of this.warnEls) {
+      const amber = el.classList.contains('amber') || key === 'cht';
+      const hot = key === 'cht' && active.cht && chtHot;
+      this.cls(
+        el,
+        `warn.${key}`,
+        `warn${amber && !hot ? ' amber' : ''}${hot ? ' hot' : ''}${active[key] ? ' on' : ''}`,
+      );
+    }
   }
 
   /** whites < 0 hides the indicator. */
@@ -257,7 +286,7 @@ export class Hud {
     }
     table.classList.toggle('is-hidden', r.items.length === 0);
     this.ref('reportStats').textContent = stats;
-    this.ref('reportButton').innerHTML = `${r.success ? 'Fly again' : 'Try again'} <small>R</small>`;
+    this.ref('reportButton').innerHTML = 'Back to map <small>R</small>';
     this.show('report', true);
   }
 }

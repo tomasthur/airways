@@ -28,6 +28,10 @@ export class World {
   private turbineBlades: THREE.InstancedMesh[] = [];
   private turbineData: { x: number; y: number; phase: number; speed: number }[] = [];
   private papi!: THREE.Points;
+  /** Origin (departure) terminal meshes tagged with userData.airport. */
+  private readonly originTerminals: THREE.Object3D[] = [];
+  /** Destination (arrival) terminal meshes tagged with userData.airport. */
+  private readonly arrivalTerminals: THREE.Object3D[] = [];
   private readonly tmpMatrix = new THREE.Matrix4();
   private readonly tmpQuat = new THREE.Quaternion();
   private readonly tmpPos = new THREE.Vector3();
@@ -50,6 +54,27 @@ export class World {
     this.buildWater();
     this.buildLights();
     this.buildLayers(anisotropy);
+    this.buildRouteTerminals();
+    this.setRouteAirports('BTS', 'VIE');
+  }
+
+  /**
+   * Show the correct painted terminals for this hop.
+   * Both ends must match the filed route — never leave a leftover BTS/VIE sign.
+   */
+  setRouteAirports(from: string, to: string): void {
+    const norm = (c: string) => (c === 'BUD' || c === 'BTS' || c === 'VIE' ? c : 'BTS');
+    const origin = norm(from);
+    const arrival = norm(to);
+    for (const m of this.originTerminals) m.visible = m.userData.airport === origin;
+    for (const m of this.arrivalTerminals) m.visible = m.userData.airport === arrival;
+  }
+
+  /** @deprecated use setRouteAirports */
+  setArrivalAirport(iata: string): void {
+    const currentOrigin =
+      this.originTerminals.find((m) => m.visible)?.userData.airport ?? 'BTS';
+    this.setRouteAirports(currentOrigin, iata);
   }
 
   private frame(name: string): SpriteFrame {
@@ -223,6 +248,39 @@ export class World {
     buildSpriteBatches(P, frontClouds, { hazeAmount: 0, skirt: 0, renderOrder: 60, opacity: 0.5 }).forEach((m) => near.add(m));
   }
 
+  private buildRouteTerminals(): void {
+    // Same three identity terminals at both ends of the corridor; visibility is route-driven.
+    const specs: { code: string; sprite: string; originScale: number; destScale: number }[] = [
+      { code: 'BTS', sprite: 'bts_terminal', originScale: 1, destScale: 1.55 },
+      { code: 'VIE', sprite: 'vie_terminal', originScale: 0.55, destScale: 1 },
+      { code: 'BUD', sprite: 'bud_terminal', originScale: 0.55, destScale: 1 },
+    ];
+    for (const t of specs) {
+      const originMeshes = buildSpriteBatches(
+        this.pages,
+        [{ frame: this.frame(t.sprite), x: 620, z: -95, scale: t.originScale }],
+        { hazeAmount: 0.03, skirt: 0, renderOrder: 40 },
+      );
+      for (const m of originMeshes) {
+        m.userData.airport = t.code;
+        m.visible = false;
+        this.root.add(m);
+        this.originTerminals.push(m);
+      }
+      const destMeshes = buildSpriteBatches(
+        this.pages,
+        [{ frame: this.frame(t.sprite), x: VIE_RUNWAY.x0 + 620, z: -110, scale: t.destScale }],
+        { hazeAmount: 0.03, skirt: 0, renderOrder: 40 },
+      );
+      for (const m of destMeshes) {
+        m.userData.airport = t.code;
+        m.visible = false;
+        this.root.add(m);
+        this.arrivalTerminals.push(m);
+      }
+    }
+  }
+
   private nearPlacements(r: Rand): Placement[] {
     const list: Placement[] = [];
     const put = (name: string, x: number, z: number, scale = 1, flip = false) =>
@@ -233,13 +291,11 @@ export class World {
       (x > 380 && x < 1250) ||
       (x > VIE_RUNWAY.x0 + 150 && x < VIE_RUNWAY.x0 + 1700);
 
-    // Airports
-    put('bts_terminal', 620, -95);
+    // Airport identity terminals are route-swapped in buildRouteTerminals / setRouteAirports.
     put('bts_tower', 860, -105);
     put('hangar', 1020, -110);
     put('airliner_generic', 560, -68);
     put('airliner_generic', 760, -72, 1, true);
-    put('vie_terminal', VIE_RUNWAY.x0 + 620, -110);
     put('vie_tower', VIE_RUNWAY.x0 + 900, -125);
     put('hangar', VIE_RUNWAY.x0 + 1180, -112);
     put('hangar', VIE_RUNWAY.x0 + 1260, -116);

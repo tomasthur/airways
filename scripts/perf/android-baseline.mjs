@@ -275,7 +275,10 @@ const PROBE = String.raw`(async (quality) => {
   const thrTo = (t) => { key('ShiftLeft', fm.throttleLever < t - 0.02); key('KeyX', fm.throttleLever > t + 0.02); };
   const start = () => {
     phase = 'takeoff';
-    document.querySelector('[data-iata="VIE"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    // Prefer a filed open destination; fall back to surprise-me.
+    const open = document.querySelector('.hub-pin--open[data-iata]');
+    if (open) open.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    else document.querySelector('[data-hub="random"]')?.click();
     setTimeout(() => document.querySelector('[data-hub="fly"]')?.click(), 120);
   };
   start();

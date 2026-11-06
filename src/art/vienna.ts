@@ -42,7 +42,8 @@ export function viennaSprites(): SpriteSpec[] {
     { name: 'vienna_house_b', w: 28, h: 26, ppm: 5, draw: (ctx, r) => drawGrunderzeit(ctx, r, '#f0d78a', '#a9533d') },
     { name: 'vienna_house_c', w: 28, h: 26, ppm: 5, draw: (ctx, r) => drawGrunderzeit(ctx, r, '#e9b9a0', '#6f7c86') },
     { name: 'canal_bridge', w: 70, h: 14, ppm: 5, draw: drawCanalBridge },
-    { name: 'vie_terminal', w: 380, h: 32, ppm: 4, draw: drawVieTerminal },
+    { name: 'vie_terminal', w: 380, h: 32, ppm: 4, draw: (ctx, r) => drawAirportTerminal(ctx, r, 'VIENNA INTERNATIONAL AIRPORT') },
+    { name: 'bud_terminal', w: 380, h: 32, ppm: 4, draw: (ctx, r) => drawAirportTerminal(ctx, r, 'BUDAPEST FERENC LISZT') },
     { name: 'vie_tower', w: 26, h: 110, ppm: 4, draw: drawVieTower },
     { name: 'airliner_austrian', w: 38, h: 13.5, ppm: 6, draw: (ctx) => drawAirliner(ctx, 38, '#d12a2f', '#ffffff', true) },
   ];
@@ -419,7 +420,7 @@ function drawCanalBridge(ctx: Ctx): void {
   }
 }
 
-function drawVieTerminal(ctx: Ctx, r: Rand): void {
+function drawAirportTerminal(ctx: Ctx, r: Rand, title: string): void {
   const W = 380;
   rect(ctx, 4, 0, W - 8, 4, '#8f9497');
   rect(ctx, 6, 4, W - 12, 18, vgrad(ctx, 22, 4, [[0, '#b7cde0'], [0.45, '#7d9bb6'], [1, '#3f5a74']]));
@@ -427,7 +428,8 @@ function drawVieTerminal(ctx: Ctx, r: Rand): void {
   rect(ctx, 6, 13, W - 12, 0.5, '#e6ecf0');
   rect(ctx, 0, 22, W, 2.6, '#f4f6f7');
   rect(ctx, 0, 21.4, W, 0.6, '#b9c1c6');
-  text(ctx, 'VIENNA INTERNATIONAL AIRPORT', W / 2, 16.2, 3.4, '#ffffff', 'center', 700);
+  const size = title.length > 26 ? 3.0 : 3.4;
+  text(ctx, title, W / 2, 16.2, size, '#ffffff', 'center', 700);
   // Jet bridges
   for (let i = 0; i < 4; i++) {
     const bx = 40 + i * 90 + r() * 6;

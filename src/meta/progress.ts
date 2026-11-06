@@ -1,11 +1,12 @@
 import { routeKey } from './airports';
+import { TRIANGLE_ROUTE_IDS } from './routes';
 
 const STORAGE_KEY = 'airways.progress.v1';
 
 export interface Progress {
+  /** Airport where the aircraft currently sits. */
   homeAirport: string;
   unlockedRoutes: string[];
-  /** Placeholder stats for the hub strip; filled by later career tracking. */
   successfulFlights: number;
   crashes: number;
   deaths: number;
@@ -13,7 +14,7 @@ export interface Progress {
 
 const DEFAULT: Progress = {
   homeAirport: 'BTS',
-  unlockedRoutes: [routeKey('BTS', 'VIE')],
+  unlockedRoutes: [...TRIANGLE_ROUTE_IDS],
   successfulFlights: 0,
   crashes: 0,
   deaths: 0,
@@ -22,17 +23,18 @@ const DEFAULT: Progress = {
 export function loadProgress(): Progress {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT, unlockedRoutes: [...DEFAULT.unlockedRoutes] };
+    if (!raw) return clone(DEFAULT);
     const parsed = JSON.parse(raw) as Partial<Progress>;
+    const unlocked = new Set([...(parsed.unlockedRoutes ?? []), ...TRIANGLE_ROUTE_IDS]);
     return {
       homeAirport: parsed.homeAirport ?? DEFAULT.homeAirport,
-      unlockedRoutes: parsed.unlockedRoutes?.length ? [...parsed.unlockedRoutes] : [...DEFAULT.unlockedRoutes],
+      unlockedRoutes: [...unlocked],
       successfulFlights: parsed.successfulFlights ?? 0,
       crashes: parsed.crashes ?? 0,
       deaths: parsed.deaths ?? 0,
     };
   } catch {
-    return { ...DEFAULT, unlockedRoutes: [...DEFAULT.unlockedRoutes] };
+    return clone(DEFAULT);
   }
 }
 
@@ -46,6 +48,31 @@ export function isRouteUnlocked(p: Progress, from: string, to: string): boolean 
 
 export function airportStatus(p: Progress, iata: string): 'home' | 'open' | 'locked' {
   if (iata === p.homeAirport) return 'home';
-  if (p.unlockedRoutes.some((r) => r.startsWith(`${p.homeAirport}-`) && r.endsWith(`-${iata}`))) return 'open';
+  if (p.unlockedRoutes.some((r) => r === routeKey(p.homeAirport, iata))) return 'open';
   return 'locked';
+}
+
+/** After a safe arrival the fleet relocates to the destination. */
+export function recordSuccess(p: Progress, destIata: string): Progress {
+  const next = {
+    ...p,
+    homeAirport: destIata,
+    successfulFlights: p.successfulFlights + 1,
+  };
+  saveProgress(next);
+  return next;
+}
+
+export function recordCrash(p: Progress, soulsOnBoard: number): Progress {
+  const next = {
+    ...p,
+    crashes: p.crashes + 1,
+    deaths: p.deaths + Math.max(0, soulsOnBoard),
+  };
+  saveProgress(next);
+  return next;
+}
+
+function clone(p: Progress): Progress {
+  return { ...p, unlockedRoutes: [...p.unlockedRoutes] };
 }

@@ -449,12 +449,35 @@ button {
   background: linear-gradient(90deg, rgba(255, 90, 79, 0.5) 0 30%, rgba(99, 230, 161, 0.35) 30% 80%, rgba(255, 195, 92, 0.5) 80%);
 }
 
+.cht-bar {
+  background: linear-gradient(
+    90deg,
+    rgba(99, 230, 161, 0.35) 0 78%,
+    rgba(255, 195, 92, 0.55) 78% 90%,
+    rgba(255, 90, 79, 0.55) 90%
+  );
+}
+
 .bar-fill {
   position: absolute;
   inset: 0;
   background: #fff;
   transform-origin: left center;
   transform: scaleX(0);
+}
+
+.bar-fill.cht.caution {
+  background: #ffc35c;
+}
+
+.bar-fill.cht.hot {
+  background: #ff5a4f;
+}
+
+.warn.hot {
+  color: #ff5a4f;
+  background: rgba(255, 90, 79, 0.18);
+  border-color: rgba(255, 90, 79, 0.55);
 }
 
 .speed-bar .bar-fill {
@@ -1153,6 +1176,22 @@ button {
 
 .hub.has-route .hub-hint {
   opacity: 0;
+  pointer-events: none;
+}
+
+.hub-link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hub-cyan);
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 .hub-dock {

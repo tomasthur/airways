@@ -19,7 +19,7 @@
       <div id="hud" class="hud is-hidden">
         <section class="panel mission">
           <div class="route">
-            <span class="code">BTS</span><span class="city">BRATISLAVA</span><span class="arrow">→</span><span class="city">VIENNA</span><span class="code">VIE</span>
+            <span class="code" data-ref="routeFromCode">BTS</span><span class="city" data-ref="routeFromCity">BRATISLAVA</span><span class="arrow">→</span><span class="city" data-ref="routeToCity">VIENNA</span><span class="code" data-ref="routeToCode">VIE</span>
           </div>
           <div class="track"><div class="track-storms" data-ref="trackStorms"></div><div class="track-fill" data-ref="trackFill"></div><div class="track-plane" data-ref="trackPlane">✈</div></div>
           <div class="mission-meta"><span data-ref="distance">VIE 11.4 km</span><span data-ref="phase">Ready for departure</span></div>
@@ -42,6 +42,7 @@
           <span class="warn" data-warn="sink">SINK RATE</span>
           <span class="warn amber" data-warn="flaps">FLAP SPEED</span>
           <span class="warn amber" data-warn="terrain">TERRAIN</span>
+          <span class="warn amber" data-warn="cht">CHT</span>
         </div>
 
         <div class="hint" data-ref="hint"></div>
@@ -90,6 +91,11 @@
             <label>Power</label>
             <div class="val"><b data-ref="power">0</b><small>%</small></div>
             <div class="bar"><div class="bar-fill power" data-ref="powerBar"></div></div>
+          </div>
+          <div class="inst">
+            <label>CHT</label>
+            <div class="val"><b data-ref="cht">0</b><small>%</small></div>
+            <div class="bar cht-bar"><div class="bar-fill cht" data-ref="chtBar"></div></div>
           </div>
           <div class="inst state">
             <label>Flaps</label>
@@ -189,7 +195,7 @@
           <div class="hub-haze" aria-hidden="true"></div>
         </div>
 
-        <p class="hub-hint">Tap an open airport to file a flight plan</p>
+        <p class="hub-hint">Tap an open airport · or <button type="button" class="hub-link" data-hub="random">surprise me</button></p>
 
         <div class="hub-dock is-hidden" data-hub="dock">
           <div class="hub-dock-route">

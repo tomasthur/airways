@@ -1,5 +1,6 @@
 import { AIRPORTS, airportByIata, type Airport } from '../meta/airports';
 import { airportStatus, loadProgress, type Progress } from '../meta/progress';
+import { getRoute } from '../meta/routes';
 
 /** Geographic frame for the Central Europe SVG (lon west→east, lat south→north). */
 const LON0 = 10.2;
@@ -12,6 +13,7 @@ const VH = 620;
 const PIN_NUDGE: Record<string, { x: number; y: number }> = {
   BTS: { x: -14, y: 10 },
   VIE: { x: 18, y: -8 },
+  BUD: { x: 8, y: 6 },
 };
 
 /** Simplified Central Europe land silhouette in viewBox coordinates. */
@@ -63,6 +65,7 @@ export class HubMenu {
 
     root.querySelector('[data-hub="fly"]')!.addEventListener('click', () => this.fly());
     root.querySelector('[data-hub="clear"]')?.addEventListener('click', () => this.clearSelection());
+    root.querySelector('[data-hub="random"]')?.addEventListener('click', () => this.pickRandom());
   }
 
   show(visible: boolean): void {
@@ -83,11 +86,22 @@ export class HubMenu {
 
   tryFlyFromKeyboard(): boolean {
     if (!this.canFly()) {
-      this.toast('Pick Vienna on the map to file a flight plan');
+      this.toast('Pick an open airport on the map — or tap Surprise me');
       return false;
     }
     this.fly();
     return true;
+  }
+
+  private pickRandom(): void {
+    const open = AIRPORTS.filter((a) => airportStatus(this.progress, a.iata) === 'open');
+    if (!open.length) {
+      this.toast('No open destinations from this base');
+      return;
+    }
+    const pick = open[Math.floor(Math.random() * open.length)];
+    this.selectDestination(pick.iata);
+    this.toast(`Filed at random · ${this.progress.homeAirport} → ${pick.iata}`);
   }
 
   private fly(): void {
@@ -125,8 +139,9 @@ export class HubMenu {
     this.root.classList.add('has-route');
     this.setText('dockFrom', home.iata);
     this.setText('dockTo', dest.iata);
+    const route = getRoute(home.iata, dest.iata);
     this.setText('dockTitle', `${home.city} → ${dest.city}`);
-    this.setText('dockBrief', dest.brief ?? '');
+    this.setText('dockBrief', route?.brief ?? dest.brief ?? '');
     this.setText('dockMeta', this.routeMeta(home, dest));
     this.setText('flyLabel', `Fly to ${dest.city}`);
   }

@@ -81,7 +81,12 @@ export function evaluateTouchdown(td: Touchdown, rw: Runway): TouchdownVerdict {
   };
 }
 
-export function buildReport(items: ScoreItem[], overran: boolean, tailStrike: boolean): LandingReport {
+export function buildReport(
+  items: ScoreItem[],
+  overran: boolean,
+  tailStrike: boolean,
+  welcome?: { title: string; message: string },
+): LandingReport {
   const list = items.slice();
   if (overran) list.push({ label: 'Runway excursion', value: 'Rolled past the runway end', score: -15, max: 0 });
   if (tailStrike) list.push({ label: 'Tail strike', value: 'Nose too high at touchdown', score: -10, max: 0 });
@@ -94,8 +99,8 @@ export function buildReport(items: ScoreItem[], overran: boolean, tailStrike: bo
   else grade = 'Everyone walked away. Barely.';
   return {
     success: true,
-    title: 'Welcome to Vienna',
-    message: 'Flight OM-BTV has landed at Vienna International Airport.',
+    title: welcome?.title ?? 'Welcome',
+    message: welcome?.message ?? 'Flight OM-BTV has landed.',
     total,
     grade,
     items: list,

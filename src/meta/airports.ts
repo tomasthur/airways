@@ -23,7 +23,7 @@ export const AIRPORTS: Airport[] = [
     name: 'M. R. Štefánik',
     lat: 48.1702,
     lon: 17.2127,
-    brief: 'Your current base. Board, start up and launch from runway 31.',
+    brief: 'Board, start up and launch toward your next open destination.',
   },
   {
     id: 'vie',
@@ -32,7 +32,7 @@ export const AIRPORTS: Airport[] = [
     name: 'Schwechat',
     lat: 48.1103,
     lon: 16.5697,
-    brief: 'Short hop over the Danube and Parndorf plain. Land runway 29 with the PAPI.',
+    brief: 'Schwechat runway 29 – PAPI and a firm but gentle touchdown.',
   },
   {
     id: 'prg',
@@ -50,7 +50,8 @@ export const AIRPORTS: Airport[] = [
     name: 'Ferenc Liszt',
     lat: 47.4298,
     lon: 19.2611,
-    lockHint: 'Budapest remains closed until you expand the network.',
+    brief: 'Danube corridor into Hungary. Land at Ferenc Liszt and keep the PAPI honest.',
+    lockHint: 'No open route to Budapest from your current base.',
   },
   {
     id: 'muc',

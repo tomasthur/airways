@@ -20,6 +20,10 @@ export interface AtcContext {
   climbRate: number;
   toAim: number;
   time: number;
+  originCity: string;
+  destCity: string;
+  originRunway: string;
+  destRunway: string;
 }
 
 const CALLSIGN = 'OM-BTV';
@@ -88,8 +92,8 @@ export class Atc {
 
     if (c.phase === 'takeoff' && c.engineRunning) {
       this.say('takeoff', {
-        station: 'Bratislava Tower',
-        text: `${CALLSIGN}, ${this.windText()}, runway 31, cleared for take-off.`,
+        station: `${c.originCity} Tower`,
+        text: `${CALLSIGN}, ${this.windText()}, runway ${c.originRunway}, cleared for take-off.`,
         replies: [],
         ttl: 7,
       });
@@ -120,7 +124,7 @@ export class Atc {
       if (this.advisories.has(cell) && c.x > exit + 250) {
         this.say(`clear-${cell.x0}`, {
           station: 'Wien Radar',
-          text: `${CALLSIGN}, you are clear of the weather. ${c.toAim > 6000 ? 'Climb or descend at your discretion, plan your descent for Vienna.' : 'Descend at your discretion for runway 29.'}`,
+          text: `${CALLSIGN}, you are clear of the weather. ${c.toAim > 6000 ? `Climb or descend at your discretion, plan your descent for ${c.destCity}.` : `Descend at your discretion for runway ${c.destRunway}.`}`,
           replies: [],
           ttl: 7,
         });
@@ -139,8 +143,8 @@ export class Atc {
 
     if (c.toAim < 6800) {
       this.say('landing', {
-        station: 'Wien Tower',
-        text: `${CALLSIGN}, Wien Tower, ${this.windText()}, runway 29, cleared to land.`,
+        station: `${c.destCity} Tower`,
+        text: `${CALLSIGN}, ${c.destCity} Tower, ${this.windText()}, runway ${c.destRunway}, cleared to land.`,
         replies: [],
         ttl: 8,
       });
