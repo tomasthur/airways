@@ -1,0 +1,16 @@
+node_modules
+dist
+*.log
+.shots
+
+# Android / Capacitor build output
+android/.gradle
+android/app/build
+android/build
+android/captures
+android/local.properties
+android/.idea
+android/*.iml
+*.apk
+*.aab
+.capacitor

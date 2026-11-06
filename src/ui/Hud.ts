@@ -1,0 +1,187 @@
+import type { LandingReport } from '../sim/Landing';
+import type { HoldAction, Input, PressAction } from '../game/Input';
+
+export interface HudData {
+  speedKmh: number;
+  altitude: number;
+  verticalSpeed: number;
+  power: number;
+  flaps: number;
+  flapsTarget: number;
+  gear: number;
+  gearTarget: number;
+  progress: number;
+  distanceKm: number;
+  phase: string;
+}
+
+export type WarningKey = 'stall' | 'gear' | 'sink' | 'flaps' | 'terrain';
+
+/** DOM HUD. Writes to the DOM only when values change. */
+export class Hud {
+  private readonly refs = new Map<string, HTMLElement>();
+  private readonly cache = new Map<string, string>();
+  private readonly warnEls = new Map<WarningKey, HTMLElement>();
+  private readonly papiLights: HTMLElement[];
+  private landmarkKey = '';
+
+  private readonly root: HTMLElement;
+
+  constructor(root: HTMLElement, input: Input) {
+    this.root = root;
+    root.querySelectorAll<HTMLElement>('[data-ref]').forEach((el) => this.refs.set(el.dataset.ref!, el));
+    root.querySelectorAll<HTMLElement>('[data-warn]').forEach((el) => this.warnEls.set(el.dataset.warn as WarningKey, el));
+    this.papiLights = Array.from(root.querySelectorAll<HTMLElement>('.papi-lights i'));
+
+    root.querySelectorAll<HTMLButtonElement>('[data-action]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        input.emit(btn.dataset.action as PressAction);
+        btn.blur();
+      });
+    });
+    root.querySelectorAll<HTMLButtonElement>('[data-hold]').forEach((btn) => {
+      const action = btn.dataset.hold as HoldAction;
+      const set = (down: boolean) => {
+        input.setPointer(action, down);
+        btn.classList.toggle('active', down);
+      };
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        btn.setPointerCapture(e.pointerId);
+        set(true);
+      });
+      btn.addEventListener('pointerup', () => set(false));
+      btn.addEventListener('pointercancel', () => set(false));
+      btn.addEventListener('lostpointercapture', () => set(false));
+      btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    });
+  }
+
+  private ref(name: string): HTMLElement {
+    const el = this.refs.get(name);
+    if (!el) throw new Error(`Missing HUD element ${name}`);
+    return el;
+  }
+
+  private text(name: string, value: string): void {
+    if (this.cache.get(name) === value) return;
+    this.cache.set(name, value);
+    this.ref(name).textContent = value;
+  }
+
+  private style(name: string, prop: 'transform' | 'width' | 'left', value: string): void {
+    const key = `${name}.${prop}`;
+    if (this.cache.get(key) === value) return;
+    this.cache.set(key, value);
+    this.ref(name).style[prop] = value;
+  }
+
+  private cls(el: HTMLElement, key: string, value: string): void {
+    if (this.cache.get(key) === value) return;
+    this.cache.set(key, value);
+    el.className = value;
+  }
+
+  show(id: 'hud' | 'menu' | 'pause' | 'report' | 'loading', visible: boolean): void {
+    document.getElementById(id)?.classList.toggle('is-hidden', !visible);
+  }
+
+  update(d: HudData): void {
+    this.text('speed', Math.round(d.speedKmh).toString());
+    this.style('speedBar', 'width', `${Math.min(100, (d.speedKmh / 320) * 100).toFixed(1)}%`);
+    this.text('alt', Math.round(d.altitude).toString());
+    const vs = Math.abs(d.verticalSpeed) < 0.05 ? 0 : d.verticalSpeed;
+    this.text('vs', `${vs > 0 ? '+' : ''}${vs.toFixed(1)}`);
+    const needle = Math.max(-1, Math.min(1, d.verticalSpeed / 8));
+    this.style('vsNeedle', 'left', `${(50 + needle * 50).toFixed(1)}%`);
+    this.text('power', Math.round(d.power * 100).toString());
+    this.style('powerBar', 'transform', `scaleX(${d.power.toFixed(3)})`);
+
+    const flapsMoving = Math.abs(d.flaps - d.flapsTarget) > 0.01;
+    this.text('flaps', flapsMoving ? (d.flapsTarget > 0.5 ? 'EXT…' : 'RET…') : d.flaps > 0.5 ? 'DOWN 30°' : 'UP');
+    this.cls(this.ref('flaps'), 'flapsCls', `state-val${flapsMoving ? ' transit' : d.flaps > 0.5 ? ' on' : ''}`);
+    const gearMoving = Math.abs(d.gear - d.gearTarget) > 0.01;
+    this.text('gear', gearMoving ? 'TRANSIT' : d.gear > 0.5 ? 'DOWN' : 'UP');
+    this.cls(this.ref('gear'), 'gearCls', `state-val${gearMoving ? ' transit' : d.gear > 0.5 ? ' on' : ''}`);
+
+    const p = Math.max(0, Math.min(1, d.progress));
+    this.style('trackFill', 'width', `${(p * 100).toFixed(2)}%`);
+    this.style('trackPlane', 'left', `${(p * 100).toFixed(2)}%`);
+    this.text('distance', d.distanceKm > 0.05 ? `VIE ${d.distanceKm.toFixed(1)} km` : 'VIE runway 29');
+    this.text('phase', d.phase);
+  }
+
+  setFps(fps: number): void {
+    this.text('fps', `${Math.round(fps)} fps`);
+  }
+
+  setQuality(label: string): void {
+    this.text('quality', `Quality: ${label}`);
+  }
+
+  setMuted(muted: boolean): void {
+    this.text('mute', muted ? 'Sound off' : 'Sound on');
+  }
+
+  setHint(text: string): void {
+    this.text('hint', text);
+  }
+
+  setWarnings(active: Record<WarningKey, boolean>): void {
+    for (const [key, el] of this.warnEls) this.cls(el, `warn.${key}`, `warn${el.classList.contains('amber') ? ' amber' : ''}${active[key] ? ' on' : ''}`);
+  }
+
+  /** whites < 0 hides the indicator. */
+  setPapi(whites: number): void {
+    const panel = this.ref('papi');
+    const visible = whites >= 0;
+    this.cls(panel, 'papiCls', `panel papi${visible ? '' : ' is-hidden'}`);
+    if (!visible) return;
+    this.papiLights.forEach((el, i) => this.cls(el, `papi${i}`, i < whites ? 'white' : ''));
+    const label = whites >= 4 ? 'TOO HIGH' : whites === 3 ? 'SLIGHTLY HIGH' : whites === 2 ? 'ON GLIDE PATH' : whites === 1 ? 'SLIGHTLY LOW' : 'TOO LOW';
+    this.text('papiLabel', label);
+  }
+
+  setLandmark(title: string, subtitle: string): void {
+    const key = title;
+    if (key === this.landmarkKey) return;
+    this.landmarkKey = key;
+    const el = this.ref('landmark');
+    if (!title) {
+      el.classList.remove('show');
+      return;
+    }
+    this.ref('lmTitle').textContent = title;
+    this.ref('lmSub').textContent = subtitle;
+    el.classList.add('show');
+  }
+
+  setControlLit(action: 'flaps' | 'gear', lit: boolean): void {
+    const btn = this.root.querySelector<HTMLElement>(`.ctl[data-action="${action}"]`);
+    if (btn) this.cls(btn, `ctl.${action}`, `ctl wide${lit ? ' lit' : ''}`);
+  }
+
+  showReport(r: LandingReport, stats: string): void {
+    this.ref('reportEyebrow').textContent = r.success ? 'Landing report' : 'Flight ended';
+    this.ref('reportTitle').textContent = r.title;
+    this.ref('reportMsg').textContent = r.message;
+    this.ref('reportScoreWrap').classList.toggle('is-hidden', !r.success);
+    this.ref('reportScore').textContent = r.total.toString();
+    this.ref('reportGrade').textContent = r.grade;
+    const table = this.ref('reportItems') as HTMLTableElement;
+    table.innerHTML = '';
+    for (const item of r.items) {
+      const tr = table.insertRow();
+      tr.insertCell().textContent = item.label;
+      tr.insertCell().textContent = item.value;
+      const c = tr.insertCell();
+      c.textContent = item.max > 0 ? `${item.score} / ${item.max}` : `${item.score}`;
+      if (item.score < 0) c.className = 'neg';
+    }
+    table.classList.toggle('is-hidden', r.items.length === 0);
+    this.ref('reportStats').textContent = stats;
+    this.ref('reportButton').innerHTML = `${r.success ? 'Fly again' : 'Try again'} <small>R</small>`;
+    this.show('report', true);
+  }
+}

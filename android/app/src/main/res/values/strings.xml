@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AIRWAYS</string>
+    <string name="title_activity_main">AIRWAYS</string>
+    <string name="package_name">com.tomasthur.airways</string>
+    <string name="custom_url_scheme">com.tomasthur.airways</string>
+</resources>

@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#2f4f78" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="AIRWAYS" />
+    <title>AIRWAYS – Bratislava to Vienna</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="loading" class="loading"><div class="spinner"></div><span>Painting the Danube…</span></div>
+
+      <div id="hud" class="hud is-hidden">
+        <section class="panel mission">
+          <div class="route">
+            <span class="code">BTS</span><span class="city">BRATISLAVA</span><span class="arrow">→</span><span class="city">VIENNA</span><span class="code">VIE</span>
+          </div>
+          <div class="track"><div class="track-fill" data-ref="trackFill"></div><div class="track-plane" data-ref="trackPlane">✈</div></div>
+          <div class="mission-meta"><span data-ref="distance">VIE 11.4 km</span><span data-ref="phase">Ready for departure</span></div>
+        </section>
+
+        <section class="toolbar">
+          <span class="fps" data-ref="fps">– fps</span>
+          <button type="button" data-action="quality" data-ref="quality">High</button>
+          <button type="button" data-action="mute" data-ref="mute">Sound on</button>
+          <button type="button" data-action="pause">Pause</button>
+          <button type="button" data-action="restart">Restart</button>
+        </section>
+
+        <div class="landmark" data-ref="landmark"><div class="lm-title" data-ref="lmTitle"></div><div class="lm-sub" data-ref="lmSub"></div></div>
+
+        <div class="warnings">
+          <span class="warn" data-warn="stall">STALL</span>
+          <span class="warn" data-warn="gear">GEAR</span>
+          <span class="warn" data-warn="sink">SINK RATE</span>
+          <span class="warn amber" data-warn="flaps">FLAP SPEED</span>
+          <span class="warn amber" data-warn="terrain">TERRAIN</span>
+        </div>
+
+        <div class="hint" data-ref="hint"></div>
+
+        <div class="panel papi" data-ref="papi">
+          <div class="papi-lights"><i></i><i></i><i></i><i></i></div>
+          <div class="papi-label" data-ref="papiLabel">ON GLIDE PATH</div>
+        </div>
+
+        <section class="panel instruments">
+          <div class="inst">
+            <label>Airspeed</label>
+            <div class="val"><b data-ref="speed">0</b><small>km/h</small></div>
+            <div class="bar speed-bar"><div class="bar-fill" data-ref="speedBar"></div></div>
+          </div>
+          <div class="inst">
+            <label>Altitude</label>
+            <div class="val"><b data-ref="alt">0</b><small>m</small></div>
+            <div class="sub" data-ref="altSub">AGL</div>
+          </div>
+          <div class="inst">
+            <label>Vertical speed</label>
+            <div class="val"><b data-ref="vs">0.0</b><small>m/s</small></div>
+            <div class="vsi"><div class="vsi-needle" data-ref="vsNeedle"></div></div>
+          </div>
+          <div class="inst">
+            <label>Power</label>
+            <div class="val"><b data-ref="power">0</b><small>%</small></div>
+            <div class="bar"><div class="bar-fill power" data-ref="powerBar"></div></div>
+          </div>
+          <div class="inst state">
+            <label>Flaps</label>
+            <div class="state-val" data-ref="flaps">UP</div>
+            <div class="sub">F</div>
+          </div>
+          <div class="inst state">
+            <label>Gear</label>
+            <div class="state-val" data-ref="gear">DOWN</div>
+            <div class="sub">G</div>
+          </div>
+        </section>
+
+        <section class="controls" aria-label="On-screen flight controls">
+          <div class="ctl-group">
+            <span class="ctl-label">Pitch</span>
+            <button type="button" class="ctl" data-hold="pitchUp" aria-label="Nose up">▲<small>W</small></button>
+            <button type="button" class="ctl" data-hold="pitchDown" aria-label="Nose down">▼<small>S</small></button>
+          </div>
+          <div class="ctl-group">
+            <span class="ctl-label">Power</span>
+            <button type="button" class="ctl" data-hold="powerDown" aria-label="Reduce power">−<small>A</small></button>
+            <button type="button" class="ctl" data-hold="powerUp" aria-label="Increase power">+<small>D</small></button>
+          </div>
+          <div class="ctl-group">
+            <span class="ctl-label">Config</span>
+            <button type="button" class="ctl wide" data-action="flaps">Flaps<small>F</small></button>
+            <button type="button" class="ctl wide" data-action="gear">Gear<small>G</small></button>
+          </div>
+        </section>
+      </div>
+
+      <div id="menu" class="overlay is-hidden">
+        <div class="card intro">
+          <div class="eyebrow">Prototype 01</div>
+          <h1>Airline Pilot</h1>
+          <div class="route big"><span class="code">BTS</span><span class="city">Bratislava</span><span class="arrow">→</span><span class="city">Vienna</span><span class="code">VIE</span></div>
+          <p class="brief">
+            Take your Cessna off from Bratislava, fly past the Castle and the UFO bridge over the Danube, cross the Parndorf plain
+            and land gently on runway 29 at Vienna International Airport.
+          </p>
+          <div class="keys">
+            <div><kbd>W</kbd><kbd>S</kbd><span>Nose up / down</span></div>
+            <div><kbd>A</kbd><kbd>D</kbd><span>Power − / +</span></div>
+            <div><kbd>F</kbd><span>Flaps</span></div>
+            <div><kbd>G</kbd><span>Landing gear</span></div>
+            <div><kbd>P</kbd><span>Pause</span></div>
+            <div><kbd>R</kbd><span>Restart</span></div>
+          </div>
+          <ol class="tips">
+            <li>Full power, rotate at about <b>110 km/h</b>, then retract the gear.</li>
+            <li>Cruise around <b>350 m</b>. Start descending when the PAPI lights show white.</li>
+            <li>Gear and flaps down, about <b>110 km/h</b>, flare gently and touch down below <b>1.5 m/s</b>.</li>
+          </ol>
+          <button type="button" class="primary" data-action="start">Start flight <small>Enter</small></button>
+        </div>
+      </div>
+
+      <div id="pause" class="overlay is-hidden">
+        <div class="card small">
+          <h2>Paused</h2>
+          <div class="row">
+            <button type="button" class="primary" data-action="pause">Resume <small>P</small></button>
+            <button type="button" data-action="restart">Restart <small>R</small></button>
+          </div>
+        </div>
+      </div>
+
+      <div id="report" class="overlay is-hidden">
+        <div class="card report">
+          <div class="eyebrow" data-ref="reportEyebrow">Landing report</div>
+          <h2 data-ref="reportTitle"></h2>
+          <p class="report-msg" data-ref="reportMsg"></p>
+          <div class="score" data-ref="reportScoreWrap">
+            <div class="score-num"><b data-ref="reportScore">0</b><small>/100</small></div>
+            <div class="score-grade" data-ref="reportGrade"></div>
+          </div>
+          <table class="items" data-ref="reportItems"></table>
+          <div class="stats" data-ref="reportStats"></div>
+          <button type="button" class="primary" data-action="restart" data-ref="reportButton">Fly again <small>R</small></button>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
