@@ -226,6 +226,13 @@ export class Hud {
     });
   }
 
+  setBrakeLit(lit: boolean): void {
+    const el = this.ref('brakePedal');
+    if (this.cache.get('brakeLit') === String(lit)) return;
+    this.cache.set('brakeLit', String(lit));
+    el.classList.toggle('lit', lit);
+  }
+
   setControlLit(action: 'flapsDown' | 'gear', lit: boolean): void {
     const btn = this.root.querySelector<HTMLElement>(`.ctl[data-action="${action}"]`);
     if (btn) this.cls(btn, `ctl.${action}`, `ctl wide${lit ? ' lit' : ''}`);

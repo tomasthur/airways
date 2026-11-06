@@ -37,6 +37,8 @@ export interface Touchdown {
   x: number;
   verticalSpeed: number;
   groundSpeed: number;
+  /** Air-relative speed at the moment of touchdown (m/s). */
+  airspeed: number;
   pitch: number;
   roll: number;
   gear: number;
@@ -102,7 +104,7 @@ export class FlightModel {
 
   /** Set when the aircraft touches the ground after being airborne; cleared by the consumer. */
   touchdown: Touchdown | null = null;
-  private readonly touchdownData: Touchdown = { x: 0, verticalSpeed: 0, groundSpeed: 0, pitch: 0, roll: 0, gear: 0, flaps: 0 };
+  private readonly touchdownData: Touchdown = { x: 0, verticalSpeed: 0, groundSpeed: 0, airspeed: 0, pitch: 0, roll: 0, gear: 0, flaps: 0 };
   private readonly flap = { dCl: 0, dClMax: 0, dCd: 0, dCm: 0 };
   private accumulator = 0;
   private wingDrop = 0;
@@ -254,7 +256,7 @@ export class FlightModel {
     this.stallMargin = (stallAlpha - alpha) / stallAlpha;
     const wasStalled = this.stalled;
     this.stalled = !this.onGround && alpha > stallAlpha;
-    if (this.stalled && !wasStalled) this.wingDrop = (air.rollGust >= 0 ? 1 : -1) * (0.6 + 0.4 * Math.min(1, Math.abs(alpha - stallAlpha) * 10));
+    if (this.stalled && !wasStalled) this.wingDrop = (air.rollGust >= 0 ? 1 : -1) * (1.1 + 0.6 * Math.min(1, Math.abs(alpha - stallAlpha) * 10));
     if (!this.stalled) this.wingDrop = 0;
 
     const cd = A.cd0 + (A.inducedK * cl * cl) / ge + f.dCd + C.gear.cd * this.gear;
@@ -334,11 +336,12 @@ export class FlightModel {
       this.aileron = rollStick;
     } else {
       let ail = rollStick;
-      if (this.assists.wingLeveler && Math.abs(rollStick) < 0.05) ail = clamp(-1.4 * this.roll - 1.1 * this.rollRate, -0.6, 0.6);
+      // In a stall the wings do not level themselves – the dropped wing stays down.
+      if (this.assists.wingLeveler && !this.stalled && Math.abs(rollStick) < 0.05) ail = clamp(-1.4 * this.roll - 1.1 * this.rollRate, -0.6, 0.6);
       else if (Math.abs(rollStick) >= 0.05) ail = clamp((rollStick * R.maxRollRate - this.rollRate) * 2.5, -1, 1);
       this.aileron = approach(this.aileron, ail, C.controls.elevatorRatePerS * dt);
       const pHat = (this.rollRate * span) / (2 * Math.max(V, 5));
-      const clRoll = R.clAileron * this.aileron + R.clP * pHat + air.rollGust + this.wingDrop * 0.03;
+      const clRoll = R.clAileron * this.aileron + R.clP * pHat + air.rollGust + this.wingDrop * 0.055;
       this.rollRate += ((qSb * clRoll) / C.inertia.ixxKgM2) * dt;
       this.roll += this.rollRate * dt;
       if (Math.abs(this.roll) > R.maxBank) {
@@ -352,6 +355,7 @@ export class FlightModel {
       td.x = this.x;
       td.verticalSpeed = this.vy;
       td.groundSpeed = this.vx;
+      td.airspeed = V;
       td.pitch = this.pitch;
       td.roll = this.roll;
       td.gear = this.gear;

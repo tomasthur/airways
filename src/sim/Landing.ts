@@ -32,11 +32,26 @@ export function onRunway(x: number, rw: Runway): boolean {
 export function evaluateTouchdown(td: Touchdown, rw: Runway): TouchdownVerdict {
   const vs = -td.verticalSpeed;
   const kmh = td.groundSpeed * 3.6;
+  const airKmh = (td.airspeed ?? td.groundSpeed) * 3.6;
   const dist = td.x - rw.x0;
+  // Stall in the flare: too slow for the flap setting → the wing quits and the aircraft drops.
+  const minApproach = td.flaps > 0.55 ? 78 : td.flaps > 0.2 ? 88 : 100;
 
   if (vs > 4.5) return { crash: `Touchdown at ${vs.toFixed(1)} m/s was too hard – the landing gear collapsed.`, items: [] };
   if (td.gear < 0.95) return { crash: 'Gear-up landing! The aircraft slid down the runway on its belly.', items: [] };
   if (td.pitch < -0.05 && vs > 1.5) return { crash: 'Nose-first touchdown – the nose gear collapsed.', items: [] };
+  if (airKmh < minApproach - 8 && vs > 2.2) {
+    return {
+      crash: `Stall on final – ${airKmh.toFixed(0)} km/h is too slow${td.flaps < 0.2 ? ' without landing flaps' : ''}. The wing stalled and you dropped onto the runway.`,
+      items: [],
+    };
+  }
+  if (airKmh < minApproach - 18) {
+    return {
+      crash: `You stalled short of a safe landing speed (${airKmh.toFixed(0)} km/h). Keep about ${minApproach} km/h until the flare.`,
+      items: [],
+    };
+  }
 
   let vsScore: number;
   if (vs <= 0.8) vsScore = 40;

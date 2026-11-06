@@ -15,7 +15,7 @@ interface PaletteStop {
 }
 
 /** Afternoon over Bratislava → golden hour over Vienna. */
-const STOPS: PaletteStop[] = [
+const DAY_STOPS: PaletteStop[] = [
   {
     skyTop: '#3d74c0',
     skyMid: '#7eb0e2',
@@ -57,6 +57,49 @@ const STOPS: PaletteStop[] = [
   },
 ];
 
+/** Night departure → clear moonlight over Vienna. */
+const NIGHT_STOPS: PaletteStop[] = [
+  {
+    skyTop: '#050812',
+    skyMid: '#0b1426',
+    horizon: '#182238',
+    haze: '#101820',
+    sun: '#d8e2ff',
+    tint: '#c5d2ea',
+    sunLight: '#9eb0d4',
+    hemiSky: '#121a2c',
+    hemiGround: '#1a2218',
+    sunIntensity: 0.28,
+    sunHeight: 0.48,
+  },
+  {
+    skyTop: '#060a16',
+    skyMid: '#101a30',
+    horizon: '#243048',
+    haze: '#141c28',
+    sun: '#e2e8ff',
+    tint: '#cdd8ee',
+    sunLight: '#a8b8d8',
+    hemiSky: '#151e32',
+    hemiGround: '#1c241a',
+    sunIntensity: 0.34,
+    sunHeight: 0.4,
+  },
+  {
+    skyTop: '#070c18',
+    skyMid: '#142038',
+    horizon: '#2c3a52',
+    haze: '#182030',
+    sun: '#e8eeff',
+    tint: '#d4deef',
+    sunLight: '#b0c0dc',
+    hemiSky: '#182238',
+    hemiGround: '#202618',
+    sunIntensity: 0.4,
+    sunHeight: 0.32,
+  },
+];
+
 export interface Palette {
   skyTop: THREE.Color;
   skyMid: THREE.Color;
@@ -72,11 +115,17 @@ export interface Palette {
 }
 
 const colorKeys = ['skyTop', 'skyMid', 'horizon', 'haze', 'sun', 'tint', 'sunLight', 'hemiSky', 'hemiGround'] as const;
-const parsed = STOPS.map((s) => {
-  const out: Record<string, THREE.Color> = {};
-  for (const k of colorKeys) out[k] = new THREE.Color(s[k]);
-  return out;
-});
+
+function parseStops(stops: PaletteStop[]) {
+  return stops.map((s) => {
+    const out: Record<string, THREE.Color> = {};
+    for (const k of colorKeys) out[k] = new THREE.Color(s[k]);
+    return out;
+  });
+}
+
+const parsedDay = parseStops(DAY_STOPS);
+const parsedNight = parseStops(NIGHT_STOPS);
 
 export function createPalette(): Palette {
   const p = {} as Palette;
@@ -86,15 +135,17 @@ export function createPalette(): Palette {
   return p;
 }
 
-/** Samples the palette at route progress t in [0, 1] without allocating. */
-export function samplePalette(t: number, out: Palette): void {
-  const x = Math.max(0, Math.min(1, t)) * (STOPS.length - 1);
-  const i = Math.min(STOPS.length - 2, Math.floor(x));
+/** Samples the day or night palette at route progress t in [0, 1] without allocating. */
+export function samplePalette(t: number, out: Palette, night = false): void {
+  const stops = night ? NIGHT_STOPS : DAY_STOPS;
+  const parsed = night ? parsedNight : parsedDay;
+  const x = Math.max(0, Math.min(1, t)) * (stops.length - 1);
+  const i = Math.min(stops.length - 2, Math.floor(x));
   const f = x - i;
   const s = f * f * (3 - 2 * f);
   for (const k of colorKeys) out[k].copy(parsed[i][k]).lerp(parsed[i + 1][k], s);
-  out.sunIntensity = STOPS[i].sunIntensity + (STOPS[i + 1].sunIntensity - STOPS[i].sunIntensity) * s;
-  out.sunHeight = STOPS[i].sunHeight + (STOPS[i + 1].sunHeight - STOPS[i].sunHeight) * s;
+  out.sunIntensity = stops[i].sunIntensity + (stops[i + 1].sunIntensity - stops[i].sunIntensity) * s;
+  out.sunHeight = stops[i].sunHeight + (stops[i + 1].sunHeight - stops[i].sunHeight) * s;
 }
 
 /** Full-screen sky gradient with a sun disc and glow, drawn behind everything. */

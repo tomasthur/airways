@@ -3,11 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#2f4f78" />
+    <meta name="theme-color" content="#071018" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="AIRWAYS" />
     <title>AIRWAYS – Bratislava to Vienna</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="app">
@@ -107,7 +110,6 @@
               <button type="button" class="ctl wide" data-action="flapsDown">Flaps ▼<small>F</small></button>
               <button type="button" class="ctl wide" data-action="flapsUp">Flaps ▲<small>V</small></button>
               <button type="button" class="ctl wide" data-action="gear">Gear<small>G</small></button>
-              <button type="button" class="ctl wide" data-hold="brake">Brake<small>B</small></button>
             </div>
           </div>
           <div class="ctl-group">
@@ -131,34 +133,85 @@
           </div>
           <span class="throttle-val" data-ref="throttleVal">0%</span>
           <span class="ctl-key">⇧ / X</span>
+          <button type="button" class="brake-pedal" data-hold="brake" data-ref="brakePedal" aria-label="Wheel brakes">
+            Brake
+            <small>hold B</small>
+          </button>
         </section>
       </div>
 
-      <div id="menu" class="overlay is-hidden">
-        <div class="card intro">
-          <div class="eyebrow">Prototype 01</div>
-          <h1>Airline Pilot</h1>
-          <div class="route big"><span class="code">BTS</span><span class="city">Bratislava</span><span class="arrow">→</span><span class="city">Vienna</span><span class="code">VIE</span></div>
-          <p class="brief">
-            Take your Cessna off from Bratislava, fly past the Castle and the UFO bridge over the Danube, cross the Parndorf plain
-            and land gently on runway 29 at Vienna International Airport.
-          </p>
-          <div class="keys">
-            <div><kbd>W</kbd><kbd>S</kbd><span>Nose up / down</span></div>
-            <div><kbd>X</kbd><kbd>Shift</kbd><span>Power − / +</span></div>
-            <div><kbd>F</kbd><kbd>V</kbd><span>Flaps down / up</span></div>
-            <div><kbd>G</kbd><span>Landing gear</span></div>
-            <div><kbd>B</kbd><span>Brakes</span></div>
-            <div><kbd>P</kbd><span>Pause</span></div>
-            <div><kbd>R</kbd><span>Restart</span></div>
+      <div id="menu" class="hub is-hidden" data-hub="root">
+        <div class="hub-glow" aria-hidden="true"></div>
+        <header class="hub-top">
+          <div class="hub-brand">
+            <div class="hub-wordmark">AIRWAYS</div>
+            <p class="hub-tag">Central Europe · visual ops</p>
           </div>
-          <ol class="tips">
-            <li>Full power, rotate at about <b>110 km/h</b>, then retract the gear.</li>
-            <li>Cruise around <b>350 m</b>. Start descending when the PAPI lights show white.</li>
-            <li>Gear and flaps down, about <b>110 km/h</b>, flare gently and touch down below <b>1.5 m/s</b>.</li>
-          </ol>
-          <button type="button" class="primary" data-action="start">Start flight <small>Enter</small></button>
+          <div class="hub-stats" aria-label="Career stats">
+            <div class="hub-stat"><span data-hub="statFlights">—</span><small>Flights</small></div>
+            <div class="hub-stat"><span data-hub="statCrashes">—</span><small>Crashes</small></div>
+            <div class="hub-stat"><span data-hub="statDeaths">—</span><small>Losses</small></div>
+            <div class="hub-stat hub-stat--home"><span data-hub="statHome">BTS</span><small>Base</small></div>
+          </div>
+        </header>
+
+        <div class="hub-map" data-hub="map">
+          <svg class="hub-svg" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid meet" aria-label="Central Europe route map">
+            <defs>
+              <linearGradient id="hubLand" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#0e1a24" />
+                <stop offset="55%" stop-color="#152636" />
+                <stop offset="100%" stop-color="#1c3348" />
+              </linearGradient>
+              <radialGradient id="hubSea" cx="50%" cy="45%" r="70%">
+                <stop offset="0%" stop-color="#152636" />
+                <stop offset="100%" stop-color="#071018" />
+              </radialGradient>
+              <filter id="hubSoft" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="1.2" />
+              </filter>
+            </defs>
+            <rect class="hub-sea" width="1000" height="620" fill="url(#hubSea)" />
+            <g class="hub-grid" opacity="0.18">
+              <path d="M0 100 H1000 M0 200 H1000 M0 300 H1000 M0 400 H1000 M0 500 H1000 M100 0 V620 M200 0 V620 M300 0 V620 M400 0 V620 M500 0 V620 M600 0 V620 M700 0 V620 M800 0 V620 M900 0 V620" />
+            </g>
+            <path
+              class="hub-land"
+              fill="url(#hubLand)"
+              stroke="rgba(126,200,255,0.16)"
+              stroke-width="1.5"
+              d="M 118 470 C 130 510 168 545 230 555 C 290 565 340 540 390 525 C 430 545 480 570 545 560 C 610 548 660 500 700 455 C 745 470 800 455 845 410 C 890 365 920 300 910 245 C 900 190 850 155 790 145 C 740 138 700 160 660 150 C 620 120 560 95 500 105 C 440 115 400 150 360 145 C 310 138 270 115 220 130 C 170 148 140 190 125 240 C 108 300 100 370 118 470 Z"
+            />
+            <path class="hub-coast" fill="none" stroke="rgba(240,180,41,0.12)" stroke-width="6" filter="url(#hubSoft)" d="M 118 470 C 130 510 168 545 230 555 C 290 565 340 540 390 525 C 430 545 480 570 545 560 C 610 548 660 500 700 455 C 745 470 800 455 845 410 C 890 365 920 300 910 245 C 900 190 850 155 790 145 C 740 138 700 160 660 150 C 620 120 560 95 500 105 C 440 115 400 150 360 145 C 310 138 270 115 220 130 C 170 148 140 190 125 240 C 108 300 100 370 118 470 Z" />
+            <path class="hub-route" data-hub="route" fill="none" stroke="#7ec8ff" stroke-width="2.4" stroke-linecap="round" />
+            <g data-hub="pins"></g>
+          </svg>
+          <div class="hub-haze" aria-hidden="true"></div>
         </div>
+
+        <p class="hub-hint">Tap an open airport to file a flight plan</p>
+
+        <div class="hub-dock is-hidden" data-hub="dock">
+          <div class="hub-dock-route">
+            <span class="hub-dock-code" data-hub="dockFrom">BTS</span>
+            <span class="hub-dock-arrow" aria-hidden="true">→</span>
+            <span class="hub-dock-code" data-hub="dockTo">VIE</span>
+          </div>
+          <div class="hub-dock-copy">
+            <strong data-hub="dockTitle">Bratislava → Vienna</strong>
+            <span data-hub="dockBrief"></span>
+            <small data-hub="dockMeta"></small>
+          </div>
+          <div class="hub-dock-actions">
+            <button type="button" class="hub-ghost" data-hub="clear">Clear</button>
+            <button type="button" class="hub-fly" data-hub="fly">
+              <span data-hub="flyLabel">Fly to Vienna</span>
+              <small>Enter</small>
+            </button>
+          </div>
+        </div>
+
+        <div class="hub-toast" data-hub="toast" role="status"></div>
       </div>
 
       <div id="pause" class="overlay is-hidden">
@@ -182,7 +235,7 @@
           </div>
           <table class="items" data-ref="reportItems"></table>
           <div class="stats" data-ref="reportStats"></div>
-          <button type="button" class="primary" data-action="restart" data-ref="reportButton">Fly again <small>R</small></button>
+          <button type="button" class="primary" data-action="restart" data-ref="reportButton">Back to map <small>R</small></button>
         </div>
       </div>
     </div>

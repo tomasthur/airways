@@ -1,16 +1,16 @@
 {
   "meta": {
-    "recordedWith": "FlightModel (Phase 2: weather, storms, roll axis, structural limits)",
+    "recordedWith": "FlightModel (Phase 2b: harsher stall, night flights, mobile brake)",
     "frameDt": 0.016666666666666666
   },
   "results": {
     "takeoff": {
-      "liftoffGroundRollM": 218.6,
-      "liftoffSpeedKmh": 119.2,
-      "liftoffTimeS": 14.47,
-      "distanceTo15mM": 452.6,
-      "timeTo15mS": 20.8,
-      "runwayRemainingAt15mM": 1407.4
+      "liftoffGroundRollM": 224.1,
+      "liftoffSpeedKmh": 120.4,
+      "liftoffTimeS": 14.63,
+      "distanceTo15mM": 460.5,
+      "timeTo15mS": 20.98,
+      "runwayRemainingAt15mM": 1399.5
     },
     "climb": {
       "climbRateMs": 5.25,
@@ -27,16 +27,16 @@
     "stallClean": {
       "stallSpeedKmh": 95.2,
       "stalledAfter3sFullAft": true,
-      "unstallsWithNeutralStickS": 0.38,
-      "altitudeLostM": 34.5,
-      "recoveryTimeS": 8.4
+      "unstallsWithNeutralStickS": 0.35,
+      "altitudeLostM": 121.9,
+      "recoveryTimeS": 9.3
     },
     "stallFlaps": {
       "stallSpeedKmh": 83.1,
       "stalledAfter3sFullAft": true,
-      "unstallsWithNeutralStickS": 0.4,
-      "altitudeLostM": 28.4,
-      "recoveryTimeS": 7.3
+      "unstallsWithNeutralStickS": 0.38,
+      "altitudeLostM": 89.5,
+      "recoveryTimeS": 8.6
     },
     "dive": {
       "maxSpeedKmh": 381.4,
@@ -46,24 +46,24 @@
     },
     "takeoffLight": {
       "massKg": 920,
-      "groundRollM": 172.3,
-      "liftoffSpeedKmh": 117.3,
-      "distanceTo15mM": 354.1
+      "groundRollM": 175.5,
+      "liftoffSpeedKmh": 118.2,
+      "distanceTo15mM": 359.1
     },
     "takeoffHeavy": {
       "massKg": 1200,
-      "groundRollM": 248.6,
-      "liftoffSpeedKmh": 120.5,
-      "distanceTo15mM": 521.8
+      "groundRollM": 258.7,
+      "liftoffSpeedKmh": 122.3,
+      "distanceTo15mM": 532.6
     },
     "takeoffFlaps10": {
       "massKg": 1100,
-      "groundRollM": 201.3,
-      "liftoffSpeedKmh": 113.8,
-      "distanceTo15mM": 388.4
+      "groundRollM": 205.6,
+      "liftoffSpeedKmh": 114.7,
+      "distanceTo15mM": 395.1
     },
     "rotation": {
-      "noseWheelLiftsAtKmh": 84.8
+      "noseWheelLiftsAtKmh": 85.1
     },
     "loadSheet": {
       "defaultMassKg": 1100,
@@ -78,32 +78,32 @@
       "movedWhileBraked": false
     },
     "mission": {
-      "liftoffX": 420,
+      "liftoffX": 429,
       "maxAltitudeM": 348,
       "topOfDescentX": 6108,
-      "touchdownPastThresholdM": 609,
-      "touchdownVsMs": 2.07,
-      "touchdownSpeedKmh": 82.6,
-      "rolloutM": 77,
-      "stoppedX": 12186,
-      "totalTimeS": 290.2,
+      "touchdownPastThresholdM": 601,
+      "touchdownVsMs": 2.18,
+      "touchdownSpeedKmh": 83.8,
+      "rolloutM": 79,
+      "stoppedX": 12180,
+      "totalTimeS": 289.9,
       "crash": null,
       "score": 79,
       "grade": "Smooth landing."
     },
     "hardLanding": {
-      "touchdownVsMs": 4.66,
+      "touchdownVsMs": 4.69,
       "crash": true,
       "verdict": "Touchdown at 4.7 m/s was too hard – the landing gear collapsed."
     },
     "gearUpLanding": {
-      "touchdownVsMs": 0.43,
+      "touchdownVsMs": 0.58,
       "crash": true,
       "verdict": "Gear-up landing! The aircraft slid down the runway on its belly."
     },
     "braking": {
-      "stopDistanceM": 120.1,
-      "stopTimeS": 7.92
+      "stopDistanceM": 117.8,
+      "stopTimeS": 7.82
     },
     "roll": {
       "bankAt2sDeg": 52.8,

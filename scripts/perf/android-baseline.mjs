@@ -273,7 +273,11 @@ const PROBE = String.raw`(async (quality) => {
   const flights = [];
   const pitchTo = (t) => { const e = t - fm.pitch - fm.pitchRate * 0.25; key('KeyW', e > 0.004); key('KeyS', e < -0.004); };
   const thrTo = (t) => { key('ShiftLeft', fm.throttleLever < t - 0.02); key('KeyX', fm.throttleLever > t + 0.02); };
-  const start = () => { phase = 'takeoff'; document.querySelector('[data-action=start]')?.click(); };
+  const start = () => {
+    phase = 'takeoff';
+    document.querySelector('[data-iata="VIE"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    setTimeout(() => document.querySelector('[data-hub="fly"]')?.click(), 120);
+  };
   start();
   setInterval(() => {
     if (g.state === 'report') {

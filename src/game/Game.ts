@@ -25,6 +25,7 @@ import { Weather } from '../sim/Weather';
 import { buildReport, evaluateTouchdown, failureReport, onRunway, type ScoreItem } from '../sim/Landing';
 import { acquireWakeLock, bindNativeLifecycle, isNativePlatform, releaseWakeLock } from '../native';
 import { FlightControls } from '../ui/FlightControls';
+import { HubMenu } from '../ui/HubMenu';
 import { Hud, type ChecklistView, type WarningKey } from '../ui/Hud';
 import { Atc } from './Atc';
 import { Input, type PressAction } from './Input';
@@ -55,6 +56,7 @@ export class Game {
   private readonly fm = new FlightModel();
   private readonly input = new Input();
   private readonly hud: Hud;
+  private readonly hub: HubMenu;
   private readonly sound = new EngineSound();
   private readonly hemi: THREE.HemisphereLight;
   private readonly sun: THREE.DirectionalLight;
@@ -77,6 +79,8 @@ export class Game {
   private passengerCount = 1;
   private belts = false;
   private boardingStarted = false;
+  /** Random day / night departure for this flight. */
+  private nightFlight = false;
   private takeoffFlapsAtLiftoff = -1;
   private stormEncounter: 'none' | 'light' | 'moderate' | 'severe' = 'none';
   private atcTimer = 0;
@@ -150,6 +154,7 @@ export class Game {
     this.camera.rotation.set(CAMERA_PITCH, 0, 0);
 
     this.hud = new Hud(app, this.input);
+    this.hub = new HubMenu(document.getElementById('menu')!, () => this.begin());
     this.controlsUi = new FlightControls(
       app,
       (v) => this.fm.setThrottleLever(v),
@@ -185,9 +190,7 @@ export class Game {
           return true;
         }
         if (this.state === 'report') {
-          this.hud.show('report', false);
-          this.hud.show('menu', true);
-          this.state = 'menu';
+          this.returnToHub();
           return true;
         }
         return false;
@@ -199,8 +202,8 @@ export class Game {
     this.reset();
     this.hud.setMuted(false);
     this.hud.show('loading', false);
-    this.hud.show('menu', true);
     this.hud.show('hud', true);
+    this.hub.show(true);
     this.lastFrame = performance.now();
     this.renderer.setAnimationLoop((t) => this.frame(t));
   }
@@ -293,6 +296,7 @@ export class Game {
 
   private reset(): void {
     const seed = (Math.random() * 2 ** 31) | 0;
+    this.nightFlight = (seed >>> 8) % 100 < 42;
     this.weather = new Weather({ seed });
     this.fm.weather = this.weather;
     this.fm.reset(START_X, false);
@@ -336,12 +340,12 @@ export class Game {
   private onPress(a: PressAction): void {
     switch (a) {
       case 'start':
-        if (this.state === 'menu') this.begin();
-        else if (this.state === 'report') this.restart();
+        if (this.state === 'menu') this.hub.tryFlyFromKeyboard();
+        else if (this.state === 'report') this.returnToHub();
         else if (this.state === 'paused') this.setPaused(false);
         break;
       case 'restart':
-        this.restart();
+        if (this.state === 'report' || this.state === 'paused' || this.state === 'flying') this.returnToHub();
         break;
       case 'pause':
         if (this.state === 'flying') this.setPaused(true);
@@ -446,22 +450,27 @@ export class Game {
   }
 
   private begin(): void {
+    this.reset();
+    this.hub.show(false);
+    this.hud.show('menu', false);
+    this.hud.show('report', false);
+    this.hud.show('pause', false);
     this.sound.start();
     this.sound.resume();
-    this.hud.show('menu', false);
     this.state = 'flying';
     void acquireWakeLock();
   }
 
-  private restart(): void {
+  /** Leave the flight / report and reopen the map hub (selection remembered). */
+  private returnToHub(): void {
     this.reset();
     this.hud.show('report', false);
     this.hud.show('pause', false);
-    this.hud.show('menu', false);
-    this.sound.start();
-    this.sound.resume();
-    this.state = 'flying';
-    void acquireWakeLock();
+    this.sound.suspend();
+    releaseWakeLock();
+    this.state = 'menu';
+    this.hub.show(true);
+    this.lastFrame = performance.now();
   }
 
   private setPaused(p: boolean): void {
@@ -706,7 +715,7 @@ export class Game {
     // Time of day along the route
     const progress = (this.camera.position.x - 1500) / (VIE_RUNWAY.x0 - 1500);
     const p = this.palette;
-    samplePalette(progress, p);
+    samplePalette(progress, p, this.nightFlight);
     // Storms darken the existing atmosphere around them; inside the cloud the view closes in.
     const gloom = this.stormGloom(this.camera.position.x);
     const inCloud = this.state === 'menu' ? 0 : fm.air.cloud;
@@ -727,13 +736,15 @@ export class Game {
     atmosphere.haze.value.copy(p.haze);
     const fog = this.scene.fog as THREE.Fog;
     fog.color.copy(p.haze);
-    fog.near = this.baseFog.near * (1 - 0.92 * inCloud);
-    fog.far = this.baseFog.far * (1 - 0.88 * inCloud) * (1 - 0.3 * gloom);
+    const night = this.nightFlight ? 1 : 0;
+    fog.near = this.baseFog.near * (1 - 0.92 * inCloud) * (1 - 0.35 * night);
+    fog.far = this.baseFog.far * (1 - 0.88 * inCloud) * (1 - 0.3 * gloom) * (1 - 0.45 * night);
     this.hemi.color.copy(p.hemiSky);
     this.hemi.groundColor.copy(p.hemiGround);
-    this.hemi.intensity = 1.25 * (1 - 0.3 * gloom) + flash * 1.2;
+    this.hemi.intensity = (this.nightFlight ? 0.55 : 1.25) * (1 - 0.3 * gloom) + flash * 1.2;
     this.sun.color.copy(p.sunLight);
     this.sun.intensity = p.sunIntensity;
+    this.renderer.toneMappingExposure = this.nightFlight ? 0.85 : 1.0;
     this.sky.update(p, this.camera);
 
     // Passengers boarding and the wing-tip trails.
@@ -803,13 +814,14 @@ export class Game {
       );
     }
     this.hud.setControlLit('flapsDown', fm.flapIndex > 0);
+    this.hud.setControlLit('gear', fm.gearTarget > 0.5);
+    this.hud.setBrakeLit(fm.braking || this.input.brake > 0.05);
     this.controlsUi.sync(fm.throttleLever);
     this.hud.setChecklist(flying && this.phase === 'preflight' ? this.checklist() : null);
     const msg = flying ? this.atc.current : null;
     this.hud.setAtc(msg ? msg.station : null, msg?.text, msg?.replies);
     const assigned = this.atc.assignedAltitude;
     this.hud.setAltitudeNote(assigned !== null && !fm.onGround ? `ATC ${assigned} m` : 'AGL');
-    this.hud.setControlLit('gear', fm.gearTarget > 0.5);
 
     const airborne = !fm.onGround;
     const nearAirport = (fm.x > VIE_RUNWAY.x0 - 1500 && fm.x < VIE_RUNWAY.x1) || fm.x < BTS_RUNWAY.x1 + 600;
@@ -886,9 +898,10 @@ export class Game {
     const fm = this.fm;
     if (this.state === 'menu') return 'Ready for departure';
     if (this.crashed) return 'Flight ended';
-    if (this.phase === 'preflight') return 'Pre-flight at runway 31';
-    if (this.phase === 'takeoff') return Math.abs(fm.vx) < 0.5 ? 'Holding on runway 31' : 'Take-off roll';
-    if (this.phase === 'rollout') return Math.abs(fm.vx) < 0.5 ? 'Arrived in Vienna' : 'Landing roll';
+    const tod = this.nightFlight ? ' · Night' : '';
+    if (this.phase === 'preflight') return `Pre-flight at runway 31${tod}`;
+    if (this.phase === 'takeoff') return (Math.abs(fm.vx) < 0.5 ? 'Holding on runway 31' : 'Take-off roll') + tod;
+    if (this.phase === 'rollout') return (Math.abs(fm.vx) < 0.5 ? 'Arrived in Vienna' : 'Landing roll') + tod;
     const glideStart = fm.y / Math.tan(THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG));
     if (toAim < 2500) return 'Final approach';
     if (toAim < glideStart + 300) return 'Descent';
@@ -902,7 +915,7 @@ export class Game {
       const c = this.checklist();
       if (!this.boardingStarted || !c.done.boarding) return this.plane.doorOpen ? 'Passengers are boarding…' : 'Open the cabin door (O) to board the passengers';
       if (!c.done.door) return 'Close the cabin door (O)';
-      if (!c.done.lights) return 'Switch on the beacon and navigation lights (L)';
+      if (!c.done.lights) return this.nightFlight ? 'Night departure – switch on the beacon and navigation lights (L)' : 'Switch on the beacon and navigation lights (L)';
       if (!c.done.flaps) return 'Set take-off flaps 10°';
       if (!c.done.belts) return 'Switch on the seatbelt sign (N)';
       return fm.engine.state === 'starting' ? 'Engine starting…' : 'Start the engine (I)';
@@ -912,7 +925,12 @@ export class Game {
       if (kmh < 100) return `Accelerating… lift the nose at 110 km/h`;
       return 'Rotate! Pull the yoke (W / ↑) to raise the nose';
     }
-    if (this.phase === 'rollout') return Math.abs(fm.vx) > 0.5 ? 'Throttle to idle (X) and brake (B)' : '';
+    if (this.phase === 'rollout') {
+      if (Math.abs(fm.vx) <= 0.5) return '';
+      if (fm.throttleLever > 0.05) return 'Idle the throttle (X), then hold Brake';
+      return fm.braking ? 'Braking…' : 'Hold the Brake pedal to stop';
+    }
+    if (fm.stalled) return 'STALL! Nose down and add power – do not pull!';
     if (fm.overspeed) return 'Overspeed! Reduce power and raise the nose';
     if (fm.loadFactor > fm.config.limits.limitLoadG * 0.85) return 'Too many g – ease off the yoke!';
     if (Math.abs(fm.roll) > 0.45) return 'Steep bank – level the wings (A / D)';
@@ -930,11 +948,13 @@ export class Game {
       return 'Cruise around 350 m at ~200 km/h (about 70% power)';
     }
     if (toAim > 0) {
-      if (fm.y < 14 && fm.x > VIE_RUNWAY.x0 - 300) return 'Flare: cut the power (X) and gently raise the nose (W)';
+      if (fm.y < 14 && fm.x > VIE_RUNWAY.x0 - 300) return 'Flare: cut the power (X) and gently raise the nose (W) – do not let the speed decay below ~110 km/h';
+      if (fm.stallMargin < 0.18 && fm.y < 80) return 'Too slow on approach – add a little power or lower the nose';
       if (fm.flapOverspeed) return 'Too fast for this flap setting – slow down or retract (V)';
       if (fm.gearTarget < 0.5 && toAim < 5000) return 'Landing gear down (G)';
       if (fm.flapsTarget < 1 && toAim < 3500) return `Flaps ${fm.flapIndex === 0 ? 'down' : 'further'} (F) for landing – full is 30°`;
       if (kmh > 170 && toAim < 3000) return 'Too fast – reduce power, aim for ~120 km/h';
+      if (kmh < 105 && toAim < 2500 && fm.flapIndex < 2) return 'Too slow without enough flaps – add power or set flaps';
       return 'Descend on the glide path: 2 white + 2 red PAPI lights';
     }
     return fm.y < 14 ? 'Flare and touch down on the runway' : 'You are long – land now or go around';

@@ -3,7 +3,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 
 const SHIRTS = ['#c8202f', '#2f6db5', '#e2b13c', '#3f8f5a', '#7a4fa0', '#e46f2a'];
 const SKIN = ['#f1c7a5', '#d9a77f', '#a8714d'];
-const WALK_SPEED = 1.35;
+const WALK_SPEED = 2.6;
+const BOARD_STAGGER_S = 0.85;
 
 interface Walker {
   mesh: THREE.Mesh;
@@ -71,7 +72,7 @@ export class Passengers {
       mesh.castShadow = true;
       mesh.visible = false;
       this.root.add(mesh);
-      this.walkers.push({ mesh, delay: i * 2.2, progress: 0, done: false });
+      this.walkers.push({ mesh, delay: i * BOARD_STAGGER_S, progress: 0, done: false });
     }
   }
 

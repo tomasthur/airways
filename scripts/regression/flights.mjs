@@ -531,7 +531,7 @@ const again = mission();
 const deterministic = JSON.stringify(again) === JSON.stringify(results.mission);
 
 const update = process.argv.includes('--update');
-const meta = { recordedWith: 'FlightModel (Phase 2: weather, storms, roll axis, structural limits)', frameDt: FRAME_DT };
+const meta = { recordedWith: 'FlightModel (Phase 2b: harsher stall, night flights, mobile brake)', frameDt: FRAME_DT };
 
 if (update || !fs.existsSync(BASELINE_FILE)) {
   fs.writeFileSync(BASELINE_FILE, JSON.stringify({ meta, results }, null, 2) + '\n');
