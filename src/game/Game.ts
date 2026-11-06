@@ -16,7 +16,7 @@ import { Airplane } from '../render/Airplane';
 import { atmosphere } from '../render/Billboards';
 import { Sky, createPalette, samplePalette } from '../render/Sky';
 import { World } from '../render/World';
-import { AIRCRAFT, FlightModel, type Touchdown } from '../sim/FlightModel';
+import { FlightModel, type Touchdown } from '../sim/FlightModel';
 import { buildReport, evaluateTouchdown, failureReport, onRunway, type ScoreItem } from '../sim/Landing';
 import { acquireWakeLock, bindNativeLifecycle, isNativePlatform, releaseWakeLock } from '../native';
 import { Hud, type WarningKey } from '../ui/Hud';
@@ -77,7 +77,8 @@ export class Game {
   private fpsTime = 0;
   fps = 0;
 
-  private readonly warnings: Record<WarningKey, boolean> = { stall: false, gear: false, sink: false, flaps: false, terrain: false };
+  private readonly warnings: Record<WarningKey, boolean> = { stall: false, overspeed: false, gear: false, sink: false, flaps: false, terrain: false };
+  private readonly controls = { pitch: 0, throttle: 0, brake: 0 };
 
   private readonly app: HTMLElement;
 
@@ -296,10 +297,18 @@ export class Game {
         this.applyQuality();
         break;
       case 'flaps':
+      case 'flapsDown':
+      case 'flapsUp': {
         if (this.state !== 'flying') break;
-        this.fm.toggleFlaps();
-        this.flash(this.fm.flapsTarget > 0.5 ? 'Flaps extending' : 'Flaps retracting');
+        const fm = this.fm;
+        const before = fm.flapIndex;
+        if (a === 'flaps') fm.cycleFlaps();
+        else if (a === 'flapsDown') fm.flapsDown();
+        else fm.flapsUp();
+        if (fm.flapIndex === before) this.flash(a === 'flapsDown' ? 'Flaps are fully down' : 'Flaps are already up');
+        else this.flash(fm.flapIndex === 0 ? 'Flaps retracting' : `Flaps ${fm.flapTargetDeg}°`);
         break;
+      }
       case 'gear':
         if (this.state !== 'flying') break;
         if (!this.fm.toggleGear()) this.flash('The gear cannot retract with weight on the wheels');
@@ -370,7 +379,11 @@ export class Game {
 
   private simulate(dt: number): void {
     const fm = this.fm;
-    fm.update(dt, { pitch: this.input.pitch, throttle: this.input.throttle });
+    const c = this.controls;
+    c.pitch = this.input.pitch;
+    c.throttle = this.input.throttle;
+    c.brake = this.input.brake;
+    fm.update(dt, c);
     this.flightTime += dt;
 
     if (fm.touchdown) {
@@ -431,7 +444,7 @@ export class Game {
         return;
       }
       this.touchdownItems = v.items;
-      this.tailStrike = td.pitch > AIRCRAFT.maxGroundPitch + 0.02;
+      this.tailStrike = td.pitch > this.fm.config.geometry.tailStrikePitch + 0.02;
       this.phase = 'rollout';
       this.flash(vs < 1 ? 'Butter! Idle power to brake' : 'Touchdown – idle power to brake');
       return;
@@ -541,24 +554,25 @@ export class Game {
       altitude: fm.y,
       verticalSpeed: fm.vy,
       power: fm.throttle,
-      flaps: fm.flaps,
-      flapsTarget: fm.flapsTarget,
+      flapsDeg: fm.flapDeg,
+      flapsTargetDeg: fm.flapTargetDeg,
       gear: fm.gear,
       gearTarget: fm.gearTarget,
       progress: (fm.x - START_X) / routeLen,
       distanceKm: Math.max(0, VIE_RUNWAY.x0 - fm.x) / 1000,
       phase: this.phaseLabel(toAim),
     });
-    this.hud.setControlLit('flaps', fm.flapsTarget > 0.5);
+    this.hud.setControlLit('flaps', fm.flapIndex > 0);
     this.hud.setControlLit('gear', fm.gearTarget > 0.5);
 
     const airborne = !fm.onGround;
     const nearAirport = (fm.x > VIE_RUNWAY.x0 - 1500 && fm.x < VIE_RUNWAY.x1) || fm.x < BTS_RUNWAY.x1 + 600;
     const w = this.warnings;
     w.stall = flying && airborne && fm.stallMargin < 0.12 && fm.airspeed > 5;
+    w.overspeed = flying && fm.overspeed;
     w.gear = flying && airborne && fm.gearTarget < 0.5 && fm.y < 120 && fm.vy < -0.5 && fm.x > VIE_RUNWAY.x0 - 6000;
     w.sink = flying && airborne && fm.y < 200 && fm.vy < -6;
-    w.flaps = flying && fm.flaps > 0.1 && kmh > 185;
+    w.flaps = flying && fm.flapOverspeed;
     w.terrain = flying && airborne && fm.y < 40 && fm.vy < -3 && !nearAirport;
     this.hud.setWarnings(w);
 
@@ -592,25 +606,27 @@ export class Game {
     const fm = this.fm;
     const kmh = fm.airspeed * 3.6;
     if (this.phase === 'takeoff') {
-      if (fm.throttle < 0.95) return 'Hold D (or →) for full take-off power';
+      if (fm.throttleLever < 0.95) return 'Hold Shift (or +) for full take-off power';
       if (kmh < 100) return `Accelerating… lift the nose at 110 km/h`;
       return 'Rotate! Hold W (or ↑) to raise the nose';
     }
-    if (this.phase === 'rollout') return fm.airspeed > 1 ? 'Power to idle (A) to brake' : '';
+    if (this.phase === 'rollout') return fm.airspeed > 1 ? 'Power to idle (X) and brake (B)' : '';
+    if (fm.overspeed) return 'Overspeed! Reduce power and raise the nose';
     const glideStart = fm.y / Math.tan(THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG));
     const descending = toAim < glideStart + 200;
     if (!descending) {
       if (fm.gearTarget > 0.5 && fm.y > 15) return 'Positive climb – retract the landing gear (G)';
-      if (fm.flapsTarget > 0.5 && fm.y > 60) return 'Retract the flaps (F) for cruise';
+      if (fm.flapIndex > 0 && fm.y > 60) return 'Retract the flaps (V) for cruise';
       if (fm.y < SUGGESTED_CRUISE_ALT - 60) return `Climb to about ${SUGGESTED_CRUISE_ALT} m`;
       if (fm.y > SUGGESTED_CRUISE_ALT + 250) return 'You are high – Vienna is close, plan your descent';
       if (toAim < glideStart + 1200) return 'Top of descent ahead – get ready to reduce power';
       return 'Cruise around 350 m at ~200 km/h (about 70% power)';
     }
     if (toAim > 0) {
-      if (fm.y < 14 && fm.x > VIE_RUNWAY.x0 - 300) return 'Flare: cut the power (A) and gently raise the nose (W)';
+      if (fm.y < 14 && fm.x > VIE_RUNWAY.x0 - 300) return 'Flare: cut the power (X) and gently raise the nose (W)';
+      if (fm.flapOverspeed) return 'Too fast for this flap setting – slow down or retract (V)';
       if (fm.gearTarget < 0.5 && toAim < 5000) return 'Landing gear down (G)';
-      if (fm.flapsTarget < 0.5 && toAim < 3500) return 'Flaps down (F) for landing';
+      if (fm.flapsTarget < 1 && toAim < 3500) return `Flaps ${fm.flapIndex === 0 ? 'down' : 'further'} (F) for landing – full is 30°`;
       if (kmh > 170 && toAim < 3000) return 'Too fast – reduce power, aim for ~120 km/h';
       return 'Descend on the glide path: 2 white + 2 red PAPI lights';
     }

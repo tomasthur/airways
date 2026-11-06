@@ -29,14 +29,14 @@ if (!fs.existsSync(androidDir)) {
   process.exit(1);
 }
 
-const gradlew = process.platform === 'win32' ? path.join(androidDir, 'gradlew.bat') : path.join(androidDir, 'gradlew');
-const result = spawnSync(gradlew, ['assembleDebug'], {
-  cwd: androidDir,
-  stdio: 'inherit',
-  env: process.env,
-  shell: false,
-});
+// Node refuses to spawn .bat files directly, so Windows goes through cmd.exe.
+const [cmd, args] =
+  process.platform === 'win32'
+    ? [process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'gradlew.bat', 'assembleDebug']]
+    : [path.join(androidDir, 'gradlew'), ['assembleDebug']];
+const result = spawnSync(cmd, args, { cwd: androidDir, stdio: 'inherit', env: process.env });
 
+if (result.error) console.error(result.error.message);
 if (result.status !== 0) process.exit(result.status ?? 1);
 
 const apk = path.join(androidDir, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');

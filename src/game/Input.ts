@@ -1,27 +1,30 @@
-export type HoldAction = 'pitchUp' | 'pitchDown' | 'powerDown' | 'powerUp';
-export type PressAction = 'flaps' | 'gear' | 'pause' | 'restart' | 'mute' | 'start' | 'quality';
+export type HoldAction = 'pitchUp' | 'pitchDown' | 'powerDown' | 'powerUp' | 'brake';
+export type PressAction = 'flaps' | 'flapsDown' | 'flapsUp' | 'gear' | 'pause' | 'restart' | 'mute' | 'start' | 'quality';
 
+/**
+ * Default key map. Deliberately free of Ctrl/Alt/Meta combinations, Escape (Shift+Esc opens the
+ * Chrome task manager) and the Firefox quick-find keys (/ and '). A/D and ←/→ are reserved for roll.
+ */
 const HOLD_KEYS: Record<string, HoldAction> = {
   KeyW: 'pitchUp',
   ArrowUp: 'pitchUp',
   KeyS: 'pitchDown',
   ArrowDown: 'pitchDown',
-  KeyA: 'powerDown',
-  ArrowLeft: 'powerDown',
-  KeyD: 'powerUp',
-  ArrowRight: 'powerUp',
+  ShiftLeft: 'powerUp',
+  ShiftRight: 'powerUp',
+  KeyX: 'powerDown',
+  KeyB: 'brake',
 };
 
 const PRESS_KEYS: Record<string, PressAction> = {
-  KeyF: 'flaps',
+  KeyF: 'flapsDown',
+  KeyV: 'flapsUp',
   KeyG: 'gear',
   KeyP: 'pause',
-  Escape: 'pause',
   KeyR: 'restart',
   KeyM: 'mute',
   Enter: 'start',
   Space: 'start',
-  KeyQ: 'quality',
 };
 
 /** Keyboard plus on-screen (pointer) controls mapped to the same actions. */
@@ -32,6 +35,7 @@ export class Input {
 
   constructor() {
     window.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
       if (HOLD_KEYS[e.code]) {
         this.codes.add(e.code);
         e.preventDefault();
@@ -75,5 +79,9 @@ export class Input {
 
   get throttle(): number {
     return (this.isHeld('powerUp') ? 1 : 0) - (this.isHeld('powerDown') ? 1 : 0);
+  }
+
+  get brake(): number {
+    return this.isHeld('brake') ? 1 : 0;
   }
 }

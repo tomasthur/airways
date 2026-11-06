@@ -12,6 +12,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FlightModel } from '../../src/sim/FlightModel.ts';
 import { buildReport, evaluateTouchdown } from '../../src/sim/Landing.ts';
+import { C172RG } from '../../src/sim/aircraft/c172rg.ts';
+import { computeLoadSheet, DEFAULT_LOAD } from '../../src/sim/LoadSheet.ts';
 import { AIM_POINT_X, BTS_RUNWAY, GLIDE_SLOPE_DEG, START_X, VIE_RUNWAY } from '../../src/config.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -29,13 +31,13 @@ const pilot = (fm, input) => ({
     input.pitch = Math.max(-1, Math.min(1, (target - fm.pitch) * 6 - fm.pitchRate * 1.5));
   },
   throttleTo(target) {
-    input.throttle = Math.max(-1, Math.min(1, (target - fm.throttle) * 8));
+    input.throttle = Math.max(-1, Math.min(1, (target - fm.throttleLever) * 8));
   },
 });
 
 /** Steps the model until `tick` returns true or maxTime elapses. */
 function fly(fm, maxTime, tick) {
-  const input = { pitch: 0, throttle: 0 };
+  const input = { pitch: 0, throttle: 0, brake: 0 };
   const p = pilot(fm, input);
   let t = 0;
   while (t < maxTime) {
@@ -46,14 +48,27 @@ function fly(fm, maxTime, tick) {
   return t;
 }
 
+/** Puts flaps at a detent instantly (no transit). */
+function flapsNow(fm, index) {
+  fm.setFlapIndex(index);
+  fm.flapDeg = fm.flapTargetDeg;
+  fm.flaps = fm.flapsTarget;
+}
+
+/** Sets lever and engine power instantly (no spool-up). */
+function powerNow(fm, v) {
+  fm.setThrottleLever(v);
+  fm.engine.power = fm.throttle = v;
+}
+
 function airborneAt(fm, x, alt, speed, opts = {}) {
   fm.reset(x);
   fm.y = alt;
   fm.vx = speed;
   fm.onGround = false;
   fm.gear = fm.gearTarget = opts.gear ?? 0;
-  fm.flaps = fm.flapsTarget = opts.flaps ?? 0;
-  fm.throttle = opts.throttle ?? 0.7;
+  flapsNow(fm, opts.flaps ?? 0);
+  powerNow(fm, opts.throttle ?? 0.7);
   fm.pitch = opts.pitch ?? 0.02;
 }
 
@@ -136,21 +151,88 @@ const scenarios = {
 
   /** Same with full flaps. */
   stallFlaps() {
-    return stall(1);
+    return stall(3);
   },
 
-  /** Nose down at full power for 25 s: shows there is no overspeed limit today. */
+  /** Nose down at full power: speed builds past Vne and the overspeed flag must trip. */
   dive() {
     const fm = new FlightModel();
     airborneAt(fm, 3000, 900, 55, { throttle: 1 });
     let vmax = 0;
+    let overspeedAt = null;
     fly(fm, 25, (t, input, p) => {
       p.throttleTo(1);
       p.pitchTo(-20 * DEG);
       vmax = Math.max(vmax, fm.airspeed);
+      if (overspeedAt === null && fm.overspeed) overspeedAt = { t, v: fm.airspeed };
       return fm.y < 50;
     });
-    return { maxSpeedKmh: r(vmax * KMH, 1), altitudeLostM: r(900 - fm.y, 1) };
+    return {
+      maxSpeedKmh: r(vmax * KMH, 1),
+      altitudeLostM: r(900 - fm.y, 1),
+      overspeedAfterS: overspeedAt && r(overspeedAt.t, 2),
+      overspeedAtKmh: overspeedAt && r(overspeedAt.v * KMH, 1),
+    };
+  },
+
+  /** Takeoff mass matters: empty-ish vs. near MTOW. */
+  takeoffLight() {
+    return takeoffRun({ passengers: 0, baggageKg: 0, fuelKg: 60 });
+  },
+  takeoffHeavy() {
+    return takeoffRun({ passengers: 2, baggageKg: 20, fuelKg: 160 });
+  },
+
+  /** Default load with 10° flaps: shorter ground roll. */
+  takeoffFlaps10() {
+    return takeoffRun(DEFAULT_LOAD, 1);
+  },
+
+  /** Lowest speed at which full aft stick lifts the nose wheel (elevator authority vs. weight). */
+  rotation() {
+    const fm = new FlightModel();
+    fm.reset(START_X);
+    let noseUp = null;
+    fly(fm, 60, (t, input, p) => {
+      p.throttleTo(1);
+      input.pitch = fm.airspeed > 10 ? 1 : 0;
+      if (fm.pitch > 0.01) noseUp = fm.airspeed;
+      return noseUp !== null;
+    });
+    return { noseWheelLiftsAtKmh: r(noseUp * KMH, 1) };
+  },
+
+  /** Load sheet: limits are enforced. */
+  loadSheet() {
+    const ok = computeLoadSheet(C172RG, DEFAULT_LOAD);
+    const full = computeLoadSheet(C172RG, { passengers: 3, baggageKg: 40, fuelKg: 168 });
+    const tooMany = computeLoadSheet(C172RG, { passengers: 4, baggageKg: 0, fuelKg: 50 });
+    return {
+      defaultMassKg: ok.massKg,
+      defaultProblems: ok.problems.length,
+      fullCabinFullFuelKg: full.massKg,
+      fullCabinFullFuelProblems: full.problems.join(' '),
+      fourPassengersProblems: tooMany.problems.length,
+    };
+  },
+
+  /** Engine: start time and power following the lever. */
+  engine() {
+    const fm = new FlightModel();
+    fm.reset(START_X, false);
+    fm.engine.start();
+    let running = null;
+    let p90 = null;
+    fly(fm, 20, (t, input) => {
+      input.brake = 1;
+      if (running === null && fm.engine.state === 'running') {
+        running = t;
+        fm.setThrottleLever(1);
+      }
+      if (running !== null && p90 === null && fm.throttle >= 0.9) p90 = t - running;
+      return p90 !== null;
+    });
+    return { startTimeS: r(running, 2), idleTo90PercentS: r(p90, 2), movedWhileBraked: fm.x - START_X > 0.5 };
   },
 
   /** Scripted BTS → VIE mission (same pilot as scripts/simulate.ts), scored with Landing.ts. */
@@ -173,7 +255,7 @@ const scenarios = {
     const fm = new FlightModel();
     fm.reset(VIE_RUNWAY.x0 + 300);
     fm.vx = 100 / KMH;
-    fm.flaps = fm.flapsTarget = 1;
+    flapsNow(fm, 3);
     const x0 = fm.x;
     const t = fly(fm, 60, (t, input, p) => {
       p.throttleTo(0);
@@ -184,27 +266,78 @@ const scenarios = {
   },
 };
 
-function stall(flaps) {
+/**
+ * 1 g stall: idle power, hold altitude until the wing stalls, keep full aft stick for 3 s,
+ * then release the stick (the nose must drop on its own), add full power and climb away.
+ */
+function stall(flapIndex) {
   const fm = new FlightModel();
-  airborneAt(fm, 3000, 600, 45, { throttle: 0, flaps });
-  let first = null;
-  fly(fm, 60, (t, input, p) => {
-    p.throttleTo(0);
-    input.pitch = 1;
-    if (!first && fm.stalled) first = { t, v: fm.airspeed, y: fm.y };
-    return first !== null && t > first.t + 10;
+  airborneAt(fm, 3000, 600, 45, { throttle: 0, flaps: flapIndex, pitch: 0.05 });
+  let entry = null;
+  let releasedAt = null;
+  let unstalledAt = null;
+  let stalledAfterHold = null;
+  let lowest = Infinity;
+  const t = fly(fm, 90, (t, input, p) => {
+    if (!entry) {
+      p.throttleTo(0);
+      input.pitch = Math.max(-1, Math.min(1, -fm.vy * 0.8 - fm.pitchRate));
+      if (fm.stalled) entry = { t, v: fm.airspeed, y: fm.y };
+      return false;
+    }
+    lowest = Math.min(lowest, fm.y);
+    if (releasedAt === null) {
+      input.pitch = 1;
+      if (t >= entry.t + 3) {
+        stalledAfterHold = fm.stalled;
+        releasedAt = t;
+      }
+      return false;
+    }
+    if (unstalledAt === null) {
+      input.pitch = 0;
+      if (!fm.stalled) unstalledAt = t;
+      return t > releasedAt + 10;
+    }
+    p.throttleTo(1);
+    p.pitchTo(5 * DEG);
+    return fm.vy > 0 && t > unstalledAt + 1;
   });
   return {
-    stallSpeedKmh: r(first.v * KMH, 1),
-    timeToStallS: r(first.t, 2),
-    altitudeLost10sAfterM: r(first.y - fm.y, 1),
-    stalledAfter10s: fm.stalled,
+    stallSpeedKmh: r(entry.v * KMH, 1),
+    stalledAfter3sFullAft: stalledAfterHold,
+    unstallsWithNeutralStickS: unstalledAt === null ? null : r(unstalledAt - releasedAt, 2),
+    altitudeLostM: r(entry.y - lowest, 1),
+    recoveryTimeS: r(t - entry.t, 1),
+  };
+}
+
+/** Full-power takeoff roll with a given load and flap setting; rotation at 100 km/h. */
+function takeoffRun(load, flapIndex = 0) {
+  const fm = new FlightModel(C172RG, load);
+  fm.reset(START_X);
+  flapsNow(fm, flapIndex);
+  let liftoff = null;
+  let x15 = null;
+  fly(fm, 120, (t, input, p) => {
+    p.throttleTo(1);
+    if (fm.airspeed * KMH > C172RG.limits.vrKmh) p.pitchTo(9 * DEG);
+    else input.pitch = 0;
+    if (!liftoff && !fm.onGround && fm.y > 0.3) liftoff = { x: fm.x, v: fm.airspeed };
+    if (fm.y >= 15) x15 = fm.x;
+    return x15 !== null;
+  });
+  return {
+    massKg: fm.mass,
+    groundRollM: r(liftoff.x - START_X, 1),
+    liftoffSpeedKmh: r(liftoff.v * KMH, 1),
+    distanceTo15mM: r(x15 - START_X, 1),
   };
 }
 
 function forcedTouchdown({ vy, gear }) {
   const fm = new FlightModel();
-  airborneAt(fm, VIE_RUNWAY.x0 + 350, 0.15, 32, { gear, flaps: 1, throttle: 0, pitch: 0.06 });
+  airborneAt(fm, VIE_RUNWAY.x0 + 350, 0.15, 32, { gear, flaps: 3, throttle: 0, pitch: 0.06 });
   fm.vy = vy;
   let td = null;
   fly(fm, 10, (t, input, p) => {
@@ -257,7 +390,7 @@ function mission() {
       const targetSpeed = AIM_POINT_X - fm.x < 3000 ? 32 : 45;
       p.throttleTo(0.35 + (targetSpeed - V) * 0.08);
       if (AIM_POINT_X - fm.x < 4500 && fm.gearTarget < 0.5) fm.toggleGear();
-      if (AIM_POINT_X - fm.x < 3200 && fm.flapsTarget < 0.5) fm.toggleFlaps();
+      if (AIM_POINT_X - fm.x < 3200 && fm.flapIndex < 3) fm.setFlapIndex(3);
       if (fm.y < 7) phase = 'flare';
     } else if (phase === 'flare') {
       p.throttleTo(0);
@@ -303,7 +436,7 @@ const again = mission();
 const deterministic = JSON.stringify(again) === JSON.stringify(results.mission);
 
 const update = process.argv.includes('--update');
-const meta = { recordedWith: 'FlightModel (Prototype 01, 2D)', frameDt: FRAME_DT };
+const meta = { recordedWith: 'FlightModel (Phase 1: AircraftConfig c172rg, moment-based pitch)', frameDt: FRAME_DT };
 
 if (update || !fs.existsSync(BASELINE_FILE)) {
   fs.writeFileSync(BASELINE_FILE, JSON.stringify({ meta, results }, null, 2) + '\n');

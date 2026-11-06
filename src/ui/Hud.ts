@@ -6,8 +6,8 @@ export interface HudData {
   altitude: number;
   verticalSpeed: number;
   power: number;
-  flaps: number;
-  flapsTarget: number;
+  flapsDeg: number;
+  flapsTargetDeg: number;
   gear: number;
   gearTarget: number;
   progress: number;
@@ -15,7 +15,7 @@ export interface HudData {
   phase: string;
 }
 
-export type WarningKey = 'stall' | 'gear' | 'sink' | 'flaps' | 'terrain';
+export type WarningKey = 'stall' | 'overspeed' | 'gear' | 'sink' | 'flaps' | 'terrain';
 
 /** DOM HUD. Writes to the DOM only when values change. */
 export class Hud {
@@ -98,9 +98,10 @@ export class Hud {
     this.text('power', Math.round(d.power * 100).toString());
     this.style('powerBar', 'transform', `scaleX(${d.power.toFixed(3)})`);
 
-    const flapsMoving = Math.abs(d.flaps - d.flapsTarget) > 0.01;
-    this.text('flaps', flapsMoving ? (d.flapsTarget > 0.5 ? 'EXT…' : 'RET…') : d.flaps > 0.5 ? 'DOWN 30°' : 'UP');
-    this.cls(this.ref('flaps'), 'flapsCls', `state-val${flapsMoving ? ' transit' : d.flaps > 0.5 ? ' on' : ''}`);
+    const flapsMoving = Math.abs(d.flapsDeg - d.flapsTargetDeg) > 0.3;
+    const flapsDown = d.flapsTargetDeg > 0;
+    this.text('flaps', flapsMoving ? `${d.flapsTargetDeg > d.flapsDeg ? 'EXT' : 'RET'} ${d.flapsTargetDeg}°` : flapsDown ? `DOWN ${d.flapsTargetDeg}°` : 'UP');
+    this.cls(this.ref('flaps'), 'flapsCls', `state-val${flapsMoving ? ' transit' : flapsDown ? ' on' : ''}`);
     const gearMoving = Math.abs(d.gear - d.gearTarget) > 0.01;
     this.text('gear', gearMoving ? 'TRANSIT' : d.gear > 0.5 ? 'DOWN' : 'UP');
     this.cls(this.ref('gear'), 'gearCls', `state-val${gearMoving ? ' transit' : d.gear > 0.5 ? ' on' : ''}`);

@@ -46,7 +46,7 @@ const OUT_DIR = path.join(ROOT, 'perf', 'results');
 
 const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || path.join(process.env.LOCALAPPDATA || '', 'Android', 'Sdk');
 const ADB = fs.existsSync(path.join(sdk, 'platform-tools', 'adb.exe')) ? path.join(sdk, 'platform-tools', 'adb.exe') : 'adb';
-const adb = (...a) => execFileSync(ADB, a, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }).trim();
+const adb = (...a) => execFileSync(ADB, a, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const sh = (cmd) => {
   try {
     return adb('shell', cmd);
@@ -74,8 +74,7 @@ function pinRefresh(hz) {
     const stock = ns === 'system' && (key === 'peak_refresh_rate' || key === 'min_refresh_rate');
     if (!exists && !stock) continue;
     savedRefresh.push([ns, key, exists ? prev : null]);
-    const value = key.endsWith('_refresh_rate') && ns === 'system' && key !== 'user_refresh_rate' ? `${hz}.0` : `${hz}`;
-    sh(`settings put ${ns} ${key} ${value}`);
+    sh(`settings put ${ns} ${key} ${hz}`);
   }
 }
 
@@ -92,12 +91,16 @@ function readThermal() {
   const section = out.split('Current temperatures from HAL:')[1] ?? out;
   const byType = { cpu: -Infinity, gpu: -Infinity, battery: -Infinity, skin: -Infinity };
   const names = ['cpu', 'gpu', 'battery', 'skin'];
-  for (const m of section.matchAll(/mValue=([\d.\-]+), mType=(\d+), mName=([^,]+)/g)) {
+  let sensorStatus = 0;
+  for (const m of section.matchAll(/mValue=([\d.\-]+), mType=(\d+), mName=[^,]+, mStatus=(\d+)/g)) {
     const type = names[Number(m[2])];
     if (type) byType[type] = Math.max(byType[type], Number(m[1]));
+    sensorStatus = Math.max(sensorStatus, Number(m[3]));
   }
   for (const k of names) if (!Number.isFinite(byType[k])) byType[k] = null;
-  return { status, ...byType };
+  // `status` is the service-wide value, which MIUI can leave latched from an earlier event;
+  // `sensorStatus` is the worst status reported by the live HAL readings.
+  return { status, sensorStatus, ...byType };
 }
 
 function readBattery() {
@@ -269,7 +272,7 @@ const PROBE = String.raw`(async (quality) => {
   let phase = 'takeoff';
   const flights = [];
   const pitchTo = (t) => { const e = t - fm.pitch - fm.pitchRate * 0.25; key('KeyW', e > 0.004); key('KeyS', e < -0.004); };
-  const thrTo = (t) => { key('KeyD', fm.throttle < t - 0.02); key('KeyA', fm.throttle > t + 0.02); };
+  const thrTo = (t) => { key('ShiftLeft', fm.throttleLever < t - 0.02); key('KeyX', fm.throttleLever > t + 0.02); };
   const start = () => { phase = 'takeoff'; document.querySelector('[data-action=start]')?.click(); };
   start();
   setInterval(() => {
@@ -287,7 +290,7 @@ const PROBE = String.raw`(async (quality) => {
     if (phase === 'takeoff') { thrTo(1.1); if (V > 28) pitchTo(9 * deg); else { key('KeyW', false); key('KeyS', false); } if (!fm.onGround && fm.y > 3) phase = 'climb'; }
     else if (phase === 'climb') { thrTo(1.1); pitchTo(8 * deg); if (fm.y > 15 && fm.gearTarget > 0.5) tap('KeyG'); if (fm.y > 330) phase = 'cruise'; }
     else if (phase === 'cruise') { thrTo(0.7); pitchTo((350 - fm.y) * 0.002 - fm.vy * 0.01 + 0.5 * deg); if ((AIM - fm.x) * SLOPE < fm.y) phase = 'descent'; }
-    else if (phase === 'descent') { const ta = (AIM - fm.x) * SLOPE, tv = -fm.vx * SLOPE; pitchTo((ta - fm.y) * 0.004 + (tv - fm.vy) * 0.02 + 1 * deg); const ts = AIM - fm.x < 3000 ? 32 : 45; thrTo(Math.max(0, Math.min(1, 0.35 + (ts - V) * 0.08))); if (AIM - fm.x < 4500 && fm.gearTarget < 0.5) tap('KeyG'); if (AIM - fm.x < 3200 && fm.flapsTarget < 0.5) tap('KeyF'); if (fm.y < 7) phase = 'flare'; }
+    else if (phase === 'descent') { const ta = (AIM - fm.x) * SLOPE, tv = -fm.vx * SLOPE; pitchTo((ta - fm.y) * 0.004 + (tv - fm.vy) * 0.02 + 1 * deg); const ts = AIM - fm.x < 3000 ? 32 : 45; thrTo(Math.max(0, Math.min(1, 0.35 + (ts - V) * 0.08))); if (AIM - fm.x < 4500 && fm.gearTarget < 0.5) tap('KeyG'); if (AIM - fm.x < 3200 && fm.flapIndex < 3) tap('KeyF'); if (fm.y < 7) phase = 'flare'; }
     else if (phase === 'flare') { thrTo(-0.1); pitchTo(6 * deg); if (fm.onGround) phase = 'rollout'; }
     else if (phase === 'rollout') { thrTo(-0.1); key('KeyW', false); key('KeyS', true); }
   }, 1000 / 60);
@@ -398,7 +401,7 @@ async function main() {
       const fps = s.meanMs ? 1000 / s.meanMs : null;
       console.log(
         `${String(s.t).padStart(5)}s fps ${f1(fps).padStart(5)} p95 ${f1(s.p95Ms).padStart(5)}ms p99 ${f1(s.p99Ms).padStart(5)}ms max ${f1(s.maxMs).padStart(6)}ms ` +
-          `>33ms ${String(s.over33).padStart(3)} · cpu ${f1(thermal.cpu)}° gpu ${f1(thermal.gpu)}° skin ${f1(thermal.skin)}° bat ${f1(bat.tempC)}° status ${thermal.status} · ${s.phase} alt ${s.alt}`,
+          `>33ms ${String(s.over33).padStart(3)} · cpu ${f1(thermal.cpu)}° gpu ${f1(thermal.gpu)}° skin ${f1(thermal.skin)}° bat ${f1(bat.tempC)}° st ${thermal.sensorStatus}/${thermal.status} · ${s.phase} alt ${s.alt}`,
       );
     }
     memory.push({ t: Math.round((Date.now() - t0) / 1000), ...readMemoryKb() });
@@ -428,6 +431,7 @@ async function main() {
       skinTempC: stats(samples.map((s) => s.thermal.skin)),
       batteryTempC: stats(samples.map((s) => s.batteryTempC)),
       thermalStatusMax: Math.max(...samples.map((s) => s.thermal.status).filter(Number.isFinite)),
+      sensorStatusMax: Math.max(...samples.map((s) => s.thermal.sensorStatus)),
       batteryLevel: { start: battery0.level, end: battery1.level, charging: battery0.usbPowered || battery0.acPowered },
       appCpuPct: stats(samples.map((s) => s.cpu?.appCpuPct)),
       rendererCpuPct: stats(samples.map((s) => s.cpu?.rendererCpuPct)),
@@ -449,7 +453,7 @@ async function main() {
     console.log(`  FPS mean ${f1(summary.fps?.mean)} (min window ${f1(summary.fps?.min)}) · first minute ${f1(summary.fpsFirstMinute?.mean)} · last minute ${f1(summary.fpsLastMinute?.mean)}`);
     console.log(`  frame p95 ${f1(summary.p95Ms?.median)} ms · p99 ${f1(summary.p99Ms?.median)} ms · worst ${f1(summary.worstFrameMs)} ms`);
     console.log(`  frames >20 ms ${summary.framesOver20MsPct.toFixed(2)} % · >33 ms ${summary.framesOver33MsPct.toFixed(2)} % · >50 ms ${summary.framesOver50MsPct.toFixed(2)} %`);
-    console.log(`  temps max: cpu ${f1(summary.cpuTempC?.max)}° gpu ${f1(summary.gpuTempC?.max)}° skin ${f1(summary.skinTempC?.max)}° battery ${f1(summary.batteryTempC?.max)}° · thermal status max ${summary.thermalStatusMax}`);
+    console.log(`  temps max: cpu ${f1(summary.cpuTempC?.max)}° gpu ${f1(summary.gpuTempC?.max)}° skin ${f1(summary.skinTempC?.max)}° battery ${f1(summary.batteryTempC?.max)}° · sensor status max ${summary.sensorStatusMax} (service ${summary.thermalStatusMax})`);
     console.log(`  battery ${battery0.level}% → ${battery1.level}% (charging: ${summary.batteryLevel.charging})`);
     console.log(`  memory: app PSS ${f1(summary.appPssMB?.max)} MB · WebView renderer PSS ${f1(summary.rendererPssMB?.max)} MB · JS heap ${f1(summary.heapUsedMB?.max)} MB`);
     console.log(`  draw calls ${summary.drawCalls?.min}–${summary.drawCalls?.max} · flights completed ${summary.flightsCompleted}`);

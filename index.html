@@ -34,6 +34,7 @@
 
         <div class="warnings">
           <span class="warn" data-warn="stall">STALL</span>
+          <span class="warn" data-warn="overspeed">OVERSPEED</span>
           <span class="warn" data-warn="gear">GEAR</span>
           <span class="warn" data-warn="sink">SINK RATE</span>
           <span class="warn amber" data-warn="flaps">FLAP SPEED</span>
@@ -71,7 +72,7 @@
           <div class="inst state">
             <label>Flaps</label>
             <div class="state-val" data-ref="flaps">UP</div>
-            <div class="sub">F</div>
+            <div class="sub">F / V</div>
           </div>
           <div class="inst state">
             <label>Gear</label>
@@ -88,8 +89,8 @@
           </div>
           <div class="ctl-group">
             <span class="ctl-label">Power</span>
-            <button type="button" class="ctl" data-hold="powerDown" aria-label="Reduce power">−<small>A</small></button>
-            <button type="button" class="ctl" data-hold="powerUp" aria-label="Increase power">+<small>D</small></button>
+            <button type="button" class="ctl" data-hold="powerDown" aria-label="Reduce power">−<small>X</small></button>
+            <button type="button" class="ctl" data-hold="powerUp" aria-label="Increase power">+<small>Shift</small></button>
           </div>
           <div class="ctl-group">
             <span class="ctl-label">Config</span>
@@ -110,9 +111,10 @@
           </p>
           <div class="keys">
             <div><kbd>W</kbd><kbd>S</kbd><span>Nose up / down</span></div>
-            <div><kbd>A</kbd><kbd>D</kbd><span>Power − / +</span></div>
-            <div><kbd>F</kbd><span>Flaps</span></div>
+            <div><kbd>X</kbd><kbd>Shift</kbd><span>Power − / +</span></div>
+            <div><kbd>F</kbd><kbd>V</kbd><span>Flaps down / up</span></div>
             <div><kbd>G</kbd><span>Landing gear</span></div>
+            <div><kbd>B</kbd><span>Brakes</span></div>
             <div><kbd>P</kbd><span>Pause</span></div>
             <div><kbd>R</kbd><span>Restart</span></div>
           </div>

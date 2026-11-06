@@ -10,7 +10,7 @@ const SLOPE = Math.tan((3.5 * Math.PI) / 180);
 
 const fm = new FlightModel();
 fm.reset(140);
-const input = { pitch: 0, throttle: 0 };
+const input = { pitch: 0, throttle: 0, brake: 0 };
 let t = 0;
 let phase = 'takeoff';
 let lastLog = -10;
@@ -30,7 +30,7 @@ const pitchTo = (target: number) => {
   input.pitch = Math.max(-1, Math.min(1, err * 6 - fm.pitchRate * 1.5));
 };
 const throttleTo = (target: number) => {
-  input.throttle = Math.max(-1, Math.min(1, (target - fm.throttle) * 8));
+  input.throttle = Math.max(-1, Math.min(1, (target - fm.throttleLever) * 8));
 };
 
 while (t < 600) {
@@ -64,8 +64,8 @@ while (t < 600) {
       fm.toggleGear();
       log('GEAR DOWN');
     }
-    if (AIM - fm.x < 3200 && fm.flapsTarget < 0.5) {
-      fm.toggleFlaps();
+    if (AIM - fm.x < 3200 && fm.flapIndex < 3) {
+      fm.setFlapIndex(3);
       log('FLAPS DOWN');
     }
     if (fm.y < 7) phase = 'flare';
