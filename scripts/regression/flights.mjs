@@ -14,6 +14,7 @@ import { FlightModel } from '../../src/sim/FlightModel.ts';
 import { buildReport, evaluateTouchdown } from '../../src/sim/Landing.ts';
 import { C172RG } from '../../src/sim/aircraft/c172rg.ts';
 import { computeLoadSheet, DEFAULT_LOAD } from '../../src/sim/LoadSheet.ts';
+import { Weather } from '../../src/sim/Weather.ts';
 import { AIM_POINT_X, BTS_RUNWAY, GLIDE_SLOPE_DEG, START_X, VIE_RUNWAY } from '../../src/config.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -37,7 +38,7 @@ const pilot = (fm, input) => ({
 
 /** Steps the model until `tick` returns true or maxTime elapses. */
 function fly(fm, maxTime, tick) {
-  const input = { pitch: 0, throttle: 0, brake: 0 };
+  const input = { pitch: 0, roll: 0, throttle: 0, brake: 0 };
   const p = pilot(fm, input);
   let t = 0;
   while (t < maxTime) {
@@ -264,7 +265,101 @@ const scenarios = {
     });
     return { stopDistanceM: r(fm.x - x0, 1), stopTimeS: r(t, 2) };
   },
+
+  /** Full right stick for 2 s, then release: bank reached and wing-leveler recovery. */
+  roll() {
+    const fm = new FlightModel();
+    airborneAt(fm, 3000, 350, 55, { throttle: 0.7 });
+    let bankAt2s = null;
+    let leveledAt = null;
+    fly(fm, 20, (t, input, p) => {
+      p.pitchTo(0.5 * DEG);
+      input.roll = t < 2 ? 1 : 0;
+      if (t >= 2 && bankAt2s === null) bankAt2s = fm.roll;
+      if (t > 2 && leveledAt === null && Math.abs(fm.roll) < 2 * DEG) leveledAt = t - 2;
+      return leveledAt !== null;
+    });
+    return { bankAt2sDeg: r(bankAt2s / DEG, 1), levelAfterReleaseS: r(leveledAt, 2) };
+  },
+
+  /** 120 s level cruise in moderate gusty air (no storms): how much the aircraft is thrown around. */
+  gusts() {
+    const fm = new FlightModel();
+    fm.weather = new Weather({ seed: 4242, storms: false, turbulence: 0.6, windKt: 12, windDir: 310 });
+    airborneAt(fm, 3000, 350, 55, { throttle: 0.7 });
+    let minY = Infinity;
+    let maxY = -Infinity;
+    let maxRoll = 0;
+    let maxVs = 0;
+    fly(fm, 120, (t, input, p) => {
+      p.throttleTo(0.7);
+      p.pitchTo((350 - fm.y) * 0.002 - fm.vy * 0.01 + 0.5 * DEG);
+      if (t > 10) {
+        minY = Math.min(minY, fm.y);
+        maxY = Math.max(maxY, fm.y);
+        maxRoll = Math.max(maxRoll, Math.abs(fm.roll));
+        maxVs = Math.max(maxVs, Math.abs(fm.vy));
+      }
+      return false;
+    });
+    return {
+      altitudeBandM: r(maxY - minY, 1),
+      maxBankDeg: r(maxRoll / DEG, 1),
+      maxVerticalSpeedMs: r(maxVs, 2),
+      maxLoadFactor: r(fm.maxLoadFactor, 2),
+      groundSpeedKmh: r(fm.groundSpeed * KMH, 1),
+    };
+  },
+
+  /** Level flight at 350 m straight through a severe cell, fast and slowed down. */
+  stormFast() {
+    return stormPenetration(61);
+  },
+  stormSlow() {
+    return stormPenetration(44);
+  },
+
+  /** 280 km/h, then full aft stick: over-g must damage or break the airframe. */
+  pullout() {
+    const fm = new FlightModel();
+    airborneAt(fm, 3000, 800, 280 / KMH, { throttle: 0.7, pitch: -0.1 });
+    const t = fly(fm, 8, (t, input) => {
+      input.pitch = 1;
+      return fm.structuralFailure !== null;
+    });
+    return {
+      maxLoadFactor: r(fm.maxLoadFactor, 2),
+      damage: r(fm.damage, 2),
+      failed: fm.structuralFailure !== null,
+      timeS: r(t, 2),
+    };
+  },
 };
+
+function stormPenetration(speed) {
+  const fm = new FlightModel();
+  const w = new Weather({ seed: 99, storms: false, turbulence: 0.4, windKt: 6, windDir: 310 });
+  w.storms.push({ x0: 5000, drift: 0, radius: 950, base: 320, top: 1250, severity: 'severe', downdraft: 7.5, turbulence: 2.6 });
+  fm.weather = w;
+  const power = speed > 50 ? 0.95 : 0.45;
+  airborneAt(fm, 3200, 350, speed, { throttle: power });
+  let minY = Infinity;
+  let maxV = 0;
+  fly(fm, 120, (t, input, p) => {
+    p.throttleTo(power);
+    p.pitchTo((350 - fm.y) * 0.002 - fm.vy * 0.01 + 1 * DEG);
+    minY = Math.min(minY, fm.y);
+    maxV = Math.max(maxV, fm.airspeed);
+    return fm.x > 6800 || fm.structuralFailure !== null;
+  });
+  return {
+    altitudeLostM: r(350 - minY, 1),
+    maxLoadFactor: r(fm.maxLoadFactor, 2),
+    maxAirspeedKmh: r(maxV * KMH, 1),
+    damage: r(fm.damage, 2),
+    failure: fm.structuralFailure,
+  };
+}
 
 /**
  * 1 g stall: idle power, hold altitude until the wing stalls, keep full aft stick for 3 s,
@@ -436,7 +531,7 @@ const again = mission();
 const deterministic = JSON.stringify(again) === JSON.stringify(results.mission);
 
 const update = process.argv.includes('--update');
-const meta = { recordedWith: 'FlightModel (Phase 1: AircraftConfig c172rg, moment-based pitch)', frameDt: FRAME_DT };
+const meta = { recordedWith: 'FlightModel (Phase 2: weather, storms, roll axis, structural limits)', frameDt: FRAME_DT };
 
 if (update || !fs.existsSync(BASELINE_FILE)) {
   fs.writeFileSync(BASELINE_FILE, JSON.stringify({ meta, results }, null, 2) + '\n');

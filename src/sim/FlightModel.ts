@@ -1,12 +1,13 @@
 /**
- * Longitudinal (side-view) flight model: x, y and pitch with aerodynamic pitching moments.
- * Driven entirely by an AircraftConfig. Pure TypeScript with no dependencies so it can be
- * simulated headless.
+ * Side-view flight model: x, y and pitch with aerodynamic pitching moments, plus bank (roll) and
+ * flight through moving air (wind, turbulence, storms). Driven entirely by an AircraftConfig.
+ * Pure TypeScript with no dependencies so it can be simulated headless.
  */
 import { flapEffect, maxFlapDeg, type AircraftConfig } from './aircraft/AircraftConfig.ts';
 import { C172RG } from './aircraft/c172rg.ts';
 import { Engine } from './Engine.ts';
 import { computeLoadSheet, DEFAULT_LOAD, type Load } from './LoadSheet.ts';
+import type { Weather, WeatherSample } from './Weather.ts';
 
 const G = 9.81;
 const RHO = 1.225;
@@ -15,6 +16,8 @@ const FIXED_DT = 1 / 120;
 export interface ControlInput {
   /** -1 (nose down) .. +1 (nose up) */
   pitch: number;
+  /** -1 (left wing down) .. +1 (right wing down) */
+  roll: number;
   /** Throttle lever movement: -1 (pull back) .. +1 (push forward). */
   throttle: number;
   /** Wheel brakes 0..1. */
@@ -24,6 +27,8 @@ export interface ControlInput {
 export interface Assists {
   /** Stick commands a pitch rate and centred stick holds the attitude (released in a stall). */
   pitchHold: boolean;
+  /** Centred stick slowly rolls the wings level. */
+  wingLeveler: boolean;
   /** Full brakes on the ground whenever the throttle lever is at idle. */
   autoBrakeAtIdle: boolean;
 }
@@ -33,6 +38,7 @@ export interface Touchdown {
   verticalSpeed: number;
   groundSpeed: number;
   pitch: number;
+  roll: number;
   gear: number;
   flaps: number;
 }
@@ -44,8 +50,12 @@ const approach = (v: number, target: number, step: number) =>
 export class FlightModel {
   readonly config: AircraftConfig;
   readonly engine: Engine;
-  readonly assists: Assists = { pitchHold: true, autoBrakeAtIdle: true };
+  readonly assists: Assists = { pitchHold: true, wingLeveler: true, autoBrakeAtIdle: true };
   mass: number;
+  /** Weather the aircraft flies through; null = calm air. */
+  weather: Weather | null = null;
+  readonly air: WeatherSample = { wx: 0, wy: 0, rollGust: 0, turbulence: 0, rain: 0, cloud: 0 };
+  time = 0;
 
   x = 0;
   y = 0;
@@ -53,6 +63,9 @@ export class FlightModel {
   vy = 0;
   pitch = 0;
   pitchRate = 0;
+  /** Bank angle (rad), + = right wing down. */
+  roll = 0;
+  rollRate = 0;
   /** Throttle lever position 0..1. */
   throttleLever = 0;
   /** Engine power actually produced, 0..1 (lags the lever). */
@@ -67,6 +80,7 @@ export class FlightModel {
   onGround = true;
   /** Elevator deflection −1..1 (+ = nose up), including trim. */
   elevator = 0;
+  aileron = 0;
   /** Manual trim −1..1, used when the pitch-hold assist is off. */
   trim = 0;
 
@@ -77,13 +91,21 @@ export class FlightModel {
   tailStrike = false;
   overspeed = false;
   flapOverspeed = false;
+  /** Load factor (g) felt by the airframe. */
+  loadFactor = 1;
+  maxLoadFactor = 1;
+  /** Accumulated airframe damage 0..1; 1 = structural failure. */
+  damage = 0;
+  structuralFailure: string | null = null;
+  overspeedTime = 0;
   maxAltitude = 0;
 
   /** Set when the aircraft touches the ground after being airborne; cleared by the consumer. */
   touchdown: Touchdown | null = null;
-  private readonly touchdownData: Touchdown = { x: 0, verticalSpeed: 0, groundSpeed: 0, pitch: 0, gear: 0, flaps: 0 };
+  private readonly touchdownData: Touchdown = { x: 0, verticalSpeed: 0, groundSpeed: 0, pitch: 0, roll: 0, gear: 0, flaps: 0 };
   private readonly flap = { dCl: 0, dClMax: 0, dCd: 0, dCm: 0 };
   private accumulator = 0;
+  private wingDrop = 0;
 
   constructor(config: AircraftConfig = C172RG, load: Load = DEFAULT_LOAD) {
     this.config = config;
@@ -105,6 +127,9 @@ export class FlightModel {
     this.vy = 0;
     this.pitch = 0;
     this.pitchRate = 0;
+    this.roll = 0;
+    this.rollRate = 0;
+    this.time = 0;
     this.throttleLever = 0;
     this.throttle = 0;
     this.engine.reset(engineRunning);
@@ -116,6 +141,7 @@ export class FlightModel {
     this.gearTarget = 1;
     this.onGround = true;
     this.elevator = 0;
+    this.aileron = 0;
     this.trim = 0;
     this.aoa = 0;
     this.stallMargin = 1;
@@ -124,13 +150,25 @@ export class FlightModel {
     this.tailStrike = false;
     this.overspeed = false;
     this.flapOverspeed = false;
+    this.loadFactor = 1;
+    this.maxLoadFactor = 1;
+    this.damage = 0;
+    this.structuralFailure = null;
+    this.overspeedTime = 0;
     this.maxAltitude = 0;
     this.touchdown = null;
     this.accumulator = 0;
+    this.wingDrop = 0;
+    this.air.wx = this.air.wy = this.air.rollGust = this.air.turbulence = this.air.rain = this.air.cloud = 0;
   }
 
+  /** True airspeed relative to the surrounding air. */
   get airspeed(): number {
-    return Math.hypot(this.vx, this.vy);
+    return Math.hypot(this.vx - this.air.wx, this.vy - this.air.wy);
+  }
+
+  get groundSpeed(): number {
+    return this.vx;
   }
 
   get flapTargetDeg(): number {
@@ -182,6 +220,7 @@ export class FlightModel {
     const C = this.config;
     const A = C.aero;
     const m = this.mass;
+    this.time += dt;
 
     this.throttleLever = clamp(this.throttleLever + input.throttle * C.engine.leverRatePerS * dt, 0, 1);
     this.engine.step(dt, this.throttleLever);
@@ -190,8 +229,14 @@ export class FlightModel {
     this.flaps = this.flapDeg / maxFlapDeg(C);
     this.gear = approach(this.gear, this.gearTarget, dt / C.gear.transitTimeS);
 
-    const V = this.airspeed;
-    const gamma = V > 1 ? Math.atan2(this.vy, this.vx) : 0;
+    const air = this.air;
+    if (this.weather) this.weather.sample(this.x, this.y, this.time, air);
+
+    // Air-relative velocity: wind and gusts change airspeed and angle of attack.
+    const ux = this.vx - air.wx;
+    const uy = this.vy - air.wy;
+    const V = Math.hypot(ux, uy);
+    const gamma = V > 1 ? Math.atan2(uy, ux) : 0;
     const alpha = this.pitch - gamma;
     this.aoa = alpha;
 
@@ -207,7 +252,10 @@ export class FlightModel {
     const ge = this.y < A.groundEffectHeightM ? 1 + A.groundEffectLiftGain * (1 - this.y / A.groundEffectHeightM) : 1;
     cl *= ge;
     this.stallMargin = (stallAlpha - alpha) / stallAlpha;
+    const wasStalled = this.stalled;
     this.stalled = !this.onGround && alpha > stallAlpha;
+    if (this.stalled && !wasStalled) this.wingDrop = (air.rollGust >= 0 ? 1 : -1) * (0.6 + 0.4 * Math.min(1, Math.abs(alpha - stallAlpha) * 10));
+    if (!this.stalled) this.wingDrop = 0;
 
     const cd = A.cd0 + (A.inducedK * cl * cl) / ge + f.dCd + C.gear.cd * this.gear;
     const qbar = 0.5 * RHO * V * V;
@@ -215,11 +263,14 @@ export class FlightModel {
     const lift = qbar * S * cl;
     const drag = qbar * S * cd;
     const thrust = this.engine.thrust(V);
+    this.loadFactor = lift / (m * G);
+    // Banked wings tilt the lift vector: only the vertical part holds the aircraft up.
+    const liftV = lift * Math.cos(this.roll);
 
     const cg = Math.cos(gamma);
     const sg = Math.sin(gamma);
-    let fx = thrust * Math.cos(this.pitch) - drag * cg - lift * sg;
-    let fy = thrust * Math.sin(this.pitch) - drag * sg + lift * cg - m * G;
+    let fx = thrust * Math.cos(this.pitch) - drag * cg - liftV * sg;
+    let fy = thrust * Math.sin(this.pitch) - drag * sg + liftV * cg - m * G;
 
     // Ground contact: wheels carry what the wing does not; rolling, braking or belly friction.
     let weightOnWheels = 0;
@@ -271,12 +322,38 @@ export class FlightModel {
     this.pitchRate += (moment / C.inertia.iyyKgM2) * dt;
     this.pitch += this.pitchRate * dt;
 
+    // Roll: aileron, roll damping, gusts and the wing drop of a stall. The leveler does not know
+    // about gusts, so turbulence visibly rocks the wings.
+    const R = C.roll;
+    const span = R.wingSpanM;
+    const qSb = qbar * S * span;
+    const rollStick = clamp(input.roll, -1, 1);
+    if (this.onGround) {
+      this.roll = 0;
+      this.rollRate = 0;
+      this.aileron = rollStick;
+    } else {
+      let ail = rollStick;
+      if (this.assists.wingLeveler && Math.abs(rollStick) < 0.05) ail = clamp(-1.4 * this.roll - 1.1 * this.rollRate, -0.6, 0.6);
+      else if (Math.abs(rollStick) >= 0.05) ail = clamp((rollStick * R.maxRollRate - this.rollRate) * 2.5, -1, 1);
+      this.aileron = approach(this.aileron, ail, C.controls.elevatorRatePerS * dt);
+      const pHat = (this.rollRate * span) / (2 * Math.max(V, 5));
+      const clRoll = R.clAileron * this.aileron + R.clP * pHat + air.rollGust + this.wingDrop * 0.03;
+      this.rollRate += ((qSb * clRoll) / C.inertia.ixxKgM2) * dt;
+      this.roll += this.rollRate * dt;
+      if (Math.abs(this.roll) > R.maxBank) {
+        this.roll = Math.sign(this.roll) * R.maxBank;
+        this.rollRate = 0;
+      }
+    }
+
     if (!this.onGround && this.y <= 0) {
       const td = this.touchdownData;
       td.x = this.x;
       td.verticalSpeed = this.vy;
       td.groundSpeed = this.vx;
       td.pitch = this.pitch;
+      td.roll = this.roll;
       td.gear = this.gear;
       td.flaps = this.flaps;
       this.touchdown = td;
@@ -297,9 +374,26 @@ export class FlightModel {
       }
     }
 
+    // Airframe limits: overspeed and excessive g damage the structure.
     const kmh = V * 3.6;
-    this.overspeed = kmh > C.limits.vneKmh;
+    const L = C.limits;
+    this.overspeed = kmh > L.vneKmh;
     this.flapOverspeed = this.flapDeg > 0.5 && kmh > this.vfeAt(this.flapDeg);
+    if (!this.onGround) {
+      const n = this.loadFactor;
+      if (n > this.maxLoadFactor) this.maxLoadFactor = n;
+      if (this.overspeed) {
+        this.overspeedTime += dt;
+        this.damage += dt / L.overspeedToleranceS;
+      }
+      if (n > L.limitLoadG) this.damage += ((n - L.limitLoadG) / (L.ultimateLoadG - L.limitLoadG)) * dt * 4;
+      if (n >= L.ultimateLoadG || kmh > L.vneKmh * 1.12) this.damage = 1;
+      if (this.damage >= 1 && !this.structuralFailure) {
+        this.structuralFailure = this.overspeed
+          ? `The airframe failed at ${Math.round(kmh)} km/h – far beyond the never-exceed speed of ${L.vneKmh} km/h.`
+          : `The airframe failed under ${n.toFixed(1)} g – the limit is ${L.limitLoadG} g. Slow down in turbulence and pull out gently.`;
+      }
+    }
 
     if (this.y > this.maxAltitude) this.maxAltitude = this.y;
   }

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "recordedWith": "FlightModel (Phase 1: AircraftConfig c172rg, moment-based pitch)",
+    "recordedWith": "FlightModel (Phase 2: weather, storms, roll axis, structural limits)",
     "frameDt": 0.016666666666666666
   },
   "results": {
@@ -28,14 +28,14 @@
       "stallSpeedKmh": 95.2,
       "stalledAfter3sFullAft": true,
       "unstallsWithNeutralStickS": 0.38,
-      "altitudeLostM": 34.2,
+      "altitudeLostM": 34.5,
       "recoveryTimeS": 8.4
     },
     "stallFlaps": {
       "stallSpeedKmh": 83.1,
       "stalledAfter3sFullAft": true,
       "unstallsWithNeutralStickS": 0.4,
-      "altitudeLostM": 28.2,
+      "altitudeLostM": 28.4,
       "recoveryTimeS": 7.3
     },
     "dive": {
@@ -104,6 +104,37 @@
     "braking": {
       "stopDistanceM": 120.1,
       "stopTimeS": 7.92
+    },
+    "roll": {
+      "bankAt2sDeg": 52.8,
+      "levelAfterReleaseS": 3.72
+    },
+    "gusts": {
+      "altitudeBandM": 9.3,
+      "maxBankDeg": 6,
+      "maxVerticalSpeedMs": 2.92,
+      "maxLoadFactor": 1.56,
+      "groundSpeedKmh": 194
+    },
+    "stormFast": {
+      "altitudeLostM": 5.2,
+      "maxLoadFactor": 3.91,
+      "maxAirspeedKmh": 260.9,
+      "damage": 0.01,
+      "failure": null
+    },
+    "stormSlow": {
+      "altitudeLostM": 26.6,
+      "maxLoadFactor": 2.91,
+      "maxAirspeedKmh": 205.3,
+      "damage": 0,
+      "failure": null
+    },
+    "pullout": {
+      "maxLoadFactor": 3.61,
+      "damage": 0,
+      "failed": false,
+      "timeS": 8.02
     }
   }
 }

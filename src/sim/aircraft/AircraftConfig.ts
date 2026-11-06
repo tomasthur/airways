@@ -49,6 +49,19 @@ export interface AircraftConfig {
   inertia: {
     /** Pitch moment of inertia. */
     iyyKgM2: number;
+    /** Roll moment of inertia. */
+    ixxKgM2: number;
+  };
+
+  roll: {
+    wingSpanM: number;
+    /** Roll damping derivative (per p·b/2V). */
+    clP: number;
+    /** Rolling moment per unit aileron (δa in −1..1, + = right wing down). */
+    clAileron: number;
+    /** Roll rate commanded by full stick/yoke. */
+    maxRollRate: number;
+    maxBank: number;
   };
 
   aero: {
@@ -120,6 +133,12 @@ export interface AircraftConfig {
     vnoKmh: number;
     vneKmh: number;
     maxTouchdownVsMs: number;
+    /** Limit load factor: above it the airframe accumulates damage. */
+    limitLoadG: number;
+    /** Ultimate load factor: immediate structural failure. */
+    ultimateLoadG: number;
+    /** Seconds above Vne the airframe tolerates. */
+    overspeedToleranceS: number;
   };
 }
 

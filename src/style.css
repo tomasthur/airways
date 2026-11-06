@@ -186,6 +186,23 @@ button {
   border-radius: 2px;
 }
 
+.track-storms span {
+  position: absolute;
+  top: -4px;
+  height: 11px;
+  border-radius: 6px;
+  background: rgba(92, 104, 122, 0.85);
+  box-shadow: 0 0 6px rgba(20, 28, 40, 0.5);
+}
+
+.track-storms span.moderate {
+  background: rgba(214, 160, 70, 0.85);
+}
+
+.track-storms span.severe {
+  background: rgba(226, 84, 70, 0.9);
+}
+
 .track-plane {
   position: absolute;
   top: -10px;
@@ -490,6 +507,144 @@ button {
   color: var(--accent);
 }
 
+/* ---------- ATC radio ---------- */
+.atc {
+  position: absolute;
+  top: 56px;
+  right: max(16px, env(safe-area-inset-right));
+  width: min(390px, 44vw);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: rgba(10, 20, 32, 0.6);
+  border: 1px solid rgba(111, 182, 255, 0.45);
+  font-size: 13px;
+  line-height: 1.4;
+  pointer-events: auto;
+}
+
+.atc-station {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--blue);
+}
+
+.atc-text {
+  flex: 1 1 260px;
+}
+
+.atc-replies {
+  display: flex;
+  gap: 6px;
+}
+
+.atc-replies button {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.atc-replies button small {
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+/* ---------- pre-flight checklist ---------- */
+.checklist {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  top: 58px;
+  width: 286px;
+  padding: 8px 10px;
+  font-size: 12px;
+  pointer-events: auto;
+}
+
+.cl-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.cl-load {
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.cl-row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 27px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cl-row i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+}
+
+.cl-row.done i {
+  background: var(--good);
+  border-color: var(--good);
+}
+
+.cl-row.next span {
+  color: var(--accent);
+}
+
+.cl-row b {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.cl-row button {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cl-row button:disabled {
+  opacity: 0.35;
+}
+
+.cl-row.next button:not(:disabled) {
+  background: rgba(255, 195, 92, 0.35);
+  border-color: var(--accent);
+}
+
+@media (max-height: 480px) {
+  .checklist {
+    transform: scale(0.86);
+    transform-origin: right top;
+  }
+  .atc {
+    font-size: 12px;
+  }
+}
+
 /* ---------- on-screen controls ---------- */
 .controls {
   position: absolute;
@@ -553,6 +708,116 @@ button {
 .ctl.lit {
   border-color: rgba(99, 230, 161, 0.7);
   box-shadow: inset 0 0 0 1px rgba(99, 230, 161, 0.35);
+}
+
+.ctl-grid {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 5px;
+}
+
+.ctl-grid .ctl.wide {
+  width: 72px;
+  font-size: 12px;
+}
+
+.controls {
+  align-items: flex-end;
+}
+
+/* Yoke: drag inside the pad; the wheel follows (rotate = bank, move = pitch). */
+.yoke {
+  position: relative;
+  width: 136px;
+  height: 118px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  touch-action: none;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s;
+}
+
+.yoke.active {
+  background: rgba(255, 195, 92, 0.22);
+}
+
+.yoke-wheel {
+  width: 112px;
+  height: 78px;
+  pointer-events: none;
+  transform-origin: 50% 60%;
+  transition: transform 0.05s linear;
+}
+
+/* Throttle: vertical lever, full power at the top. */
+.throttle {
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: 112px;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  pointer-events: none;
+}
+
+.throttle-track {
+  position: relative;
+  width: 46px;
+  height: clamp(96px, 30vh, 176px);
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.throttle-fill {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 4px;
+  height: 0;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: linear-gradient(0deg, var(--blue), var(--accent));
+}
+
+.throttle-knob {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 38px;
+  height: 22px;
+  margin: 0 0 -11px -19px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #3b4148, #15191d);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+}
+
+.throttle-track.active .throttle-knob {
+  border-color: var(--accent);
+}
+
+.throttle-val {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.ctl-key {
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
 }
 
 /* ---------- overlays ---------- */
@@ -772,6 +1037,9 @@ kbd {
     bottom: 120px;
     font-size: 12px;
   }
+  .atc {
+    width: min(360px, 46vw);
+  }
   .toolbar button {
     padding: 5px 9px;
   }
@@ -792,6 +1060,12 @@ kbd {
   }
   .hint {
     bottom: 230px;
+  }
+  .atc {
+    top: 196px;
+    left: 16px;
+    right: 16px;
+    width: auto;
   }
 }
 

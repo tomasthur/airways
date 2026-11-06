@@ -15,15 +15,22 @@ import {
 import { Airplane } from '../render/Airplane';
 import { atmosphere } from '../render/Billboards';
 import { Sky, createPalette, samplePalette } from '../render/Sky';
+import { Passengers } from '../render/Passengers';
+import { Storms } from '../render/Storms';
+import { Trails } from '../render/Trails';
 import { World } from '../render/World';
 import { FlightModel, type Touchdown } from '../sim/FlightModel';
+import { computeLoadSheet } from '../sim/LoadSheet';
+import { Weather } from '../sim/Weather';
 import { buildReport, evaluateTouchdown, failureReport, onRunway, type ScoreItem } from '../sim/Landing';
 import { acquireWakeLock, bindNativeLifecycle, isNativePlatform, releaseWakeLock } from '../native';
-import { Hud, type WarningKey } from '../ui/Hud';
+import { FlightControls } from '../ui/FlightControls';
+import { Hud, type ChecklistView, type WarningKey } from '../ui/Hud';
+import { Atc } from './Atc';
 import { Input, type PressAction } from './Input';
 
 type State = 'menu' | 'flying' | 'paused' | 'report';
-type Phase = 'takeoff' | 'airborne' | 'rollout';
+type Phase = 'preflight' | 'takeoff' | 'airborne' | 'rollout';
 type Quality = 'low' | 'medium' | 'high';
 
 const QUALITY: Record<Quality, { label: string; pixelRatio: number; shadowMap: number }> = {
@@ -52,10 +59,28 @@ export class Game {
   private readonly hemi: THREE.HemisphereLight;
   private readonly sun: THREE.DirectionalLight;
   private readonly blob: THREE.Mesh;
+  private readonly storms: Storms;
+  private readonly passengers = new Passengers();
+  private readonly trails = new Trails();
+  private readonly atc = new Atc();
+  private readonly controlsUi: FlightControls;
+  private weather = new Weather({ seed: 1 });
+  private readonly tipR = new THREE.Vector3();
+  private readonly tipL = new THREE.Vector3();
+  private readonly tmpV = new THREE.Vector3();
+  private readonly baseFog = { near: 450, far: 3200 };
+  private readonly stormHaze = new THREE.Color(0x5d6670);
   private readonly sunOffset = new THREE.Vector3(26, 52, 34).normalize().multiplyScalar(60);
 
   private state: State = 'menu';
-  private phase: Phase = 'takeoff';
+  private phase: Phase = 'preflight';
+  private passengerCount = 1;
+  private belts = false;
+  private boardingStarted = false;
+  private takeoffFlapsAtLiftoff = -1;
+  private stormEncounter: 'none' | 'light' | 'moderate' | 'severe' = 'none';
+  private atcTimer = 0;
+  private routeStormTimer = 0;
   private quality: Quality;
   private touchdownItems: ScoreItem[] | null = null;
   private overran = false;
@@ -78,7 +103,7 @@ export class Game {
   fps = 0;
 
   private readonly warnings: Record<WarningKey, boolean> = { stall: false, overspeed: false, gear: false, sink: false, flaps: false, terrain: false };
-  private readonly controls = { pitch: 0, throttle: 0, brake: 0 };
+  private readonly controls = { pitch: 0, roll: 0, throttle: 0, brake: 0 };
 
   private readonly app: HTMLElement;
 
@@ -119,9 +144,20 @@ export class Game {
     this.blob = this.createBlobShadow();
     this.scene.add(this.blob);
 
+    this.storms = new Storms(Math.min(4, maxAniso));
+    this.scene.add(this.storms.root, this.passengers.root, this.trails.mesh);
+
     this.camera.rotation.set(CAMERA_PITCH, 0, 0);
 
     this.hud = new Hud(app, this.input);
+    this.controlsUi = new FlightControls(
+      app,
+      (v) => this.fm.setThrottleLever(v),
+      (pitch, roll) => {
+        this.input.yoke.pitch = pitch;
+        this.input.yoke.roll = roll;
+      },
+    );
     this.input.onPress((a) => this.onPress(a));
     window.addEventListener('resize', () => this.resize());
     document.addEventListener('visibilitychange', () => {
@@ -256,8 +292,31 @@ export class Game {
   }
 
   private reset(): void {
-    this.fm.reset(START_X);
-    this.phase = 'takeoff';
+    const seed = (Math.random() * 2 ** 31) | 0;
+    this.weather = new Weather({ seed });
+    this.fm.weather = this.weather;
+    this.fm.reset(START_X, false);
+    this.storms.setWeather(this.weather);
+    this.atc.reset(this.weather);
+    // 1–3 passengers; fuel is planned so the take-off mass stays within MTOW.
+    this.passengerCount = 1 + (seed % 3);
+    const cfg = this.fm.config;
+    const baggageKg = 15 * this.passengerCount;
+    const withoutFuel = computeLoadSheet(cfg, { passengers: this.passengerCount, baggageKg, fuelKg: 0 }).massKg;
+    const fuelKg = Math.max(30, Math.min(140, cfg.mass.mtowKg - withoutFuel));
+    this.fm.setLoad({ passengers: this.passengerCount, baggageKg, fuelKg });
+    this.plane.doorOpen = false;
+    this.plane.lightsOn = false;
+    this.belts = false;
+    this.boardingStarted = false;
+    this.passengers.clear();
+    this.trails.reset();
+    this.takeoffFlapsAtLiftoff = -1;
+    this.stormEncounter = 'none';
+    this.atcTimer = 0;
+    this.routeStormTimer = 0;
+    this.input.yoke.pitch = this.input.yoke.roll = 0;
+    this.phase = 'preflight';
     this.touchdownItems = null;
     this.overran = false;
     this.tailStrike = false;
@@ -314,6 +373,75 @@ export class Game {
         if (!this.fm.toggleGear()) this.flash('The gear cannot retract with weight on the wheels');
         else this.flash(this.fm.gearTarget > 0.5 ? 'Gear down' : 'Gear up');
         break;
+      case 'flapsTakeoff':
+        if (this.state !== 'flying') break;
+        this.fm.setFlapIndex(1);
+        this.flash('Flaps 10° for take-off');
+        break;
+      case 'door':
+        if (this.state === 'flying' && this.phase === 'preflight') this.toggleDoor();
+        break;
+      case 'lights':
+        if (this.state !== 'flying') break;
+        this.plane.lightsOn = !this.plane.lightsOn;
+        this.flash(this.plane.lightsOn ? 'Beacon, strobes and navigation lights on' : 'Lights off');
+        break;
+      case 'belts':
+        if (this.state !== 'flying') break;
+        this.belts = !this.belts;
+        this.flash(this.belts ? 'Fasten seatbelts sign on' : 'Seatbelt sign off');
+        break;
+      case 'engineStart':
+        if (this.state === 'flying' && this.phase === 'preflight') this.startEngine();
+        break;
+      case 'reply1':
+      case 'reply2':
+        if (this.state === 'flying') this.atc.reply(a === 'reply1' ? 0 : 1);
+        break;
+    }
+  }
+
+  private toggleDoor(): void {
+    const p = this.plane;
+    if (this.fm.engine.state !== 'off') {
+      this.flash('Shut down the engine before opening the door');
+      return;
+    }
+    if (p.doorOpen) {
+      if (this.boardingStarted && this.passengers.boarded < this.passengers.total) {
+        this.flash('Wait until all passengers are on board');
+        return;
+      }
+      p.doorOpen = false;
+      this.flash('Cabin door closed and locked');
+      return;
+    }
+    p.doorOpen = true;
+    if (!this.boardingStarted) {
+      this.boardingStarted = true;
+      const door = p.doorSill(this.tmpV);
+      this.passengers.start(this.passengerCount, new THREE.Vector3(door.x - 16, 0, door.z + 7), door.clone());
+      this.flash(`Boarding ${this.passengerCount} passenger${this.passengerCount > 1 ? 's' : ''}`);
+    }
+  }
+
+  private preflightReady(): string | null {
+    if (!this.boardingStarted || this.passengers.boarded < this.passengers.total) return 'Board the passengers first (open the cabin door)';
+    if (this.plane.doorOpen || !this.plane.doorFullyClosed) return 'Close the cabin door before starting the engine';
+    if (!this.belts) return 'Switch on the seatbelt sign first';
+    if (!this.plane.lightsOn) return 'Switch on the beacon before starting the engine';
+    return null;
+  }
+
+  private startEngine(): void {
+    const blocked = this.preflightReady();
+    if (blocked) {
+      this.flash(blocked);
+      return;
+    }
+    if (this.fm.engine.start()) {
+      this.fm.setThrottleLever(0);
+      this.flash('Engine starting…');
     }
   }
 
@@ -381,10 +509,48 @@ export class Game {
     const fm = this.fm;
     const c = this.controls;
     c.pitch = this.input.pitch;
+    c.roll = this.input.roll;
     c.throttle = this.input.throttle;
     c.brake = this.input.brake;
+    if (this.phase === 'preflight') {
+      // Parked: brakes set, power stays at idle until the engine runs.
+      c.brake = 1;
+      if (fm.engine.state !== 'running') fm.setThrottleLever(0);
+    }
     fm.update(dt, c);
-    this.flightTime += dt;
+    if (this.phase !== 'preflight') this.flightTime += dt;
+
+    if (fm.structuralFailure) {
+      this.crash(fm.structuralFailure, 'Structural failure');
+      return;
+    }
+
+    if (this.phase === 'preflight' && fm.engine.state === 'running') {
+      this.phase = 'takeoff';
+      this.flash('Engine running – wait for the take-off clearance, then full power', 4);
+    }
+
+    // Weather encountered, for the debrief.
+    if (!fm.onGround && fm.air.cloud > 0.4) {
+      const sev = fm.air.turbulence > 2 ? 'severe' : fm.air.turbulence > 1.1 ? 'moderate' : 'light';
+      const rank = { none: 0, light: 1, moderate: 2, severe: 3 };
+      if (rank[sev] > rank[this.stormEncounter]) this.stormEncounter = sev;
+    }
+
+    this.atcTimer -= dt;
+    if (this.atcTimer <= 0) {
+      this.atcTimer = 0.25;
+      this.atc.update(0.25, {
+        phase: this.phase,
+        engineRunning: fm.engine.state === 'running',
+        x: fm.x,
+        y: fm.y,
+        groundSpeed: fm.vx,
+        climbRate: this.estimateClimbRate(),
+        toAim: AIM_POINT_X - fm.x,
+        time: fm.time,
+      });
+    }
 
     if (fm.touchdown) {
       const td = fm.touchdown;
@@ -394,8 +560,10 @@ export class Game {
     }
 
     if (this.phase === 'takeoff') {
-      if (!fm.onGround && fm.y > 3) this.phase = 'airborne';
-      else if (fm.onGround && fm.x > BTS_RUNWAY.x1) {
+      if (!fm.onGround && fm.y > 3) {
+        this.phase = 'airborne';
+        this.takeoffFlapsAtLiftoff = fm.flapIndex;
+      } else if (fm.onGround && fm.x > BTS_RUNWAY.x1) {
         this.fail('Runway overrun', 'You ran out of runway in Bratislava. Use full power and lift the nose (W) at about 110 km/h.');
         return;
       }
@@ -407,15 +575,15 @@ export class Game {
         this.flash('Go-around! Climb away and try again');
       } else if (fm.onGround) {
         if (fm.x > VIE_RUNWAY.x1) {
-          if (fm.airspeed > 15) {
+          if (fm.vx > 15) {
             this.fail('Runway overrun', 'The aircraft left the end of runway 29 at speed. Touch down earlier and keep the power at idle to brake.');
             return;
           }
           this.overran = true;
         }
-        if (fm.airspeed < 1 && this.touchdownItems) {
+        if (fm.vx < 0.5 && this.touchdownItems) {
           this.state = 'report';
-          this.hud.showReport(buildReport(this.touchdownItems, this.overran, this.tailStrike), this.statsLine());
+          this.hud.showReport(buildReport([...this.touchdownItems, ...this.flightItems()], this.overran, this.tailStrike), this.statsLine());
         }
       }
     }
@@ -437,6 +605,10 @@ export class Game {
       else this.flash('Touch-and-go in Bratislava – Vienna is the other way… well, ahead!');
       return;
     }
+    if (Math.abs(td.roll) > 0.3) {
+      this.crash(`The wing tip hit the ground – the wings were banked ${Math.round(THREE.MathUtils.radToDeg(Math.abs(td.roll)))}° at touchdown. Keep the wings level (A/D or the yoke).`);
+      return;
+    }
     if (onRunway(td.x, VIE_RUNWAY)) {
       const v = evaluateTouchdown(td, VIE_RUNWAY);
       if (v.crash) {
@@ -453,13 +625,40 @@ export class Game {
     this.crash(inWater ? 'You ditched in the river. The Danube is beautiful, but not a runway.' : 'You touched down outside the runway.');
   }
 
-  private crash(reason: string): void {
+  private crash(reason: string, title = 'Crash landing'): void {
     this.crashed = true;
     this.shake = 1;
     this.fm.vx = 0;
     this.fm.vy = 0;
     this.fm.throttle = 0;
-    this.fail('Crash landing', reason);
+    this.fail(title, reason);
+  }
+
+  /** Flight-quality items for the debrief beyond the touchdown itself. */
+  private flightItems(): ScoreItem[] {
+    const fm = this.fm;
+    const items: ScoreItem[] = [];
+    if (this.takeoffFlapsAtLiftoff === 0) items.push({ label: 'Take-off flaps', value: 'Not set – 10° recommended', score: -5, max: 0 });
+    if (fm.overspeedTime > 0) items.push({ label: 'Overspeed', value: `${fm.overspeedTime.toFixed(1)} s above Vne`, score: -10, max: 0 });
+    if (fm.maxLoadFactor > fm.config.limits.limitLoadG) items.push({ label: 'Over-stress', value: `${fm.maxLoadFactor.toFixed(1)} g`, score: -10, max: 0 });
+    if (this.stormEncounter !== 'none') {
+      const score = this.stormEncounter === 'severe' ? -15 : this.stormEncounter === 'moderate' ? -8 : -3;
+      items.push({ label: 'Thunderstorm', value: `Flew through ${this.stormEncounter} storm`, score, max: 0 });
+    }
+    return items;
+  }
+
+  /** Sustained climb rate available now at full power (energy method, best-rate speed). */
+  private estimateClimbRate(): number {
+    const fm = this.fm;
+    const cfg = fm.config;
+    const v = 49;
+    const W = fm.mass * 9.81;
+    const qS = 0.5 * 1.225 * v * v * cfg.geometry.wingAreaM2;
+    const cl = W / qS;
+    const drag = qS * (cfg.aero.cd0 + cfg.aero.inducedK * cl * cl);
+    const thrust = Math.min(cfg.engine.staticThrustN, cfg.engine.maxPowerW / v);
+    return Math.max(0, ((thrust - drag) * v) / W);
   }
 
   private fail(title: string, message: string): void {
@@ -480,7 +679,7 @@ export class Game {
     const V = fm.airspeed;
 
     if (this.crashed) this.crashTilt = Math.min(1, this.crashTilt + dt * 2);
-    this.plane.update(dt, fm.x, fm.y, fm.pitch - this.crashTilt * 0.12, {
+    this.plane.update(dt, fm.x, fm.y, fm.pitch - this.crashTilt * 0.12, fm.roll, {
       throttle: this.crashed ? 0 : fm.throttle,
       flaps: fm.flaps,
       gear: fm.gear,
@@ -495,7 +694,7 @@ export class Game {
     this.camY += (Math.max(fm.y + 2.6, 4.2) - this.camY) * k(3.5);
     const targetDist = 29 + Math.min(V * 0.09, 6) + Math.min(fm.y * 0.025, 16);
     this.camDist += (targetDist - this.camDist) * k(0.8);
-    const buffet = !fm.onGround && fm.stallMargin < 0.1 && V > 5 ? 0.25 : 0;
+    const buffet = (!fm.onGround && fm.stallMargin < 0.1 && V > 5 ? 0.25 : 0) + (fm.onGround ? 0 : Math.min(0.18, fm.air.turbulence * fm.air.cloud * 0.08));
     this.shake = Math.max(0, this.shake - dt * 1.8);
     const amp = this.shake * 0.5 + buffet;
     const sx = amp ? Math.sin(this.time * 47) * amp * 0.35 : 0;
@@ -508,14 +707,41 @@ export class Game {
     const progress = (this.camera.position.x - 1500) / (VIE_RUNWAY.x0 - 1500);
     const p = this.palette;
     samplePalette(progress, p);
+    // Storms darken the existing atmosphere around them; inside the cloud the view closes in.
+    const gloom = this.stormGloom(this.camera.position.x);
+    const inCloud = this.state === 'menu' ? 0 : fm.air.cloud;
+    this.storms.update(dt, this.time, fm.time, this.camera, fm.x, fm.y, this.state === 'menu' ? 0 : fm.air.rain);
+    if (this.storms.strike !== null && this.state === 'flying') this.sound.thunder(Math.min(6, this.storms.strike / 340), this.storms.flash);
+    const flash = this.storms.flash;
+    p.tint.multiplyScalar(1 - 0.32 * gloom - 0.25 * inCloud).addScalar(flash * 0.35);
+    p.haze.lerp(this.stormHaze, Math.min(1, 0.45 * gloom + 0.7 * inCloud)).addScalar(flash * 0.25);
+    p.sunIntensity *= 1 - 0.55 * Math.max(gloom, inCloud);
+    const skyDim = Math.min(0.75, 0.4 * gloom + 0.6 * inCloud);
+    if (skyDim > 0) {
+      p.skyTop.lerp(this.stormHaze, skyDim * 0.7);
+      p.skyMid.lerp(this.stormHaze, skyDim);
+      p.horizon.lerp(this.stormHaze, skyDim);
+      p.sun.lerp(p.skyMid, Math.min(1, skyDim * 1.3));
+    }
     atmosphere.tint.value.copy(p.tint);
     atmosphere.haze.value.copy(p.haze);
-    (this.scene.fog as THREE.Fog).color.copy(p.haze);
+    const fog = this.scene.fog as THREE.Fog;
+    fog.color.copy(p.haze);
+    fog.near = this.baseFog.near * (1 - 0.92 * inCloud);
+    fog.far = this.baseFog.far * (1 - 0.88 * inCloud) * (1 - 0.3 * gloom);
     this.hemi.color.copy(p.hemiSky);
     this.hemi.groundColor.copy(p.hemiGround);
+    this.hemi.intensity = 1.25 * (1 - 0.3 * gloom) + flash * 1.2;
     this.sun.color.copy(p.sunLight);
     this.sun.intensity = p.sunIntensity;
     this.sky.update(p, this.camera);
+
+    // Passengers boarding and the wing-tip trails.
+    this.passengers.update(dt);
+    this.plane.getWingTips(this.tipR, this.tipL);
+    const humid = Math.max(fm.air.cloud, fm.air.rain * 0.6);
+    const trail = fm.onGround || this.crashed ? 0 : Math.min(1, 0.35 + Math.max(0, fm.aoa) * 4 + humid * 0.6) * Math.min(1, V / 30);
+    this.trails.update(dt, this.tipR, this.tipL, trail);
 
     const groundY = 0;
     this.sun.target.position.set(fm.x, (fm.y + groundY) * 0.5, 0);
@@ -535,7 +761,11 @@ export class Game {
     }
     this.world.setPapi(Math.max(0, whites));
 
-    if (this.state === 'flying') this.sound.update(fm.throttle, V);
+    if (this.state === 'flying') {
+      const e = fm.engine;
+      const level = e.state === 'running' ? 1 : e.state === 'starting' ? 0.4 + 0.6 * Math.abs(Math.sin(this.time * 9)) : 0;
+      this.sound.update(fm.throttle, V, level, fm.air.rain);
+    }
 
     this.hudTimer -= dt;
     if (this.hudTimer <= 0) {
@@ -562,7 +792,23 @@ export class Game {
       distanceKm: Math.max(0, VIE_RUNWAY.x0 - fm.x) / 1000,
       phase: this.phaseLabel(toAim),
     });
-    this.hud.setControlLit('flaps', fm.flapIndex > 0);
+    this.routeStormTimer -= 1 / 20;
+    if (this.routeStormTimer <= 0) {
+      this.routeStormTimer = 1;
+      this.hud.setRouteStorms(
+        this.weather.storms.map((s) => {
+          const x = this.weather.stormX(s, fm.time);
+          return { from: (x - s.radius - START_X) / routeLen, to: (x + s.radius - START_X) / routeLen, severity: s.severity };
+        }),
+      );
+    }
+    this.hud.setControlLit('flapsDown', fm.flapIndex > 0);
+    this.controlsUi.sync(fm.throttleLever);
+    this.hud.setChecklist(flying && this.phase === 'preflight' ? this.checklist() : null);
+    const msg = flying ? this.atc.current : null;
+    this.hud.setAtc(msg ? msg.station : null, msg?.text, msg?.replies);
+    const assigned = this.atc.assignedAltitude;
+    this.hud.setAltitudeNote(assigned !== null && !fm.onGround ? `ATC ${assigned} m` : 'AGL');
     this.hud.setControlLit('gear', fm.gearTarget > 0.5);
 
     const airborne = !fm.onGround;
@@ -590,12 +836,59 @@ export class Game {
     }
   }
 
+  private checklist(): ChecklistView {
+    const fm = this.fm;
+    const p = this.plane;
+    const boarded = this.passengers.boarded;
+    const total = this.passengerCount;
+    const allAboard = this.boardingStarted && boarded >= total;
+    const doorClosed = !p.doorOpen && p.doorFullyClosed;
+    const done = {
+      door: allAboard && doorClosed,
+      boarding: allAboard,
+      lights: p.lightsOn,
+      flaps: fm.flapIndex === 1,
+      belts: this.belts,
+      engine: fm.engine.state === 'running',
+    };
+    const order: (keyof typeof done)[] = ['boarding', 'door', 'lights', 'flaps', 'belts', 'engine'];
+    let next = order.find((k) => !done[k]) ?? null;
+    if (next === 'boarding' && p.doorOpen) next = this.boardingStarted && allAboard ? 'door' : 'boarding';
+    else if (next === 'boarding') next = 'door';
+    return {
+      load: `${Math.round(fm.mass)} / ${fm.config.mass.mtowKg} kg`,
+      door: p.doorOpen ? 'OPEN' : 'CLOSED',
+      doorButton: p.doorOpen ? 'Close' : 'Open',
+      doorEnabled: fm.engine.state === 'off' && (!p.doorOpen || allAboard),
+      boarding: `${boarded} / ${total}`,
+      lights: p.lightsOn,
+      flaps: fm.flapIndex === 0 ? 'UP' : `${fm.flapTargetDeg}°`,
+      belts: this.belts,
+      engine: fm.engine.state === 'running' ? 'RUNNING' : fm.engine.state === 'starting' ? 'STARTING' : 'OFF',
+      engineEnabled: fm.engine.state === 'off' && this.preflightReady() === null,
+      done,
+      next,
+    };
+  }
+
+  /** 0..1 how much the storms around camera x darken the scene. */
+  private stormGloom(x: number): number {
+    let g = 0;
+    for (const s of this.weather.storms) {
+      const d = Math.abs(x - this.weather.stormX(s, this.fm.time)) / s.radius;
+      const k = s.severity === 'severe' ? 1 : s.severity === 'moderate' ? 0.75 : 0.45;
+      g = Math.max(g, k * (1 - Math.min(1, Math.max(0, (d - 0.6) / 2.4))));
+    }
+    return g;
+  }
+
   private phaseLabel(toAim: number): string {
     const fm = this.fm;
     if (this.state === 'menu') return 'Ready for departure';
     if (this.crashed) return 'Flight ended';
-    if (this.phase === 'takeoff') return fm.airspeed < 1 ? 'Holding on runway 31' : 'Take-off roll';
-    if (this.phase === 'rollout') return fm.airspeed < 1 ? 'Arrived in Vienna' : 'Landing roll';
+    if (this.phase === 'preflight') return 'Pre-flight at runway 31';
+    if (this.phase === 'takeoff') return Math.abs(fm.vx) < 0.5 ? 'Holding on runway 31' : 'Take-off roll';
+    if (this.phase === 'rollout') return Math.abs(fm.vx) < 0.5 ? 'Arrived in Vienna' : 'Landing roll';
     const glideStart = fm.y / Math.tan(THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG));
     if (toAim < 2500) return 'Final approach';
     if (toAim < glideStart + 300) return 'Descent';
@@ -605,20 +898,34 @@ export class Game {
   private hint(toAim: number): string {
     const fm = this.fm;
     const kmh = fm.airspeed * 3.6;
-    if (this.phase === 'takeoff') {
-      if (fm.throttleLever < 0.95) return 'Hold Shift (or +) for full take-off power';
-      if (kmh < 100) return `Accelerating… lift the nose at 110 km/h`;
-      return 'Rotate! Hold W (or ↑) to raise the nose';
+    if (this.phase === 'preflight') {
+      const c = this.checklist();
+      if (!this.boardingStarted || !c.done.boarding) return this.plane.doorOpen ? 'Passengers are boarding…' : 'Open the cabin door (O) to board the passengers';
+      if (!c.done.door) return 'Close the cabin door (O)';
+      if (!c.done.lights) return 'Switch on the beacon and navigation lights (L)';
+      if (!c.done.flaps) return 'Set take-off flaps 10°';
+      if (!c.done.belts) return 'Switch on the seatbelt sign (N)';
+      return fm.engine.state === 'starting' ? 'Engine starting…' : 'Start the engine (I)';
     }
-    if (this.phase === 'rollout') return fm.airspeed > 1 ? 'Power to idle (X) and brake (B)' : '';
+    if (this.phase === 'takeoff') {
+      if (fm.throttleLever < 0.95) return 'Push the throttle lever to full power (Shift)';
+      if (kmh < 100) return `Accelerating… lift the nose at 110 km/h`;
+      return 'Rotate! Pull the yoke (W / ↑) to raise the nose';
+    }
+    if (this.phase === 'rollout') return Math.abs(fm.vx) > 0.5 ? 'Throttle to idle (X) and brake (B)' : '';
     if (fm.overspeed) return 'Overspeed! Reduce power and raise the nose';
+    if (fm.loadFactor > fm.config.limits.limitLoadG * 0.85) return 'Too many g – ease off the yoke!';
+    if (Math.abs(fm.roll) > 0.45) return 'Steep bank – level the wings (A / D)';
+    if (fm.air.cloud > 0.3 && fm.air.turbulence > 1.2 && kmh > 200) return 'Severe turbulence – slow below 200 km/h to protect the airframe';
     const glideStart = fm.y / Math.tan(THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG));
     const descending = toAim < glideStart + 200;
     if (!descending) {
       if (fm.gearTarget > 0.5 && fm.y > 15) return 'Positive climb – retract the landing gear (G)';
       if (fm.flapIndex > 0 && fm.y > 60) return 'Retract the flaps (V) for cruise';
-      if (fm.y < SUGGESTED_CRUISE_ALT - 60) return `Climb to about ${SUGGESTED_CRUISE_ALT} m`;
-      if (fm.y > SUGGESTED_CRUISE_ALT + 250) return 'You are high – Vienna is close, plan your descent';
+      const target = this.atc.assignedAltitude ?? SUGGESTED_CRUISE_ALT;
+      if (fm.y < target - 60) return `Climb to ${target} m${this.atc.assignedAltitude !== null ? ' as assigned by ATC' : ''}`;
+      if (this.atc.assignedAltitude !== null && fm.y > target + 80) return `Descend to ${target} m as assigned by ATC`;
+      if (this.atc.assignedAltitude === null && fm.y > SUGGESTED_CRUISE_ALT + 250 && toAim < glideStart + 3000) return 'You are high – Vienna is close, plan your descent';
       if (toAim < glideStart + 1200) return 'Top of descent ahead – get ready to reduce power';
       return 'Cruise around 350 m at ~200 km/h (about 70% power)';
     }

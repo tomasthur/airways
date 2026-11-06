@@ -9,6 +9,7 @@ export class EngineSound {
   private windGain!: GainNode;
   private windFilter!: BiquadFilterNode;
   private noise!: AudioBuffer;
+  private rainGain!: GainNode;
   muted = false;
 
   /** Must be called from a user gesture. */
@@ -57,6 +58,17 @@ export class EngineSound {
     this.windGain.gain.value = 0;
     src.connect(this.windFilter).connect(this.windGain).connect(this.master);
     src.start();
+
+    const rainSrc = ctx.createBufferSource();
+    rainSrc.buffer = this.noise;
+    rainSrc.loop = true;
+    const rainFilter = ctx.createBiquadFilter();
+    rainFilter.type = 'highpass';
+    rainFilter.frequency.value = 2500;
+    this.rainGain = ctx.createGain();
+    this.rainGain.gain.value = 0;
+    rainSrc.connect(rainFilter).connect(this.rainGain).connect(this.master);
+    rainSrc.start(0, 0.7);
   }
 
   setMuted(m: boolean): void {
@@ -73,15 +85,19 @@ export class EngineSound {
     void this.ctx?.resume();
   }
 
-  update(throttle: number, airspeed: number): void {
+  /**
+   * @param engine 0 = off, 0..1 while cranking, 1 = running
+   */
+  update(throttle: number, airspeed: number, engine = 1, rain = 0): void {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    const rpm = 0.22 + throttle * 0.78;
+    const rpm = engine < 1 ? engine * 0.18 : 0.22 + throttle * 0.78;
     const f = 34 + rpm * 62;
     this.oscA.frequency.setTargetAtTime(f, t, 0.15);
     this.oscB.frequency.setTargetAtTime(f * 2.02, t, 0.15);
     this.filter.frequency.setTargetAtTime(300 + rpm * 900, t, 0.2);
-    this.engineGain.gain.setTargetAtTime(0.035 + rpm * 0.085, t, 0.2);
+    this.engineGain.gain.setTargetAtTime(engine > 0 ? 0.035 + rpm * 0.085 : 0, t, 0.2);
+    this.rainGain.gain.setTargetAtTime(rain * 0.09, t, 0.5);
     const w = Math.min(1, airspeed / 70);
     this.windGain.gain.setTargetAtTime(w * w * 0.12, t, 0.3);
     this.windFilter.frequency.setTargetAtTime(500 + w * 900, t, 0.3);
@@ -103,5 +119,24 @@ export class EngineSound {
     src.connect(f).connect(g).connect(this.master);
     src.start(t, Math.random());
     src.stop(t + 0.7);
+  }
+
+  /** Rolling thunder after `delay` seconds, intensity 0..1. */
+  thunder(delay: number, intensity: number): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = 160 + intensity * 120;
+    const g = ctx.createGain();
+    const t = ctx.currentTime + delay;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25 + intensity * 0.55, t + 0.12);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 2.6 + intensity * 1.5);
+    src.connect(f).connect(g).connect(this.master);
+    src.start(t, Math.random());
+    src.stop(t + 4.5);
   }
 }

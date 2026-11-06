@@ -10,7 +10,7 @@ const SLOPE = Math.tan((3.5 * Math.PI) / 180);
 
 const fm = new FlightModel();
 fm.reset(140);
-const input = { pitch: 0, throttle: 0, brake: 0 };
+const input = { pitch: 0, roll: 0, throttle: 0, brake: 0 };
 let t = 0;
 let phase = 'takeoff';
 let lastLog = -10;

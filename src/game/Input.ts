@@ -1,15 +1,35 @@
-export type HoldAction = 'pitchUp' | 'pitchDown' | 'powerDown' | 'powerUp' | 'brake';
-export type PressAction = 'flaps' | 'flapsDown' | 'flapsUp' | 'gear' | 'pause' | 'restart' | 'mute' | 'start' | 'quality';
+export type HoldAction = 'pitchUp' | 'pitchDown' | 'rollLeft' | 'rollRight' | 'powerDown' | 'powerUp' | 'brake';
+export type PressAction =
+  | 'flaps'
+  | 'flapsDown'
+  | 'flapsUp'
+  | 'flapsTakeoff'
+  | 'gear'
+  | 'door'
+  | 'lights'
+  | 'belts'
+  | 'engineStart'
+  | 'reply1'
+  | 'reply2'
+  | 'pause'
+  | 'restart'
+  | 'mute'
+  | 'start'
+  | 'quality';
 
 /**
  * Default key map. Deliberately free of Ctrl/Alt/Meta combinations, Escape (Shift+Esc opens the
- * Chrome task manager) and the Firefox quick-find keys (/ and '). A/D and ←/→ are reserved for roll.
+ * Chrome task manager) and the Firefox quick-find keys (/ and ').
  */
 const HOLD_KEYS: Record<string, HoldAction> = {
   KeyW: 'pitchUp',
   ArrowUp: 'pitchUp',
   KeyS: 'pitchDown',
   ArrowDown: 'pitchDown',
+  KeyA: 'rollLeft',
+  ArrowLeft: 'rollLeft',
+  KeyD: 'rollRight',
+  ArrowRight: 'rollRight',
   ShiftLeft: 'powerUp',
   ShiftRight: 'powerUp',
   KeyX: 'powerDown',
@@ -20,6 +40,12 @@ const PRESS_KEYS: Record<string, PressAction> = {
   KeyF: 'flapsDown',
   KeyV: 'flapsUp',
   KeyG: 'gear',
+  KeyO: 'door',
+  KeyL: 'lights',
+  KeyN: 'belts',
+  KeyI: 'engineStart',
+  Digit1: 'reply1',
+  Digit2: 'reply2',
   KeyP: 'pause',
   KeyR: 'restart',
   KeyM: 'mute',
@@ -73,8 +99,17 @@ export class Input {
     return false;
   }
 
+  /** Analog yoke deflection from the touch control (−1..1 each). */
+  readonly yoke = { pitch: 0, roll: 0 };
+
   get pitch(): number {
-    return (this.isHeld('pitchUp') ? 1 : 0) - (this.isHeld('pitchDown') ? 1 : 0);
+    const keys = (this.isHeld('pitchUp') ? 1 : 0) - (this.isHeld('pitchDown') ? 1 : 0);
+    return Math.max(-1, Math.min(1, keys + this.yoke.pitch));
+  }
+
+  get roll(): number {
+    const keys = (this.isHeld('rollRight') ? 1 : 0) - (this.isHeld('rollLeft') ? 1 : 0);
+    return Math.max(-1, Math.min(1, keys + this.yoke.roll));
   }
 
   get throttle(): number {

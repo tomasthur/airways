@@ -28,6 +28,15 @@ export const C172RG: AircraftConfig = {
 
   inertia: {
     iyyKgM2: 1825,
+    ixxKgM2: 1285,
+  },
+
+  roll: {
+    wingSpanM: 11.1,
+    clP: -0.47,
+    clAileron: 0.11,
+    maxRollRate: 0.55,
+    maxBank: 1.05,
   },
 
   aero: {
@@ -92,5 +101,8 @@ export const C172RG: AircraftConfig = {
     vnoKmh: 269,
     vneKmh: 304,
     maxTouchdownVsMs: 4.5,
+    limitLoadG: 3.8,
+    ultimateLoadG: 5.7,
+    overspeedToleranceS: 5,
   },
 };

@@ -287,8 +287,20 @@ const PROBE = String.raw`(async (quality) => {
     if (g.state === 'menu') { start(); return; }
     if (g.state !== 'flying') return;
     const V = fm.airspeed;
+    if (g.phase === 'preflight') {
+      const p = g.plane, pax = g.passengers;
+      if (!g.boardingStarted) { if (!p.doorOpen) tap('KeyO'); }
+      else if (pax.boarded < pax.total) { /* boarding */ }
+      else if (p.doorOpen) tap('KeyO');
+      else if (!p.doorFullyClosed) { /* door closing */ }
+      else if (!p.lightsOn) tap('KeyL');
+      else if (fm.flapIndex < 1) tap('KeyF');
+      else if (!g.belts) tap('KeyN');
+      else if (fm.engine.state === 'off') tap('KeyI');
+      return;
+    }
     if (phase === 'takeoff') { thrTo(1.1); if (V > 28) pitchTo(9 * deg); else { key('KeyW', false); key('KeyS', false); } if (!fm.onGround && fm.y > 3) phase = 'climb'; }
-    else if (phase === 'climb') { thrTo(1.1); pitchTo(8 * deg); if (fm.y > 15 && fm.gearTarget > 0.5) tap('KeyG'); if (fm.y > 330) phase = 'cruise'; }
+    else if (phase === 'climb') { thrTo(1.1); pitchTo(8 * deg); if (fm.y > 15 && fm.gearTarget > 0.5) tap('KeyG'); if (fm.y > 100 && fm.flapIndex > 0) tap('KeyV'); if (fm.y > 330) phase = 'cruise'; }
     else if (phase === 'cruise') { thrTo(0.7); pitchTo((350 - fm.y) * 0.002 - fm.vy * 0.01 + 0.5 * deg); if ((AIM - fm.x) * SLOPE < fm.y) phase = 'descent'; }
     else if (phase === 'descent') { const ta = (AIM - fm.x) * SLOPE, tv = -fm.vx * SLOPE; pitchTo((ta - fm.y) * 0.004 + (tv - fm.vy) * 0.02 + 1 * deg); const ts = AIM - fm.x < 3000 ? 32 : 45; thrTo(Math.max(0, Math.min(1, 0.35 + (ts - V) * 0.08))); if (AIM - fm.x < 4500 && fm.gearTarget < 0.5) tap('KeyG'); if (AIM - fm.x < 3200 && fm.flapIndex < 3) tap('KeyF'); if (fm.y < 7) phase = 'flare'; }
     else if (phase === 'flare') { thrTo(-0.1); pitchTo(6 * deg); if (fm.onGround) phase = 'rollout'; }

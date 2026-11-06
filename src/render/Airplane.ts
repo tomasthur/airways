@@ -45,8 +45,16 @@ export class Airplane {
   private readonly wheels: THREE.Mesh[] = [];
   private readonly beacon: THREE.Sprite;
   private readonly strobes: THREE.Sprite[] = [];
+  private readonly navLights: THREE.Sprite[] = [];
+  private readonly door = new THREE.Group();
+  private readonly doorOpening: THREE.Mesh;
+  private readonly tipLocal: THREE.Vector3[];
   private propAngle = 0;
   private time = 0;
+  private doorAngle = 0;
+  /** Door target: 0 closed, 1 open. */
+  doorOpen = false;
+  lightsOn = true;
 
   constructor(envMap: THREE.Texture | null) {
     this.root.add(this.model);
@@ -236,18 +244,65 @@ export class Airplane {
       return sp;
     };
     const tipY = wy + 5.5 * dihedral;
-    light('#3dff6e', 0.45, tipY, 5.55, 0.7);
-    light('#ff3030', 0.45, tipY, -5.55, 0.7);
-    light('#ffffff', -5.08, 2.0, 0, 0.5);
+    this.navLights.push(light('#3dff6e', 0.45, tipY, 5.55, 0.7), light('#ff3030', 0.45, tipY, -5.55, 0.7), light('#ffffff', -5.08, 2.0, 0, 0.5));
     this.beacon = light('#ff2a1a', -4.72, 3.66, 0, 1.4);
     this.strobes.push(light('#ffffff', 0.2, tipY, 5.56, 1.8), light('#ffffff', 0.2, tipY, -5.56, 1.8));
+    this.tipLocal = [new THREE.Vector3(0.1, tipY, 5.5), new THREE.Vector3(0.1, tipY, -5.5)];
+
+    // Right cabin door (camera side), hinged at its front edge over the painted outline.
+    // Hidden while closed so the closed aircraft looks exactly like the livery.
+    const doorW = 0.85;
+    const doorH = 1.12;
+    const doorY = 1.02;
+    const doorZ = 0.58;
+    this.door.position.set(1.05, doorY, doorZ);
+    const panel = new THREE.BoxGeometry(doorW, doorH, 0.04);
+    panel.translate(-doorW / 2, doorH / 2, 0.02);
+    add(panel, white, this.door);
+    const pane = new THREE.BoxGeometry(doorW * 0.78, doorH * 0.42, 0.05);
+    pane.translate(-doorW / 2, doorH * 0.7, 0.025);
+    add(pane, glass, this.door, false);
+    this.door.visible = false;
+    this.model.add(this.door);
+    const opening = new THREE.PlaneGeometry(doorW, doorH);
+    opening.translate(1.05 - doorW / 2, doorY + doorH / 2, doorZ + 0.012);
+    this.doorOpening = add(opening, new THREE.MeshBasicMaterial({ color: '#1d232a' }), this.model, false);
+    this.doorOpening.visible = false;
+  }
+
+  /** World positions of the two wing tips (right, left). */
+  getWingTips(right: THREE.Vector3, left: THREE.Vector3): void {
+    this.model.updateWorldMatrix(true, false);
+    right.copy(this.tipLocal[0]).applyMatrix4(this.model.matrixWorld);
+    left.copy(this.tipLocal[1]).applyMatrix4(this.model.matrixWorld);
+  }
+
+  /** World position of the cabin door sill (for boarding passengers). */
+  doorSill(out: THREE.Vector3): THREE.Vector3 {
+    this.model.updateWorldMatrix(true, false);
+    return out.set(0.62, 0.95, 0.75).applyMatrix4(this.model.matrixWorld);
+  }
+
+  get doorFullyOpen(): boolean {
+    return this.doorAngle > 1.15;
+  }
+
+  get doorFullyClosed(): boolean {
+    return this.doorAngle < 0.01;
   }
 
   /** Applies physics pose and animates moving parts. */
-  update(dt: number, x: number, y: number, pitch: number, s: AirplaneVisualState): void {
+  update(dt: number, x: number, y: number, pitch: number, roll: number, s: AirplaneVisualState): void {
     this.time += dt;
     this.root.position.set(x, y, 0);
-    this.root.rotation.z = pitch;
+    // Pitch about the world z axis, bank about the aircraft's own longitudinal axis.
+    this.root.rotation.set(roll, 0, pitch, 'ZYX');
+
+    const doorTarget = this.doorOpen ? 1.25 : 0;
+    this.doorAngle += Math.sign(doorTarget - this.doorAngle) * Math.min(Math.abs(doorTarget - this.doorAngle), dt * 1.4);
+    this.door.rotation.y = this.doorAngle;
+    this.door.visible = this.doorAngle > 0.005;
+    this.doorOpening.visible = this.door.visible;
     this.model.position.y = -0.55 * (1 - s.gear);
 
     // Propeller: visible blades at low rpm, blurred disc at high rpm
@@ -276,9 +331,11 @@ export class Airplane {
     }
 
     const t = this.time;
-    this.beacon.material.opacity = (t % 1.2) < 0.12 ? 1 : 0.05;
-    const strobe = (t % 1.6) < 0.06 || ((t % 1.6) > 0.16 && (t % 1.6) < 0.22) ? 1 : 0;
+    const on = this.lightsOn;
+    this.beacon.material.opacity = on ? ((t % 1.2) < 0.12 ? 1 : 0.05) : 0;
+    const strobe = on && ((t % 1.6) < 0.06 || ((t % 1.6) > 0.16 && (t % 1.6) < 0.22)) ? 1 : 0;
     for (const sp of this.strobes) sp.material.opacity = strobe;
+    for (const sp of this.navLights) sp.visible = on;
   }
 }
 

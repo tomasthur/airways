@@ -15,6 +15,21 @@ export interface HudData {
   phase: string;
 }
 
+export interface ChecklistView {
+  load: string;
+  door: string;
+  doorButton: string;
+  doorEnabled: boolean;
+  boarding: string;
+  lights: boolean;
+  flaps: string;
+  belts: boolean;
+  engine: string;
+  engineEnabled: boolean;
+  done: { door: boolean; boarding: boolean; lights: boolean; flaps: boolean; belts: boolean; engine: boolean };
+  next: keyof ChecklistView['done'] | null;
+}
+
 export type WarningKey = 'stall' | 'overspeed' | 'gear' | 'sink' | 'flaps' | 'terrain';
 
 /** DOM HUD. Writes to the DOM only when values change. */
@@ -158,7 +173,60 @@ export class Hud {
     el.classList.add('show');
   }
 
-  setControlLit(action: 'flaps' | 'gear', lit: boolean): void {
+  /** Storm cells on the route track: start/end as route fractions. */
+  setRouteStorms(storms: { from: number; to: number; severity: string }[]): void {
+    this.ref('trackStorms').innerHTML = storms
+      .map((s) => `<span class="${s.severity}" style="left:${(s.from * 100).toFixed(1)}%;width:${((s.to - s.from) * 100).toFixed(1)}%"></span>`)
+      .join('');
+  }
+
+  setAltitudeNote(text: string): void {
+    this.text('altSub', text);
+  }
+
+  /** Shows an ATC message (null hides the panel). */
+  setAtc(station: string | null, text = '', replies: string[] = []): void {
+    const panel = this.ref('atc');
+    this.cls(panel, 'atcCls', `atc${station ? '' : ' is-hidden'}`);
+    if (!station) return;
+    this.text('atcStation', station);
+    this.text('atcText', text);
+    const buttons = [this.ref('atcReply1'), this.ref('atcReply2')];
+    buttons.forEach((b, i) => {
+      const label = replies[i];
+      this.cls(b, `atcReply${i}`, label ? '' : 'is-hidden');
+      const html = label ? `${label} <small>${i + 1}</small>` : '';
+      if (this.cache.get(`atcReplyHtml${i}`) !== html) {
+        this.cache.set(`atcReplyHtml${i}`, html);
+        b.innerHTML = html;
+      }
+    });
+  }
+
+  /** Pre-flight checklist; null hides it. */
+  setChecklist(c: ChecklistView | null): void {
+    const panel = this.ref('checklist');
+    this.cls(panel, 'clCls', `panel checklist${c ? '' : ' is-hidden'}`);
+    if (!c) return;
+    this.text('clLoad', c.load);
+    this.text('clDoor', c.door);
+    this.text('clDoorBtn', c.doorButton);
+    this.text('clBoarding', c.boarding);
+    this.text('clLights', c.lights ? 'ON' : 'OFF');
+    this.text('clLightsBtn', c.lights ? 'Off' : 'On');
+    this.text('clFlaps', c.flaps);
+    this.text('clBelts', c.belts ? 'ON' : 'OFF');
+    this.text('clBeltsBtn', c.belts ? 'Off' : 'On');
+    this.text('clEngine', c.engine);
+    (this.ref('clDoorBtn') as HTMLButtonElement).disabled = !c.doorEnabled;
+    (this.ref('clEngineBtn') as HTMLButtonElement).disabled = !c.engineEnabled;
+    panel.querySelectorAll<HTMLElement>('.cl-row').forEach((row) => {
+      const key = row.dataset.cl as keyof ChecklistView['done'];
+      this.cls(row, `cl.${key}`, `cl-row${c.done[key] ? ' done' : ''}${c.next === key ? ' next' : ''}`);
+    });
+  }
+
+  setControlLit(action: 'flapsDown' | 'gear', lit: boolean): void {
     const btn = this.root.querySelector<HTMLElement>(`.ctl[data-action="${action}"]`);
     if (btn) this.cls(btn, `ctl.${action}`, `ctl wide${lit ? ' lit' : ''}`);
   }

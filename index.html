@@ -18,7 +18,7 @@
           <div class="route">
             <span class="code">BTS</span><span class="city">BRATISLAVA</span><span class="arrow">→</span><span class="city">VIENNA</span><span class="code">VIE</span>
           </div>
-          <div class="track"><div class="track-fill" data-ref="trackFill"></div><div class="track-plane" data-ref="trackPlane">✈</div></div>
+          <div class="track"><div class="track-storms" data-ref="trackStorms"></div><div class="track-fill" data-ref="trackFill"></div><div class="track-plane" data-ref="trackPlane">✈</div></div>
           <div class="mission-meta"><span data-ref="distance">VIE 11.4 km</span><span data-ref="phase">Ready for departure</span></div>
         </section>
 
@@ -42,6 +42,25 @@
         </div>
 
         <div class="hint" data-ref="hint"></div>
+
+        <div class="atc is-hidden" data-ref="atc">
+          <span class="atc-station" data-ref="atcStation"></span>
+          <span class="atc-text" data-ref="atcText"></span>
+          <span class="atc-replies">
+            <button type="button" data-action="reply1" data-ref="atcReply1">Wilco <small>1</small></button>
+            <button type="button" data-action="reply2" data-ref="atcReply2">Unable <small>2</small></button>
+          </span>
+        </div>
+
+        <section class="panel checklist is-hidden" data-ref="checklist" aria-label="Pre-flight checklist">
+          <div class="cl-head"><span>Pre-flight</span><span class="cl-load" data-ref="clLoad"></span></div>
+          <div class="cl-row" data-cl="door"><i></i><span>Cabin door</span><b data-ref="clDoor"></b><button type="button" data-action="door" data-ref="clDoorBtn">Open</button></div>
+          <div class="cl-row" data-cl="boarding"><i></i><span>Passengers</span><b data-ref="clBoarding"></b></div>
+          <div class="cl-row" data-cl="lights"><i></i><span>Beacon &amp; nav lights</span><b data-ref="clLights"></b><button type="button" data-action="lights" data-ref="clLightsBtn">On</button></div>
+          <div class="cl-row" data-cl="flaps"><i></i><span>Flaps take-off 10°</span><b data-ref="clFlaps"></b><button type="button" data-action="flapsTakeoff">Set</button></div>
+          <div class="cl-row" data-cl="belts"><i></i><span>Seatbelt sign</span><b data-ref="clBelts"></b><button type="button" data-action="belts" data-ref="clBeltsBtn">On</button></div>
+          <div class="cl-row" data-cl="engine"><i></i><span>Engine</span><b data-ref="clEngine"></b><button type="button" data-action="engineStart" data-ref="clEngineBtn">Start</button></div>
+        </section>
 
         <div class="panel papi" data-ref="papi">
           <div class="papi-lights"><i></i><i></i><i></i><i></i></div>
@@ -82,21 +101,36 @@
         </section>
 
         <section class="controls" aria-label="On-screen flight controls">
-          <div class="ctl-group">
-            <span class="ctl-label">Pitch</span>
-            <button type="button" class="ctl" data-hold="pitchUp" aria-label="Nose up">▲<small>W</small></button>
-            <button type="button" class="ctl" data-hold="pitchDown" aria-label="Nose down">▼<small>S</small></button>
-          </div>
-          <div class="ctl-group">
-            <span class="ctl-label">Power</span>
-            <button type="button" class="ctl" data-hold="powerDown" aria-label="Reduce power">−<small>X</small></button>
-            <button type="button" class="ctl" data-hold="powerUp" aria-label="Increase power">+<small>Shift</small></button>
-          </div>
-          <div class="ctl-group">
+          <div class="ctl-group config">
             <span class="ctl-label">Config</span>
-            <button type="button" class="ctl wide" data-action="flaps">Flaps<small>F</small></button>
-            <button type="button" class="ctl wide" data-action="gear">Gear<small>G</small></button>
+            <div class="ctl-grid">
+              <button type="button" class="ctl wide" data-action="flapsDown">Flaps ▼<small>F</small></button>
+              <button type="button" class="ctl wide" data-action="flapsUp">Flaps ▲<small>V</small></button>
+              <button type="button" class="ctl wide" data-action="gear">Gear<small>G</small></button>
+              <button type="button" class="ctl wide" data-hold="brake">Brake<small>B</small></button>
+            </div>
           </div>
+          <div class="ctl-group">
+            <span class="ctl-label">Yoke</span>
+            <div class="yoke" data-ref="yoke" aria-label="Yoke: drag down to pull, up to push, sideways to bank">
+              <svg class="yoke-wheel" data-ref="yokeWheel" viewBox="-60 -42 120 84" aria-hidden="true">
+                <path d="M-50 -30 C-56 -8 -46 12 -26 13 L26 13 C46 12 56 -8 50 -30" fill="none" stroke="rgba(20,26,32,0.85)" stroke-width="11" stroke-linecap="round" />
+                <path d="M-50 -30 C-56 -8 -46 12 -26 13 L26 13 C46 12 56 -8 50 -30" fill="none" stroke="rgba(235,240,245,0.9)" stroke-width="7" stroke-linecap="round" />
+                <rect x="-11" y="6" width="22" height="16" rx="4" fill="rgba(235,240,245,0.92)" />
+                <rect x="-4" y="22" width="8" height="18" rx="2" fill="rgba(235,240,245,0.55)" />
+              </svg>
+            </div>
+          </div>
+        </section>
+
+        <section class="throttle" aria-label="Throttle lever">
+          <span class="ctl-label">Throttle</span>
+          <div class="throttle-track" data-ref="throttleTrack">
+            <div class="throttle-fill" data-ref="throttleFill"></div>
+            <div class="throttle-knob" data-ref="throttleKnob"></div>
+          </div>
+          <span class="throttle-val" data-ref="throttleVal">0%</span>
+          <span class="ctl-key">⇧ / X</span>
         </section>
       </div>
 
