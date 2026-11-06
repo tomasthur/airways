@@ -4,9 +4,10 @@ import { getRoute } from '../meta/routes';
 
 /** Geographic frame for the Central Europe SVG (lon west→east, lat south→north). */
 const LON0 = 10.2;
-const LON1 = 21.6;
+const LON1 = 22.2;
 const LAT0 = 45.6;
-const LAT1 = 52.5;
+/** Room for Warsaw near the top edge of the hub map. */
+const LAT1 = 53.2;
 const VW = 1000;
 const VH = 620;
 /** Tiny screen-space nudges so neighbouring airports stay tappable. */
@@ -14,6 +15,9 @@ const PIN_NUDGE: Record<string, { x: number; y: number }> = {
   BTS: { x: -14, y: 10 },
   VIE: { x: 18, y: -8 },
   BUD: { x: 8, y: 6 },
+  PRG: { x: -10, y: -6 },
+  KRK: { x: 12, y: 4 },
+  WAW: { x: 6, y: -10 },
 };
 
 /** Simplified Central Europe land silhouette in viewBox coordinates. */

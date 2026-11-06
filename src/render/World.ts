@@ -1,12 +1,24 @@
 import * as THREE from 'three';
 import { Atlas, makeCanvasTexture, type SpriteFrame } from '../art/Atlas';
+import { airportTerminalSprites, terminalSpriteName } from '../art/airportShells';
 import { bratislavaSprites, RIVER_WATER, SNP_RIVER_OFFSET } from '../art/bratislava';
 import { countrySprites } from '../art/countryside';
 import { paintCountryTile, paintHillsTile, paintMountainTile, type TileSpec } from '../art/tiles';
 import { rng, range, pick, type Rand } from '../art/paint';
 import { viennaSprites } from '../art/vienna';
 import { BTS_RUNWAY, DANUBE, DANUBE_CANAL, RUNWAY_WIDTH, RUNWAY_Z, VIE_RUNWAY, ZONES, type Runway } from '../config';
+import { FLYABLE_IATAS, airportByIata } from '../meta/airports';
+import { type SceneryTheme } from '../meta/routes';
 import { buildSpriteBatches, buildTileStrip, type Placement } from './Billboards';
+
+const SCENERY_THEMES: SceneryTheme[] = [
+  'danubeWest',
+  'danubeEast',
+  'pannonian',
+  'bohemian',
+  'carpathian',
+  'vistula',
+];
 
 const WORLD_X0 = -3500;
 const WORLD_X1 = 19000;
@@ -32,6 +44,8 @@ export class World {
   private readonly originTerminals: THREE.Object3D[] = [];
   /** Destination (arrival) terminal meshes tagged with userData.airport. */
   private readonly arrivalTerminals: THREE.Object3D[] = [];
+  /** Mid-corridor scenery packs (and theme water) toggled by setRouteScenery. */
+  private readonly sceneryGroups: { theme: SceneryTheme; group: THREE.Group }[] = [];
   private readonly tmpMatrix = new THREE.Matrix4();
   private readonly tmpQuat = new THREE.Quaternion();
   private readonly tmpPos = new THREE.Vector3();
@@ -43,7 +57,7 @@ export class World {
 
   constructor(anisotropy: number) {
     const atlas = new Atlas();
-    atlas.add(...countrySprites(), ...bratislavaSprites(), ...viennaSprites());
+    atlas.add(...countrySprites(), ...bratislavaSprites(), ...viennaSprites(), ...airportTerminalSprites());
     const { pages, frames } = atlas.build(anisotropy);
     this.pages = pages;
     this.frames = frames;
@@ -55,6 +69,7 @@ export class World {
     this.buildLights();
     this.buildLayers(anisotropy);
     this.buildRouteTerminals();
+    this.setRouteScenery('danubeWest');
     this.setRouteAirports('BTS', 'VIE');
   }
 
@@ -63,11 +78,26 @@ export class World {
    * Both ends must match the filed route — never leave a leftover BTS/VIE sign.
    */
   setRouteAirports(from: string, to: string): void {
-    const norm = (c: string) => (c === 'BUD' || c === 'BTS' || c === 'VIE' ? c : 'BTS');
+    const flyable = new Set<string>(FLYABLE_IATAS);
+    const norm = (c: string) => (flyable.has(c) ? c : 'BTS');
     const origin = norm(from);
     const arrival = norm(to);
     for (const m of this.originTerminals) m.visible = m.userData.airport === origin;
     for (const m of this.arrivalTerminals) m.visible = m.userData.airport === arrival;
+  }
+
+  /** Swap mid-corridor set dressing (cities, water, hills) for this undirected hop. */
+  setRouteScenery(theme: SceneryTheme): void {
+    for (const { theme: t, group } of this.sceneryGroups) group.visible = t === theme;
+  }
+
+  private sceneryGroup(parent: THREE.Object3D, theme: SceneryTheme): THREE.Group {
+    const g = new THREE.Group();
+    g.name = `scenery_${theme}`;
+    g.visible = false;
+    parent.add(g);
+    this.sceneryGroups.push({ theme, group: g });
+    return g;
   }
 
   /** @deprecated use setRouteAirports */
@@ -101,7 +131,7 @@ export class World {
     const r = rng(2024);
     const P = this.pages;
 
-    // Far clouds
+    // Far clouds (shared)
     const cloudsFar = this.addLayer(-2600, 0.9);
     const farClouds: Placement[] = [];
     for (let x = WORLD_X0; x < WORLD_X1; x += range(r, 600, 1200)) {
@@ -109,12 +139,12 @@ export class World {
     }
     buildSpriteBatches(P, farClouds, { hazeAmount: 0.3, skirt: 0, renderOrder: 0, opacity: 0.9 }).forEach((m) => cloudsFar.add(m));
 
-    // Mountains
+    // Mountains (shared base silhouette)
     const mountains = this.addLayer(-1500, 0.86);
     const mt = paintMountainTile();
     mountains.add(buildTileStrip(this.tile(mt, anisotropy), mt.w, mt.h, [[WORLD_X0, WORLD_X1]], { hazeAmount: 0.42, skirt: 8, renderOrder: 10 }));
 
-    // Mid-distance clouds
+    // Mid-distance clouds (shared)
     const cloudsMid = this.addLayer(-1100, 0.75);
     const midClouds: Placement[] = [];
     for (let x = WORLD_X0; x < WORLD_X1; x += range(r, 700, 1500)) {
@@ -122,84 +152,19 @@ export class World {
     }
     buildSpriteBatches(P, midClouds, { hazeAmount: 0.18, skirt: 0, renderOrder: 15, opacity: 0.92 }).forEach((m) => cloudsMid.add(m));
 
-    // Hills, forests and countryside + far city skylines
+    // Hills base tile (shared) + theme hill accents / far skylines
     const hills = this.addLayer(-800, 0.74);
     const ht = paintHillsTile();
     hills.add(buildTileStrip(this.tile(ht, anisotropy), ht.w, ht.h, [[WORLD_X0, WORLD_X1]], { hazeAmount: 0.28, skirt: 8, renderOrder: 20, fields: true }));
-    const hillMasses: Placement[] = [
-      { frame: this.frame('kamzik'), x: 4950, z: 1 },
-      { frame: this.frame('kahlenberg'), x: 8550, z: 1 },
-    ];
-    buildSpriteBatches(P, hillMasses, { hazeAmount: 0.26, skirt: 8, renderOrder: 21, fields: true }).forEach((m) => hills.add(m));
-    const hillSprites: Placement[] = [
-      { frame: this.frame('vienna_far'), x: 8950, z: 3 },
-      { frame: this.frame('vienna_far'), x: 9420, z: 3, flip: true },
-      { frame: this.frame('vienna_far'), x: 9900, z: 3 },
-      { frame: this.frame('vienna_far'), x: 10380, z: 3, flip: true },
-      { frame: this.frame('dc_tower'), x: 9180, z: 4 },
-      { frame: this.frame('millennium_tower'), x: 9330, z: 4 },
-      { frame: this.frame('donauturm'), x: 9470, z: 4 },
-    ];
-    buildSpriteBatches(P, hillSprites, { hazeAmount: 0.26, skirt: 0, renderOrder: 21.5 }).forEach((m) => hills.add(m));
+    this.buildHillScenery(hills, P);
 
-    // Mid-distance countryside strip with city panoramas
+    // Mid countryside + theme cities / landmarks / turbines
     const mid = this.addLayer(-380, 0.55);
     const ct = paintCountryTile();
-    const snp = this.frame('snp_bridge');
-    const snpLeft = DANUBE.x0 - SNP_RIVER_OFFSET;
-    const snpRight = snpLeft + snp.w;
     const ctTex = this.tile(ct, anisotropy);
-    mid.add(
-      buildTileStrip(ctTex, ct.w, ct.h, [[WORLD_X0, snpLeft + 2], [snpRight - 2, WORLD_X1]], {
-        hazeAmount: 0.1,
-        skirt: 8,
-        renderOrder: 30,
-        fields: true,
-      }),
-    );
-    const midSprites: Placement[] = [];
-    const at = (name: string, left: number, z = 2, flip = false) => {
-      const f = this.frame(name);
-      midSprites.push({ frame: f, x: left + f.w / 2, z, flip });
-    };
-    // Sprites with an opaque base get a skirt; the rest stand on the tile strip
-    const based: Placement[] = [
-      { frame: snp, x: snpLeft + snp.w / 2, z: 3 },
-      { frame: this.frame('bratislava_castle'), x: snpRight - 6 + this.frame('bratislava_castle').w / 2, z: 2 },
-    ];
-    buildSpriteBatches(P, based, { hazeAmount: 0.1, skirt: 8, renderOrder: 31 }).forEach((m) => mid.add(m));
-    at('petrzalka_far', 2380, 1);
-    at('petrzalka_far', 2700, 1.5, true);
-    at('petrzalka_far', 3020, 1);
-    at('petrzalka_far', 3300, 1.2, true);
-    at('bratislava_oldtown', snpRight + 380, 1.5);
-    at('village', 5650, 2);
-    at('village', 6950, 2, true);
-    at('village', 7900, 2);
-    for (let x = ZONES.viennaCity.x0; x < ZONES.viennaCity.x1; x += 214) {
-      at(r() < 0.5 ? 'vienna_block_a' : 'vienna_block_b', x, 1 + r() * 0.5, r() < 0.5);
-    }
-    at('votivkirche', 9020, 3);
-    at('stephansdom', 9500, 3.5);
-    at('karlskirche', 9760, 3);
-    at('riesenrad', 10320, 3);
-    buildSpriteBatches(P, midSprites, { hazeAmount: 0.1, skirt: 0, renderOrder: 31 }).forEach((m) => mid.add(m));
+    this.buildMidScenery(mid, P, ctTex, ct.w, ct.h, r);
 
-    // Wind farm (no skirt; towers stand on the strip)
-    const turbines: Placement[] = [];
-    const tower = this.frame('turbine_tower');
-    for (let x = 6150; x < 7750; x += range(r, 150, 230)) {
-      const z = range(r, -30, 1);
-      const s = range(r, 0.85, 1.05);
-      turbines.push({ frame: tower, x, z, scale: s, y: 9 });
-      this.turbineData.push({ x, y: 9 + 95 * s, phase: r() * Math.PI * 2, speed: range(r, 0.9, 1.3) });
-    }
-    buildSpriteBatches(P, turbines, { hazeAmount: 0.12, skirt: 0, renderOrder: 32 }).forEach((m) => mid.add(m));
-    const blades: Placement[] = this.turbineData.map((t) => ({ frame: this.frame('turbine_blades'), x: t.x, y: t.y, z: 0.5 }));
-    this.turbineBlades = buildSpriteBatches(P, blades, { hazeAmount: 0.12, skirt: 0, renderOrder: 33, centerAnchor: true });
-    this.turbineBlades.forEach((m) => mid.add(m));
-
-    // Foreground fields between the near layer and the mid strip, visible once airborne
+    // Foreground fields (shared strip with Danube gap; theme city fill)
     const gaps: [number, number][] = [[DANUBE.x0 - 10, DANUBE.x1 + 10]];
     const foreSegments: [number, number][] = [];
     let segStart = WORLD_X0;
@@ -212,30 +177,12 @@ export class World {
     fields.add(buildTileStrip(ctTex, ct.w * 0.8, ct.h * 0.8, foreSegments, { hazeAmount: 0.08, skirt: 8, renderOrder: 34, fields: true }));
     const fore = this.addLayer(-200, 0.3);
     fore.add(buildTileStrip(ctTex, ct.w * 0.62, ct.h * 0.62, foreSegments, { hazeAmount: 0.05, skirt: 8, renderOrder: 35, fields: true }));
-    const inGap = (x0: number, x1: number) => gaps.some(([g0, g1]) => x1 > g0 && x0 < g1);
-    const city = (out: Placement[], names: string[], x0: number, x1: number, scale: number, step: number) => {
-      for (let x = x0; x < x1; x += step * range(r, 0.8, 1.2)) {
-        const f = this.frame(pick(r, names));
-        const w = f.w * scale;
-        if (inGap(x - w / 2, x + w / 2)) continue;
-        out.push({ frame: f, x, z: r(), scale, flip: r() < 0.5 });
-      }
-    };
-    const blocks = ['vienna_block_a', 'vienna_block_b'];
-    const fieldSprites: Placement[] = [];
-    city(fieldSprites, ['petrzalka_far'], ZONES.bratislavaOutskirts.x0 + 100, ZONES.bratislavaOutskirts.x1, 0.7, 230);
-    city(fieldSprites, blocks, ZONES.viennaCity.x0 + 100, ZONES.viennaCity.x1, 0.75, 125);
-    buildSpriteBatches(P, fieldSprites, { hazeAmount: 0.08, skirt: 0, renderOrder: 34.5 }).forEach((m) => fields.add(m));
-    const foreSprites: Placement[] = [];
-    city(foreSprites, ['petrzalka_far'], ZONES.bratislavaOutskirts.x0 + 200, ZONES.bratislavaOutskirts.x1, 0.55, 190);
-    city(foreSprites, blocks, ZONES.viennaCity.x0 + 200, ZONES.viennaCity.x1, 0.6, 105);
-    buildSpriteBatches(P, foreSprites, { hazeAmount: 0.05, skirt: 0, renderOrder: 36 }).forEach((m) => fore.add(m));
+    this.buildForeScenery(fields, fore, P, gaps, r);
 
-    // Near layer: trees, houses, airports (stands on the real ground, no vertical compression)
+    // Near layer: shared airport pads + theme clutter + clouds
     const near = this.addLayer(0, 0);
-    near.add(...buildSpriteBatches(P, this.nearPlacements(rng(77)), { hazeAmount: 0.03, skirt: 0, renderOrder: 40 }));
-
-    // Clouds the aircraft flies past
+    near.add(...buildSpriteBatches(P, this.nearAirportPlacements(), { hazeAmount: 0.03, skirt: 0, renderOrder: 40 }));
+    this.buildNearScenery(near, P);
     const nearClouds: Placement[] = [];
     for (let x = 2600; x < WORLD_X1; x += range(r, 450, 900)) {
       nearClouds.push({ frame: this.frame(`cloud_${Math.floor(r() * 5)}`), x, y: range(r, 260, 1000), z: range(r, -260, -90), scale: range(r, 0.55, 1.1), flip: r() < 0.5 });
@@ -248,50 +195,385 @@ export class World {
     buildSpriteBatches(P, frontClouds, { hazeAmount: 0, skirt: 0, renderOrder: 60, opacity: 0.5 }).forEach((m) => near.add(m));
   }
 
-  private buildRouteTerminals(): void {
-    // Same three identity terminals at both ends of the corridor; visibility is route-driven.
-    const specs: { code: string; sprite: string; originScale: number; destScale: number }[] = [
-      { code: 'BTS', sprite: 'bts_terminal', originScale: 1, destScale: 1.55 },
-      { code: 'VIE', sprite: 'vie_terminal', originScale: 0.55, destScale: 1 },
-      { code: 'BUD', sprite: 'bud_terminal', originScale: 0.55, destScale: 1 },
+  private buildHillScenery(hills: THREE.Group, P: THREE.Texture[]): void {
+    const west = this.sceneryGroup(hills, 'danubeWest');
+    buildSpriteBatches(
+      P,
+      [
+        { frame: this.frame('kamzik'), x: 4950, z: 1 },
+        { frame: this.frame('kahlenberg'), x: 8550, z: 1 },
+      ],
+      { hazeAmount: 0.26, skirt: 8, renderOrder: 21, fields: true },
+    ).forEach((m) => west.add(m));
+    buildSpriteBatches(
+      P,
+      [
+        { frame: this.frame('vienna_far'), x: 8950, z: 3 },
+        { frame: this.frame('vienna_far'), x: 9420, z: 3, flip: true },
+        { frame: this.frame('vienna_far'), x: 9900, z: 3 },
+        { frame: this.frame('vienna_far'), x: 10380, z: 3, flip: true },
+        { frame: this.frame('dc_tower'), x: 9180, z: 4 },
+        { frame: this.frame('millennium_tower'), x: 9330, z: 4 },
+        { frame: this.frame('donauturm'), x: 9470, z: 4 },
+      ],
+      { hazeAmount: 0.26, skirt: 0, renderOrder: 21.5 },
+    ).forEach((m) => west.add(m));
+
+    const east = this.sceneryGroup(hills, 'danubeEast');
+    buildSpriteBatches(
+      P,
+      [
+        { frame: this.frame('kamzik'), x: 4700, z: 1, scale: 0.85 },
+        { frame: this.frame('kahlenberg'), x: 8200, z: 1, scale: 0.55 },
+      ],
+      { hazeAmount: 0.26, skirt: 8, renderOrder: 21, fields: true },
+    ).forEach((m) => east.add(m));
+    buildSpriteBatches(
+      P,
+      [
+        { frame: this.frame('budapest_far'), x: 9000, z: 3 },
+        { frame: this.frame('budapest_far'), x: 9580, z: 3, flip: true },
+        { frame: this.frame('budapest_far'), x: 10160, z: 3 },
+        { frame: this.frame('budapest_far'), x: 10680, z: 3, flip: true },
+      ],
+      { hazeAmount: 0.26, skirt: 0, renderOrder: 21.5 },
+    ).forEach((m) => east.add(m));
+
+    const pan = this.sceneryGroup(hills, 'pannonian');
+    buildSpriteBatches(
+      P,
+      [
+        { frame: this.frame('kahlenberg'), x: 6200, z: 1, scale: 0.4 },
+        { frame: this.frame('kahlenberg'), x: 7800, z: 1, scale: 0.45, flip: true },
+      ],
+      { hazeAmount: 0.28, skirt: 8, renderOrder: 21, fields: true },
+    ).forEach((m) => pan.add(m));
+    buildSpriteBatches(
+      P,
+      [
+        { frame: this.frame('vienna_far'), x: 2800, z: 3, scale: 0.7 },
+        { frame: this.frame('vienna_far'), x: 3400, z: 3, scale: 0.65, flip: true },
+        { frame: this.frame('budapest_far'), x: 9200, z: 3 },
+        { frame: this.frame('budapest_far'), x: 9800, z: 3, flip: true },
+        { frame: this.frame('budapest_far'), x: 10400, z: 3 },
+      ],
+      { hazeAmount: 0.26, skirt: 0, renderOrder: 21.5 },
+    ).forEach((m) => pan.add(m));
+
+    // Bohemia: softer hills, Prague-like far city (reuse vienna_far massing)
+    const boh = this.sceneryGroup(hills, 'bohemian');
+    buildSpriteBatches(
+      P,
+      [
+        { frame: this.frame('kahlenberg'), x: 5600, z: 1, scale: 0.5 },
+        { frame: this.frame('kamzik'), x: 7200, z: 1, scale: 0.7 },
+      ],
+      { hazeAmount: 0.28, skirt: 8, renderOrder: 21, fields: true },
+    ).forEach((m) => boh.add(m));
+    buildSpriteBatches(
+      P,
+      [
+        { frame: this.frame('vienna_far'), x: 9000, z: 3, scale: 0.9 },
+        { frame: this.frame('vienna_far'), x: 9600, z: 3, flip: true },
+        { frame: this.frame('vienna_far'), x: 10200, z: 3, scale: 0.85 },
+        { frame: this.frame('dc_tower'), x: 9450, z: 4, scale: 0.55 },
+      ],
+      { hazeAmount: 0.26, skirt: 0, renderOrder: 21.5 },
+    ).forEach((m) => boh.add(m));
+
+    // Carpathian foothills — heavier ridges, sparse city
+    const car = this.sceneryGroup(hills, 'carpathian');
+    buildSpriteBatches(
+      P,
+      [
+        { frame: this.frame('kamzik'), x: 4200, z: 1 },
+        { frame: this.frame('kahlenberg'), x: 5800, z: 1, scale: 0.85 },
+        { frame: this.frame('kamzik'), x: 7400, z: 1, scale: 0.9, flip: true },
+        { frame: this.frame('kahlenberg'), x: 9000, z: 1, scale: 0.7 },
+      ],
+      { hazeAmount: 0.3, skirt: 8, renderOrder: 21, fields: true },
+    ).forEach((m) => car.add(m));
+    buildSpriteBatches(
+      P,
+      [
+        { frame: this.frame('budapest_far'), x: 9800, z: 3, scale: 0.75 },
+        { frame: this.frame('budapest_far'), x: 10400, z: 3, scale: 0.7, flip: true },
+      ],
+      { hazeAmount: 0.28, skirt: 0, renderOrder: 21.5 },
+    ).forEach((m) => car.add(m));
+
+    // Vistula — flat, river city cue near dest
+    const vis = this.sceneryGroup(hills, 'vistula');
+    buildSpriteBatches(
+      P,
+      [{ frame: this.frame('kahlenberg'), x: 7000, z: 1, scale: 0.35 }],
+      { hazeAmount: 0.3, skirt: 8, renderOrder: 21, fields: true },
+    ).forEach((m) => vis.add(m));
+    buildSpriteBatches(
+      P,
+      [
+        { frame: this.frame('vienna_far'), x: 3000, z: 3, scale: 0.55 },
+        { frame: this.frame('budapest_far'), x: 9100, z: 3 },
+        { frame: this.frame('budapest_far'), x: 9700, z: 3, flip: true },
+        { frame: this.frame('budapest_far'), x: 10300, z: 3 },
+        { frame: this.frame('millennium_tower'), x: 9900, z: 4, scale: 0.7 },
+      ],
+      { hazeAmount: 0.26, skirt: 0, renderOrder: 21.5 },
+    ).forEach((m) => vis.add(m));
+  }
+
+  private buildMidScenery(
+    mid: THREE.Group,
+    P: THREE.Texture[],
+    ctTex: THREE.Texture,
+    ctW: number,
+    ctH: number,
+    r: Rand,
+  ): void {
+    const snp = this.frame('snp_bridge');
+    const snpLeft = DANUBE.x0 - SNP_RIVER_OFFSET;
+    const snpRight = snpLeft + snp.w;
+
+    // --- danubeWest: BTS city → Parndorf → Vienna (legacy look)
+    const west = this.sceneryGroup(mid, 'danubeWest');
+    west.add(
+      buildTileStrip(ctTex, ctW, ctH, [[WORLD_X0, snpLeft + 2], [snpRight - 2, WORLD_X1]], {
+        hazeAmount: 0.1,
+        skirt: 8,
+        renderOrder: 30,
+        fields: true,
+      }),
+    );
+    buildSpriteBatches(
+      P,
+      [
+        { frame: snp, x: snpLeft + snp.w / 2, z: 3 },
+        { frame: this.frame('bratislava_castle'), x: snpRight - 6 + this.frame('bratislava_castle').w / 2, z: 2 },
+      ],
+      { hazeAmount: 0.1, skirt: 8, renderOrder: 31 },
+    ).forEach((m) => west.add(m));
+    const westSprites: Placement[] = [];
+    const atWest = (name: string, left: number, z = 2, flip = false) => {
+      const f = this.frame(name);
+      westSprites.push({ frame: f, x: left + f.w / 2, z, flip });
+    };
+    atWest('petrzalka_far', 2380, 1);
+    atWest('petrzalka_far', 2700, 1.5, true);
+    atWest('petrzalka_far', 3020, 1);
+    atWest('petrzalka_far', 3300, 1.2, true);
+    atWest('bratislava_oldtown', snpRight + 380, 1.5);
+    atWest('village', 5650, 2);
+    atWest('village', 6950, 2, true);
+    atWest('village', 7900, 2);
+    for (let x = ZONES.viennaCity.x0; x < ZONES.viennaCity.x1; x += 214) {
+      atWest(r() < 0.5 ? 'vienna_block_a' : 'vienna_block_b', x, 1 + r() * 0.5, r() < 0.5);
+    }
+    atWest('votivkirche', 9020, 3);
+    atWest('stephansdom', 9500, 3.5);
+    atWest('karlskirche', 9760, 3);
+    atWest('riesenrad', 10320, 3);
+    buildSpriteBatches(P, westSprites, { hazeAmount: 0.1, skirt: 0, renderOrder: 31 }).forEach((m) => west.add(m));
+    this.addTurbines(west, P, 6150, 7750, rng(88));
+
+    // --- danubeEast: channels, farmland, Budapest
+    const east = this.sceneryGroup(mid, 'danubeEast');
+    const eastGaps: [number, number][] = [
+      [DANUBE.x0 - 10, DANUBE.x1 + 10],
+      [5180, 5500],
+      [6780, 7080],
+      [8380, 8680],
     ];
-    for (const t of specs) {
-      const originMeshes = buildSpriteBatches(
-        this.pages,
-        [{ frame: this.frame(t.sprite), x: 620, z: -95, scale: t.originScale }],
-        { hazeAmount: 0.03, skirt: 0, renderOrder: 40 },
-      );
-      for (const m of originMeshes) {
-        m.userData.airport = t.code;
-        m.visible = false;
-        this.root.add(m);
-        this.originTerminals.push(m);
+    east.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(eastGaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true }));
+    const eastSprites: Placement[] = [];
+    const atEast = (name: string, left: number, z = 2, flip = false, scale = 1) => {
+      const f = this.frame(name);
+      eastSprites.push({ frame: f, x: left + (f.w * scale) / 2, z, flip, scale });
+    };
+    atEast('petrzalka_far', 2400, 1, false, 0.85);
+    atEast('petrzalka_far', 2750, 1.2, true, 0.85);
+    atEast('village', 4300, 2);
+    atEast('village', 4900, 2, true);
+    atEast('village', 5600, 2);
+    atEast('village', 6200, 2, true);
+    atEast('village', 7200, 2);
+    atEast('village', 7900, 2, true);
+    atEast('village', 8600, 2);
+    buildSpriteBatches(P, eastSprites, { hazeAmount: 0.1, skirt: 0, renderOrder: 31 }).forEach((m) => east.add(m));
+    this.addTurbines(east, P, 5800, 6600, rng(91));
+
+    // --- pannonian: open plain, light turbines, both city cues at ends
+    const pan = this.sceneryGroup(mid, 'pannonian');
+    const panGaps: [number, number][] = [[4880, 5380]];
+    pan.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(panGaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true }));
+    const panSprites: Placement[] = [];
+    const atPan = (name: string, left: number, z = 2, flip = false) => {
+      const f = this.frame(name);
+      panSprites.push({ frame: f, x: left + f.w / 2, z, flip });
+    };
+    atPan('village', 3200, 2);
+    atPan('village', 4100, 2, true);
+    atPan('village', 5600, 2);
+    atPan('village', 6400, 2, true);
+    atPan('village', 7600, 2);
+    atPan('village', 8400, 2, true);
+    for (let x = 2500; x < 3600; x += 220) {
+      atPan(r() < 0.5 ? 'vienna_block_a' : 'vienna_block_b', x, 1);
+    }
+    buildSpriteBatches(P, panSprites, { hazeAmount: 0.1, skirt: 0, renderOrder: 31 }).forEach((m) => pan.add(m));
+    this.addTurbines(pan, P, 5400, 7200, rng(94));
+
+    // --- bohemian: villages, light turbines, no SNP
+    const boh = this.sceneryGroup(mid, 'bohemian');
+    const bohGaps: [number, number][] = [[5200, 5550], [7800, 8100]];
+    boh.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(bohGaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true }));
+    const bohSprites: Placement[] = [];
+    for (const [name, x, flip] of [
+      ['village', 3400, false],
+      ['village', 4200, true],
+      ['village', 5800, false],
+      ['village', 6600, true],
+      ['village', 8600, false],
+      ['village', 9400, true],
+    ] as const) {
+      const f = this.frame(name);
+      bohSprites.push({ frame: f, x: x + f.w / 2, z: 2, flip });
+    }
+    buildSpriteBatches(P, bohSprites, { hazeAmount: 0.1, skirt: 0, renderOrder: 31 }).forEach((m) => boh.add(m));
+    this.addTurbines(boh, P, 6000, 7400, rng(101));
+
+    // --- carpathian: fewer villages, denser tree bands via near layer
+    const car = this.sceneryGroup(mid, 'carpathian');
+    car.add(buildTileStrip(ctTex, ctW, ctH, [[WORLD_X0, WORLD_X1]], { hazeAmount: 0.12, skirt: 8, renderOrder: 30, fields: true }));
+    const carSprites: Placement[] = [];
+    for (const x of [3600, 4800, 6200, 8000, 9600]) {
+      const f = this.frame('village');
+      carSprites.push({ frame: f, x: x + f.w / 2, z: 2, flip: x % 2000 > 1000 });
+    }
+    buildSpriteBatches(P, carSprites, { hazeAmount: 0.12, skirt: 0, renderOrder: 31 }).forEach((m) => car.add(m));
+
+    // --- vistula: river gaps + villages
+    const vis = this.sceneryGroup(mid, 'vistula');
+    const visGaps: [number, number][] = [[4000, 4450], [6200, 6600], [8800, 9200]];
+    vis.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(visGaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true }));
+    const visSprites: Placement[] = [];
+    for (const x of [3000, 5000, 7200, 8200, 9800]) {
+      const f = this.frame('village');
+      visSprites.push({ frame: f, x: x + f.w / 2, z: 2 });
+    }
+    buildSpriteBatches(P, visSprites, { hazeAmount: 0.1, skirt: 0, renderOrder: 31 }).forEach((m) => vis.add(m));
+    this.addTurbines(vis, P, 5000, 6000, rng(107));
+  }
+
+  private segmentsMinusGaps(gaps: [number, number][]): [number, number][] {
+    const out: [number, number][] = [];
+    let start = WORLD_X0;
+    const sorted = [...gaps].sort((a, b) => a[0] - b[0]);
+    for (const [g0, g1] of sorted) {
+      if (g0 > start) out.push([start, g0]);
+      start = Math.max(start, g1);
+    }
+    if (start < WORLD_X1) out.push([start, WORLD_X1]);
+    return out;
+  }
+
+  private addTurbines(parent: THREE.Group, P: THREE.Texture[], x0: number, x1: number, r: Rand): void {
+    const turbines: Placement[] = [];
+    const tower = this.frame('turbine_tower');
+    const local: { x: number; y: number; phase: number; speed: number }[] = [];
+    for (let x = x0; x < x1; x += range(r, 150, 230)) {
+      const z = range(r, -30, 1);
+      const s = range(r, 0.85, 1.05);
+      turbines.push({ frame: tower, x, z, scale: s, y: 9 });
+      local.push({ x, y: 9 + 95 * s, phase: r() * Math.PI * 2, speed: range(r, 0.9, 1.3) });
+    }
+    buildSpriteBatches(P, turbines, { hazeAmount: 0.12, skirt: 0, renderOrder: 32 }).forEach((m) => parent.add(m));
+    const start = this.turbineData.length;
+    this.turbineData.push(...local);
+    const blades: Placement[] = local.map((t) => ({ frame: this.frame('turbine_blades'), x: t.x, y: t.y, z: 0.5 }));
+    const meshes = buildSpriteBatches(P, blades, { hazeAmount: 0.12, skirt: 0, renderOrder: 33, centerAnchor: true });
+    meshes.forEach((m) => {
+      // Offset instance indices so update() can map mesh instances → turbineData slice.
+      m.userData.turbineOffset = start;
+      parent.add(m);
+      this.turbineBlades.push(m);
+    });
+  }
+
+  private buildForeScenery(
+    fields: THREE.Group,
+    fore: THREE.Group,
+    P: THREE.Texture[],
+    gaps: [number, number][],
+    r: Rand,
+  ): void {
+    const inGap = (x0: number, x1: number) => gaps.some(([g0, g1]) => x1 > g0 && x0 < g1);
+    const city = (out: Placement[], names: string[], x0: number, x1: number, scale: number, step: number) => {
+      for (let x = x0; x < x1; x += step * range(r, 0.8, 1.2)) {
+        const f = this.frame(pick(r, names));
+        const w = f.w * scale;
+        if (inGap(x - w / 2, x + w / 2)) continue;
+        out.push({ frame: f, x, z: r(), scale, flip: r() < 0.5 });
       }
-      const destMeshes = buildSpriteBatches(
-        this.pages,
-        [{ frame: this.frame(t.sprite), x: VIE_RUNWAY.x0 + 620, z: -110, scale: t.destScale }],
-        { hazeAmount: 0.03, skirt: 0, renderOrder: 40 },
-      );
-      for (const m of destMeshes) {
-        m.userData.airport = t.code;
-        m.visible = false;
-        this.root.add(m);
-        this.arrivalTerminals.push(m);
-      }
+    };
+    const blocks = ['vienna_block_a', 'vienna_block_b'];
+
+    const westF = this.sceneryGroup(fields, 'danubeWest');
+    const westFore = this.sceneryGroup(fore, 'danubeWest');
+    const fieldSprites: Placement[] = [];
+    city(fieldSprites, ['petrzalka_far'], ZONES.bratislavaOutskirts.x0 + 100, ZONES.bratislavaOutskirts.x1, 0.7, 230);
+    city(fieldSprites, blocks, ZONES.viennaCity.x0 + 100, ZONES.viennaCity.x1, 0.75, 125);
+    buildSpriteBatches(P, fieldSprites, { hazeAmount: 0.08, skirt: 0, renderOrder: 34.5 }).forEach((m) => westF.add(m));
+    const foreSprites: Placement[] = [];
+    city(foreSprites, ['petrzalka_far'], ZONES.bratislavaOutskirts.x0 + 200, ZONES.bratislavaOutskirts.x1, 0.55, 190);
+    city(foreSprites, blocks, ZONES.viennaCity.x0 + 200, ZONES.viennaCity.x1, 0.6, 105);
+    buildSpriteBatches(P, foreSprites, { hazeAmount: 0.05, skirt: 0, renderOrder: 36 }).forEach((m) => westFore.add(m));
+
+    const eastF = this.sceneryGroup(fields, 'danubeEast');
+    const eastFore = this.sceneryGroup(fore, 'danubeEast');
+    const eastField: Placement[] = [];
+    city(eastField, ['petrzalka_far'], ZONES.bratislavaOutskirts.x0 + 100, ZONES.bratislavaOutskirts.x1 - 200, 0.65, 260);
+    city(eastField, ['village'], 4500, 9000, 0.9, 380);
+    buildSpriteBatches(P, eastField, { hazeAmount: 0.08, skirt: 0, renderOrder: 34.5 }).forEach((m) => eastF.add(m));
+    const eastForeSprites: Placement[] = [];
+    city(eastForeSprites, ['petrzalka_far'], ZONES.bratislavaOutskirts.x0 + 200, 3400, 0.5, 220);
+    city(eastForeSprites, ['village'], 4800, 8800, 0.75, 420);
+    buildSpriteBatches(P, eastForeSprites, { hazeAmount: 0.05, skirt: 0, renderOrder: 36 }).forEach((m) => eastFore.add(m));
+
+    const panF = this.sceneryGroup(fields, 'pannonian');
+    const panFore = this.sceneryGroup(fore, 'pannonian');
+    const panField: Placement[] = [];
+    city(panField, blocks, 2400, 3800, 0.55, 200);
+    city(panField, ['village'], 4000, 9500, 0.95, 360);
+    buildSpriteBatches(P, panField, { hazeAmount: 0.08, skirt: 0, renderOrder: 34.5 }).forEach((m) => panF.add(m));
+    const panForeSprites: Placement[] = [];
+    city(panForeSprites, ['village'], 3000, 10000, 0.7, 400);
+    buildSpriteBatches(P, panForeSprites, { hazeAmount: 0.05, skirt: 0, renderOrder: 36 }).forEach((m) => panFore.add(m));
+
+    for (const theme of ['bohemian', 'carpathian', 'vistula'] as const) {
+      const fGroup = this.sceneryGroup(fields, theme);
+      const foreGroup = this.sceneryGroup(fore, theme);
+      const fieldPl: Placement[] = [];
+      city(fieldPl, ['village'], 3200, 10000, theme === 'carpathian' ? 0.8 : 0.95, theme === 'carpathian' ? 480 : 380);
+      buildSpriteBatches(P, fieldPl, { hazeAmount: 0.08, skirt: 0, renderOrder: 34.5 }).forEach((m) => fGroup.add(m));
+      const forePl: Placement[] = [];
+      city(forePl, ['village'], 3500, 9800, 0.7, 420);
+      buildSpriteBatches(P, forePl, { hazeAmount: 0.05, skirt: 0, renderOrder: 36 }).forEach((m) => foreGroup.add(m));
     }
   }
 
-  private nearPlacements(r: Rand): Placement[] {
+  private buildNearScenery(near: THREE.Group, P: THREE.Texture[]): void {
+    for (const theme of SCENERY_THEMES) {
+      const g = this.sceneryGroup(near, theme);
+      const list = this.nearThemePlacements(theme, rng(77 + theme.length * 13));
+      buildSpriteBatches(P, list, { hazeAmount: 0.03, skirt: 0, renderOrder: 40 }).forEach((m) => g.add(m));
+    }
+  }
+
+  /** Shared airport pads at both corridor ends (terminals swapped separately). */
+  private nearAirportPlacements(): Placement[] {
     const list: Placement[] = [];
     const put = (name: string, x: number, z: number, scale = 1, flip = false) =>
       list.push({ frame: this.frame(name), x, z, scale, flip });
-    const blocked = (x: number) =>
-      (x > DANUBE.x0 - 25 && x < DANUBE.x1 + 25) ||
-      (x > DANUBE_CANAL.x0 - 30 && x < DANUBE_CANAL.x1 + 30) ||
-      (x > 380 && x < 1250) ||
-      (x > VIE_RUNWAY.x0 + 150 && x < VIE_RUNWAY.x0 + 1700);
-
-    // Airport identity terminals are route-swapped in buildRouteTerminals / setRouteAirports.
     put('bts_tower', 860, -105);
     put('hangar', 1020, -110);
     put('airliner_generic', 560, -68);
@@ -303,30 +585,81 @@ export class World {
     put('airliner_austrian', VIE_RUNWAY.x0 + 560, -74);
     put('airliner_generic', VIE_RUNWAY.x0 + 700, -73);
     put('airliner_austrian', VIE_RUNWAY.x0 + 800, -75, 1, true);
+    return list;
+  }
 
-    // Danube canal bridge
-    put('canal_bridge', (DANUBE_CANAL.x0 + DANUBE_CANAL.x1) / 2, -70);
+  private nearThemePlacements(theme: SceneryTheme, r: Rand): Placement[] {
+    const list: Placement[] = [];
+    const put = (name: string, x: number, z: number, scale = 1, flip = false) =>
+      list.push({ frame: this.frame(name), x, z, scale, flip });
+
+    const waterGaps: [number, number][] =
+      theme === 'danubeWest'
+        ? [
+            [DANUBE.x0 - 25, DANUBE.x1 + 25],
+            [DANUBE_CANAL.x0 - 30, DANUBE_CANAL.x1 + 30],
+          ]
+        : theme === 'danubeEast'
+          ? [
+              [DANUBE.x0 - 25, DANUBE.x1 + 25],
+              [5180, 5500],
+              [6780, 7080],
+              [8380, 8680],
+            ]
+          : theme === 'bohemian'
+            ? [
+                [5200, 5550],
+                [7800, 8100],
+              ]
+            : theme === 'vistula'
+              ? [
+                  [4000, 4450],
+                  [6200, 6600],
+                  [8800, 9200],
+                ]
+              : theme === 'carpathian'
+                ? [[6400, 6750]]
+                : [[4880, 5380]];
+
+    const blocked = (x: number) =>
+      waterGaps.some(([a, b]) => x > a && x < b) ||
+      (x > 380 && x < 1250) ||
+      (x > VIE_RUNWAY.x0 + 150 && x < VIE_RUNWAY.x0 + 1700);
+
+    if (theme === 'danubeWest') {
+      put('canal_bridge', (DANUBE_CANAL.x0 + DANUBE_CANAL.x1) / 2, -70);
+    }
 
     for (let x = WORLD_X0; x < WORLD_X1; ) {
-      const inBratislava = x > ZONES.bratislavaOutskirts.x0 && x < ZONES.bratislavaOutskirts.x1;
-      const inOldTown = x > ZONES.bratislavaCity.x0 && x < ZONES.bratislavaCity.x0 + 900;
-      const inVienna = x > ZONES.viennaCity.x0 + 300 && x < ZONES.viennaCity.x1;
       if (blocked(x)) {
         x += 10;
         continue;
       }
       const z = range(r, -150, -60);
+      const cityThemes = theme === 'danubeWest' || theme === 'danubeEast';
+      const inBratislava = cityThemes && x > ZONES.bratislavaOutskirts.x0 && x < ZONES.bratislavaOutskirts.x1;
+      const inOldTown = theme === 'danubeWest' && x > ZONES.bratislavaCity.x0 && x < ZONES.bratislavaCity.x0 + 900;
+      const inVienna = theme === 'danubeWest' && x > ZONES.viennaCity.x0 + 300 && x < ZONES.viennaCity.x1;
+      const inFarm = theme !== 'danubeWest' && x > 4000 && x < 10000;
+      const denseTrees = theme === 'carpathian' && x > 3500 && x < 9500;
+
       if (inBratislava && r() < 0.55) {
-        const name = r() < 0.6 ? 'panelak_a' : 'panelak_b';
-        put(name, x, z - 40, 1, r() < 0.5);
+        put(r() < 0.6 ? 'panelak_a' : 'panelak_b', x, z - 40, 1, r() < 0.5);
         x += range(r, 60, 110);
       } else if ((inVienna || inOldTown) && r() < 0.75) {
         put(pick(r, ['vienna_house_a', 'vienna_house_b', 'vienna_house_c']), x, range(r, -120, -90));
         x += 27.5;
+      } else if (inFarm && r() < 0.12) {
+        put(r() < 0.5 ? 'house_a' : 'house_b', x, z, 1, r() < 0.5);
+        put(`tree_${Math.floor(r() * 3)}`, x + 14, z - 6, range(r, 0.9, 1.2));
+        x += range(r, 50, 140);
+      } else if (denseTrees && r() < 0.55) {
+        const n = 4 + Math.floor(r() * 6);
+        for (let i = 0; i < n; i++) put(`tree_${Math.floor(r() * 3)}`, x + i * range(r, 4, 8), z + range(r, -10, 10), range(r, 0.85, 1.3), r() < 0.5);
+        x += n * 6 + range(r, 15, 50);
       } else {
         const roll = r();
         if (roll < 0.55) {
-          // Cluster of trees
           const n = 2 + Math.floor(r() * 5);
           for (let i = 0; i < n; i++) put(`tree_${Math.floor(r() * 3)}`, x + i * range(r, 5, 9), z + range(r, -8, 8), range(r, 0.8, 1.25), r() < 0.5);
           x += n * 7 + range(r, 20, 90);
@@ -344,6 +677,37 @@ export class World {
       }
     }
     return list;
+  }
+
+  private buildRouteTerminals(): void {
+    // One named shell per flyable airport at both corridor ends; visibility is route-driven.
+    for (const code of FLYABLE_IATAS) {
+      const ap = airportByIata(code);
+      if (!ap) continue;
+      const sprite = terminalSpriteName(code);
+      const originMeshes = buildSpriteBatches(
+        this.pages,
+        [{ frame: this.frame(sprite), x: 620, z: -95, scale: 0.85 }],
+        { hazeAmount: 0.03, skirt: 0, renderOrder: 40 },
+      );
+      for (const m of originMeshes) {
+        m.userData.airport = code;
+        m.visible = false;
+        this.root.add(m);
+        this.originTerminals.push(m);
+      }
+      const destMeshes = buildSpriteBatches(
+        this.pages,
+        [{ frame: this.frame(sprite), x: VIE_RUNWAY.x0 + 620, z: -110, scale: 1.05 }],
+        { hazeAmount: 0.03, skirt: 0, renderOrder: 40 },
+      );
+      for (const m of destMeshes) {
+        m.userData.airport = code;
+        m.visible = false;
+        this.root.add(m);
+        this.arrivalTerminals.push(m);
+      }
+    }
   }
 
   // ---------------------------------------------------------------- ground
@@ -510,21 +874,44 @@ export class World {
       });
     };
     const stoneMat = new THREE.MeshLambertMaterial({ color: '#9a958b' });
-    const river = (x0: number, x1: number, wallH: number) => {
+    const river = (parent: THREE.Object3D, x0: number, x1: number, wallH: number) => {
       const depth = GROUND_Z1 - GROUND_Z0;
       const g = new THREE.PlaneGeometry(x1 - x0, depth);
       g.rotateX(-Math.PI / 2);
       const m = new THREE.Mesh(g, waterMat(x1 - x0));
       m.position.set((x0 + x1) / 2, 0.05, (GROUND_Z0 + GROUND_Z1) / 2);
-      this.root.add(m);
+      parent.add(m);
       for (const x of [x0, x1]) {
         const wall = new THREE.Mesh(new THREE.BoxGeometry(3, wallH, depth), stoneMat);
         wall.position.set(x, wallH / 2 - 0.3, (GROUND_Z0 + GROUND_Z1) / 2);
-        this.root.add(wall);
+        parent.add(wall);
       }
     };
-    river(DANUBE.x0, DANUBE.x1, 1.2);
-    river(DANUBE_CANAL.x0, DANUBE_CANAL.x1, 1.6);
+
+    const west = this.sceneryGroup(this.root, 'danubeWest');
+    river(west, DANUBE.x0, DANUBE.x1, 1.2);
+    river(west, DANUBE_CANAL.x0, DANUBE_CANAL.x1, 1.6);
+
+    const east = this.sceneryGroup(this.root, 'danubeEast');
+    river(east, DANUBE.x0, DANUBE.x1, 1.2);
+    river(east, 5180, 5500, 1.0);
+    river(east, 6780, 7080, 1.0);
+    river(east, 8380, 8680, 0.9);
+
+    const pan = this.sceneryGroup(this.root, 'pannonian');
+    river(pan, 4880, 5380, 1.1);
+
+    const boh = this.sceneryGroup(this.root, 'bohemian');
+    river(boh, 5200, 5550, 1.0);
+    river(boh, 7800, 8100, 0.9);
+
+    const car = this.sceneryGroup(this.root, 'carpathian');
+    river(car, 6400, 6750, 0.85);
+
+    const vis = this.sceneryGroup(this.root, 'vistula');
+    river(vis, 4000, 4450, 1.15);
+    river(vis, 6200, 6600, 1.1);
+    river(vis, 8800, 9200, 1.05);
   }
 
   private buildLights(): void {
@@ -607,8 +994,10 @@ export class World {
 
     for (const mesh of this.turbineBlades) {
       const n = mesh.count;
+      const offset = (mesh.userData.turbineOffset as number) || 0;
       for (let i = 0; i < n; i++) {
-        const t = this.turbineData[i];
+        const t = this.turbineData[offset + i];
+        if (!t) continue;
         this.tmpPos.set(t.x, t.y, 0.5);
         this.tmpQuat.setFromAxisAngle(this.zAxis, -time * t.speed + t.phase);
         const s = (t.y - 9) / 95;

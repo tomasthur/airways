@@ -14,7 +14,6 @@ import {
   rect,
   roof,
   shade,
-  text,
   treeCrown,
   vgrad,
   windows,
@@ -38,7 +37,6 @@ export function bratislavaSprites(): SpriteSpec[] {
     { name: 'kamzik', w: 700, h: 330, ppm: 1.5, draw: drawKamzik },
     { name: 'panelak_a', w: 62, h: 40, ppm: 5, draw: (ctx, r) => drawPanelak(ctx, r, 62, 12, '#e9dcc2', '#e07b39') },
     { name: 'panelak_b', w: 48, h: 31, ppm: 5, draw: (ctx, r) => drawPanelak(ctx, r, 48, 9, '#dfe6e3', '#3e8fa6') },
-    { name: 'bts_terminal', w: 200, h: 26, ppm: 4, draw: drawBtsTerminal },
     { name: 'bts_tower', w: 14, h: 40, ppm: 5, draw: drawBtsTower },
     { name: 'hangar', w: 70, h: 22, ppm: 4, draw: drawHangar },
     { name: 'airliner_generic', w: 34, h: 12, ppm: 6, draw: (ctx) => drawAirliner(ctx, 34, '#1f4e9c', '#ffffff', false) },
@@ -304,26 +302,6 @@ function drawPanelak(ctx: Ctx, r: Rand, W: number, floors: number, color: string
   rect(ctx, W * 0.75, 0, W * 0.12, H, shade(accent, 0.45));
   rect(ctx, 0.5, H, W - 1, 1.2, shade(color, -0.35));
   rect(ctx, 1, 0, W - 2, 1, '#8b8a82');
-}
-
-function drawBtsTerminal(ctx: Ctx, r: Rand): void {
-  const W = 200;
-  rect(ctx, 6, 0, W - 12, 3, '#9ea3a6');
-  rect(ctx, 8, 3, W - 16, 13, vgrad(ctx, 16, 3, [[0, '#a9c3d6'], [0.5, '#6f8ea8'], [1, '#3e5870']]));
-  for (let x = 10; x < W - 8; x += 5) rect(ctx, x, 3, 0.4, 13, '#dfe6ea');
-  rect(ctx, 8, 9.2, W - 16, 0.4, '#dfe6ea');
-  // Curved white roof canopy
-  ctx.beginPath();
-  ctx.moveTo(2, 16);
-  ctx.quadraticCurveTo(W / 2, 23, W - 2, 16);
-  ctx.lineTo(W - 2, 17.6);
-  ctx.quadraticCurveTo(W / 2, 24.8, 2, 17.6);
-  ctx.closePath();
-  ctx.fillStyle = '#f4f5f4';
-  ctx.fill();
-  rect(ctx, 8, 15.4, W - 16, 0.8, '#c5cbcf');
-  text(ctx, 'LETISKO BRATISLAVA', W / 2, 11.2, 3.2, '#f6f8f9', 'center', 700);
-  for (let i = 0; i < 6; i++) rect(ctx, 20 + i * 32 + r() * 4, 0, 0.6, 3, '#6b7176');
 }
 
 function drawBtsTower(ctx: Ctx): void {

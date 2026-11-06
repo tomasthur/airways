@@ -471,6 +471,7 @@ export class Game {
     const origin = airportByIata(route.from);
     const dest = airportByIata(route.to);
     this.hud.setMissionRoute(route.from, origin?.city ?? route.from, route.to, dest?.city ?? route.to);
+    this.world.setRouteScenery(route.scenery);
     this.world.setRouteAirports(route.from, route.to);
     this.reset();
     this.hub.show(false);

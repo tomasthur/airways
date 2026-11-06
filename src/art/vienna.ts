@@ -14,7 +14,6 @@ import {
   rect,
   roof,
   shade,
-  text,
   treeCrown,
   vgrad,
   windows,
@@ -38,12 +37,11 @@ export function viennaSprites(): SpriteSpec[] {
     { name: 'donauturm', w: 40, h: 258, ppm: 1.5, draw: drawDonauturm },
     { name: 'kahlenberg', w: 900, h: 230, ppm: 1.5, draw: drawKahlenberg },
     { name: 'vienna_far', w: 520, h: 64, ppm: 1.5, draw: drawViennaFar },
+    { name: 'budapest_far', w: 520, h: 72, ppm: 1.5, draw: drawBudapestFar },
     { name: 'vienna_house_a', w: 28, h: 26, ppm: 5, draw: (ctx, r) => drawGrunderzeit(ctx, r, '#efe2c2', '#6f7c86') },
     { name: 'vienna_house_b', w: 28, h: 26, ppm: 5, draw: (ctx, r) => drawGrunderzeit(ctx, r, '#f0d78a', '#a9533d') },
     { name: 'vienna_house_c', w: 28, h: 26, ppm: 5, draw: (ctx, r) => drawGrunderzeit(ctx, r, '#e9b9a0', '#6f7c86') },
     { name: 'canal_bridge', w: 70, h: 14, ppm: 5, draw: drawCanalBridge },
-    { name: 'vie_terminal', w: 380, h: 32, ppm: 4, draw: (ctx, r) => drawAirportTerminal(ctx, r, 'VIENNA INTERNATIONAL AIRPORT') },
-    { name: 'bud_terminal', w: 380, h: 32, ppm: 4, draw: (ctx, r) => drawAirportTerminal(ctx, r, 'BUDAPEST FERENC LISZT') },
     { name: 'vie_tower', w: 26, h: 110, ppm: 4, draw: drawVieTower },
     { name: 'airliner_austrian', w: 38, h: 13.5, ppm: 6, draw: (ctx) => drawAirliner(ctx, 38, '#d12a2f', '#ffffff', true) },
   ];
@@ -376,6 +374,42 @@ function drawViennaFar(ctx: Ctx, r: Rand): void {
   ellipse(ctx, gx, 33, 12, 3, '#8c8f92');
 }
 
+/** Compact Pest/Buda skyline for BUD approaches — warmer roofs, one domed cue. */
+function drawBudapestFar(ctx: Ctx, r: Rand): void {
+  const W = 520;
+  rect(ctx, 0, 0, W, 4, HILLS_GROUND);
+  let x = 0;
+  while (x < W) {
+    const w = range(r, 7, 20);
+    const h = range(r, 9, 24);
+    rect(ctx, x, 3, w, h, pick(r, ['#e8d5c0', '#dcc4a8', '#c9b8a0', '#b8c0c4', '#e2c9b0']));
+    rect(ctx, x, 3 + h, w, 1.5, pick(r, ['#a34a3a', '#8b5a3c', '#6f7c86', '#c45a3a']));
+    x += w;
+  }
+  // Parliament-ish dome cluster near centre
+  const cx = W * 0.42;
+  rect(ctx, cx - 28, 3, 56, 22, '#d8cfc0');
+  for (let i = -2; i <= 2; i++) {
+    rect(ctx, cx + i * 11 - 2, 24, 4, 14, '#cfc6b0');
+    poly(ctx, [cx + i * 11 - 3, 38, cx + i * 11 + 3, 38, cx + i * 11, 46], '#5e7a6c');
+  }
+  ellipse(ctx, cx, 48, 14, 10, '#c4b391');
+  rect(ctx, cx - 2, 56, 4, 8, '#9a8c72');
+  // Buda hills suggestion on the left
+  for (let i = 0; i < 5; i++) {
+    const hx = range(r, 20, W * 0.28);
+    const hh = range(r, 18, 36);
+    ellipse(ctx, hx, 8 + hh / 2, range(r, 18, 32), hh / 2, pick(r, ['#6a8a4e', '#5c7a44', '#7a9a58']));
+  }
+  // A couple of taller riverside blocks
+  for (let i = 0; i < 4; i++) {
+    const sx = range(r, W * 0.55, W - 20);
+    const h = range(r, 28, 48);
+    rect(ctx, sx - 3, 3, 6, h, pick(r, ['#c8c2b4', '#b0b8bc', '#d4c8b8']));
+    rect(ctx, sx - 3.5, 3 + h, 7, 1.2, '#8a6a5a');
+  }
+}
+
 function drawGrunderzeit(ctx: Ctx, r: Rand, wall: string, roofColor: string): void {
   const W = 28;
   rect(ctx, 0.5, 0, W - 1, 4.4, shade(wall, -0.22));
@@ -418,27 +452,6 @@ function drawCanalBridge(ctx: Ctx): void {
     rect(ctx, x, 8.9, 0.4, 4.4, '#2f3a36');
     circle(ctx, x + 0.2, 13.4, 0.6, '#f4e2a8');
   }
-}
-
-function drawAirportTerminal(ctx: Ctx, r: Rand, title: string): void {
-  const W = 380;
-  rect(ctx, 4, 0, W - 8, 4, '#8f9497');
-  rect(ctx, 6, 4, W - 12, 18, vgrad(ctx, 22, 4, [[0, '#b7cde0'], [0.45, '#7d9bb6'], [1, '#3f5a74']]));
-  for (let x = 8; x < W - 6; x += 6) rect(ctx, x, 4, 0.5, 18, '#e6ecf0');
-  rect(ctx, 6, 13, W - 12, 0.5, '#e6ecf0');
-  rect(ctx, 0, 22, W, 2.6, '#f4f6f7');
-  rect(ctx, 0, 21.4, W, 0.6, '#b9c1c6');
-  const size = title.length > 26 ? 3.0 : 3.4;
-  text(ctx, title, W / 2, 16.2, size, '#ffffff', 'center', 700);
-  // Jet bridges
-  for (let i = 0; i < 4; i++) {
-    const bx = 40 + i * 90 + r() * 6;
-    rect(ctx, bx, 6, 26, 3.2, '#d8dde0');
-    rect(ctx, bx + 24, 0, 1, 6, '#6f777c');
-    rect(ctx, bx + 2, 6.6, 22, 0.8, '#9fb4c4');
-  }
-  // Rooftop technical boxes
-  for (let i = 0; i < 6; i++) rect(ctx, 20 + i * 60 + r() * 20, 24.6, 10, 2.4, '#d0d5d8');
 }
 
 function drawVieTower(ctx: Ctx): void {

@@ -1,5 +1,5 @@
 import { routeKey } from './airports';
-import { TRIANGLE_ROUTE_IDS } from './routes';
+import { NETWORK_ROUTE_IDS } from './routes';
 
 const STORAGE_KEY = 'airways.progress.v1';
 
@@ -14,7 +14,7 @@ export interface Progress {
 
 const DEFAULT: Progress = {
   homeAirport: 'BTS',
-  unlockedRoutes: [...TRIANGLE_ROUTE_IDS],
+  unlockedRoutes: [...NETWORK_ROUTE_IDS],
   successfulFlights: 0,
   crashes: 0,
   deaths: 0,
@@ -25,7 +25,8 @@ export function loadProgress(): Progress {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return clone(DEFAULT);
     const parsed = JSON.parse(raw) as Partial<Progress>;
-    const unlocked = new Set([...(parsed.unlockedRoutes ?? []), ...TRIANGLE_ROUTE_IDS]);
+    // Always merge in the current network so new hops appear without a progress wipe.
+    const unlocked = new Set([...(parsed.unlockedRoutes ?? []), ...NETWORK_ROUTE_IDS]);
     return {
       homeAirport: parsed.homeAirport ?? DEFAULT.homeAirport,
       unlockedRoutes: [...unlocked],
