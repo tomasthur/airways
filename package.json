@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "simulate": "node scripts/simulate.ts",
+    "test:flight": "node scripts/regression/flights.mjs",
+    "perf:android": "node scripts/perf/android-baseline.mjs",
     "cap:sync": "npm run build && npx cap sync android",
     "android:apk": "npm run cap:sync && node scripts/android-apk.mjs"
   },

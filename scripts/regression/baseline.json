@@ -1,0 +1,72 @@
+{
+  "meta": {
+    "recordedWith": "FlightModel (Prototype 01, 2D)",
+    "frameDt": 0.016666666666666666
+  },
+  "results": {
+    "takeoff": {
+      "liftoffGroundRollM": 213.1,
+      "liftoffSpeedKmh": 117.9,
+      "liftoffTimeS": 13.68,
+      "distanceTo15mM": 451,
+      "timeTo15mS": 20.15,
+      "runwayRemainingAt15mM": 1409
+    },
+    "climb": {
+      "climbRateMs": 5.25,
+      "climbSpeedKmh": 176.4,
+      "timeTo300mS": 48.8
+    },
+    "cruise": {
+      "speedKmh": 216.5,
+      "pitchDeg": 0.23,
+      "aoaDeg": 0.23,
+      "altitudeM": 352.3,
+      "verticalSpeedMs": 0
+    },
+    "stallClean": {
+      "stallSpeedKmh": 79.7,
+      "timeToStallS": 5.38,
+      "altitudeLost10sAfterM": 81.4,
+      "stalledAfter10s": false
+    },
+    "stallFlaps": {
+      "stallSpeedKmh": 64.7,
+      "timeToStallS": 5.17,
+      "altitudeLost10sAfterM": 49.4,
+      "stalledAfter10s": true
+    },
+    "dive": {
+      "maxSpeedKmh": 381.3,
+      "altitudeLostM": 657.3
+    },
+    "mission": {
+      "liftoffX": 416,
+      "maxAltitudeM": 348,
+      "topOfDescentX": 6109,
+      "touchdownPastThresholdM": 598,
+      "touchdownVsMs": 2.05,
+      "touchdownSpeedKmh": 82.7,
+      "rolloutM": 77,
+      "stoppedX": 12175,
+      "totalTimeS": 289.8,
+      "crash": null,
+      "score": 79,
+      "grade": "Smooth landing."
+    },
+    "hardLanding": {
+      "touchdownVsMs": 4.66,
+      "crash": true,
+      "verdict": "Touchdown at 4.7 m/s was too hard – the landing gear collapsed."
+    },
+    "gearUpLanding": {
+      "touchdownVsMs": 0.42,
+      "crash": true,
+      "verdict": "Gear-up landing! The aircraft slid down the runway on its belly."
+    },
+    "braking": {
+      "stopDistanceM": 120.1,
+      "stopTimeS": 7.92
+    }
+  }
+}
