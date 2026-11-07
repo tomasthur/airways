@@ -154,10 +154,12 @@
             <p class="hub-tag">Central Europe · visual ops</p>
           </div>
           <div class="hub-stats" aria-label="Career stats">
+            <div class="hub-stat hub-stat--cash"><span data-hub="statCredits">€0</span><small>Cash</small></div>
             <div class="hub-stat"><span data-hub="statFlights">—</span><small>Flights</small></div>
             <div class="hub-stat"><span data-hub="statCrashes">—</span><small>Crashes</small></div>
             <div class="hub-stat"><span data-hub="statDeaths">—</span><small>Losses</small></div>
             <div class="hub-stat hub-stat--home"><span data-hub="statHome">BTS</span><small>Base</small></div>
+            <button type="button" class="hub-hangar-btn" data-hub="hangarOpen">Hangar</button>
           </div>
         </header>
 
@@ -207,6 +209,7 @@
             <strong data-hub="dockTitle">Bratislava → Vienna</strong>
             <span data-hub="dockBrief"></span>
             <small data-hub="dockMeta"></small>
+            <small class="hub-dock-pay" data-hub="dockPay">Charter ~€0</small>
           </div>
           <div class="hub-dock-actions">
             <button type="button" class="hub-ghost" data-hub="clear">Clear</button>
@@ -214,6 +217,20 @@
               <span data-hub="flyLabel">Fly to Vienna</span>
               <small>Enter</small>
             </button>
+          </div>
+        </div>
+
+        <div class="hub-hangar is-hidden" data-hub="hangar" aria-hidden="true">
+          <div class="hub-hangar-panel">
+            <header class="hub-hangar-head">
+              <div>
+                <div class="hub-hangar-eyebrow">Fleet</div>
+                <h2>Hangar</h2>
+              </div>
+              <button type="button" class="hub-ghost" data-hub="hangarClose">Close</button>
+            </header>
+            <p class="hub-hangar-balance">Balance <strong data-hub="hangarCredits">€0</strong></p>
+            <div class="hub-hangar-list" data-hub="hangarList"></div>
           </div>
         </div>
 
@@ -240,6 +257,7 @@
             <div class="score-grade" data-ref="reportGrade"></div>
           </div>
           <table class="items" data-ref="reportItems"></table>
+          <div class="report-money is-hidden" data-ref="reportMoney"></div>
           <div class="stats" data-ref="reportStats"></div>
           <button type="button" class="primary" data-action="restart" data-ref="reportButton">Back to map <small>R</small></button>
         </div>

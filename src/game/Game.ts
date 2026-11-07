@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { EngineSound } from '../audio/EngineSound';
 import { DANUBE, DANUBE_CANAL, GLIDE_SLOPE_DEG, START_X, SUGGESTED_CRUISE_ALT } from '../config';
 import { airportByIata } from '../meta/airports';
-import { loadProgress, recordCrash, recordSuccess } from '../meta/progress';
+import { formatCredits, settleCrash, settleSuccess } from '../meta/economy';
+import { loadProgress, recordCrash } from '../meta/progress';
 import { DEFAULT_ROUTE, getRoute, type FlightRoute } from '../meta/routes';
 import { Airplane } from '../render/Airplane';
 import { atmosphere } from '../render/Billboards';
@@ -88,6 +89,8 @@ export class Game {
   /** Pending debrief after the wreck finishes falling / settling. */
   private crashTitle = '';
   private crashReason = '';
+  /** Repair bill settled at crash time, shown on the debrief. */
+  private crashBill = 0;
   /** Seconds to hold on the wreck after impact before the report UI. */
   private crashImpactHold = 0;
   /** Signed roll rate during an uncontrolled descent (rad/s). */
@@ -337,6 +340,7 @@ export class Game {
     this.crashTilt = 0;
     this.crashTitle = '';
     this.crashReason = '';
+    this.crashBill = 0;
     this.crashImpactHold = 0;
     this.crashSpin = 0;
     this.shake = 0;
@@ -627,15 +631,13 @@ export class Game {
           this.overran = true;
         }
         if (fm.vx < 0.5 && this.touchdownItems) {
-          recordSuccess(loadProgress(), this.route.to);
+          const report = buildReport([...this.touchdownItems, ...this.flightItems()], this.overran, this.tailStrike, {
+            title: this.route.welcomeTitle,
+            message: this.route.welcomeMessage,
+          });
+          const { payout } = settleSuccess(loadProgress(), this.route.from, this.route.to, report.total);
           this.state = 'report';
-          this.hud.showReport(
-            buildReport([...this.touchdownItems, ...this.flightItems()], this.overran, this.tailStrike, {
-              title: this.route.welcomeTitle,
-              message: this.route.welcomeMessage,
-            }),
-            this.statsLine(),
-          );
+          this.hud.showReport(report, this.statsLine(), `+${formatCredits(payout.net)}`);
         }
       }
     }
@@ -686,7 +688,10 @@ export class Game {
     this.fm.throttle = 0;
     this.fm.setThrottleLever(0);
     // Everyone on board counts: passengers plus the pilot.
-    recordCrash(loadProgress(), this.passengerCount + 1);
+    let progress = recordCrash(loadProgress(), this.passengerCount + 1);
+    const settled = settleCrash(progress);
+    progress = settled.progress;
+    this.crashBill = settled.bill;
 
     const airborne = !this.fm.onGround && this.fm.y > 1.5;
     if (airborne) {
@@ -756,7 +761,12 @@ export class Game {
     this.fm.vx = 0;
     this.fm.vy = 0;
     this.state = 'report';
-    this.hud.showReport(failureReport(this.crashTitle || 'Crash landing', this.crashReason), this.statsLine());
+    const money = this.crashBill > 0 ? `−${formatCredits(this.crashBill)} repair` : '';
+    this.hud.showReport(
+      failureReport(this.crashTitle || 'Crash landing', this.crashReason),
+      this.statsLine(),
+      money,
+    );
   }
 
   /** Flight-quality items for the debrief beyond the touchdown itself. */

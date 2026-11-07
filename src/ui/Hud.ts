@@ -267,7 +267,7 @@ export class Hud {
     if (btn) this.cls(btn, `ctl.${action}`, `ctl wide${lit ? ' lit' : ''}`);
   }
 
-  showReport(r: LandingReport, stats: string): void {
+  showReport(r: LandingReport, stats: string, money = ''): void {
     this.ref('reportEyebrow').textContent = r.success ? 'Landing report' : 'Flight ended';
     this.ref('reportTitle').textContent = r.title;
     this.ref('reportMsg').textContent = r.message;
@@ -286,6 +286,11 @@ export class Hud {
     }
     table.classList.toggle('is-hidden', r.items.length === 0);
     this.ref('reportStats').textContent = stats;
+    const moneyEl = this.ref('reportMoney');
+    moneyEl.textContent = money;
+    moneyEl.classList.toggle('is-hidden', !money);
+    moneyEl.classList.toggle('gain', money.startsWith('+'));
+    moneyEl.classList.toggle('loss', money.startsWith('−') || money.startsWith('-'));
     this.ref('reportButton').innerHTML = 'Back to map <small>R</small>';
     this.show('report', true);
   }

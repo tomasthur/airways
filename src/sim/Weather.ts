@@ -105,12 +105,13 @@ export class Weather {
       const severity: StormSeverity = s < 0.3 ? 'light' : s < 0.72 ? 'moderate' : 'severe';
       const k = r();
       const lerp = (lo: number, hi: number) => lo + (hi - lo) * k;
+      // Storm bumps stay only a notch above rain — passable without structural failure.
       const cell: StormCell =
         severity === 'light'
-          ? { x0: 0, drift: 0, radius: lerp(450, 650), base: lerp(400, 460), top: lerp(650, 800), severity, downdraft: 1.6, turbulence: 0.8 }
+          ? { x0: 0, drift: 0, radius: lerp(450, 650), base: lerp(400, 460), top: lerp(650, 800), severity, downdraft: 1.0, turbulence: 0.4 }
           : severity === 'moderate'
-            ? { x0: 0, drift: 0, radius: lerp(600, 850), base: lerp(340, 410), top: lerp(850, 1050), severity, downdraft: 3.8, turbulence: 1.5 }
-            : { x0: 0, drift: 0, radius: lerp(800, 1050), base: lerp(290, 350), top: lerp(1150, 1350), severity, downdraft: 7.5, turbulence: 2.6 };
+            ? { x0: 0, drift: 0, radius: lerp(600, 850), base: lerp(340, 410), top: lerp(850, 1050), severity, downdraft: 1.7, turbulence: 0.65 }
+            : { x0: 0, drift: 0, radius: lerp(800, 1050), base: lerp(290, 350), top: lerp(1150, 1350), severity, downdraft: 2.6, turbulence: 0.9 };
       cell.x0 = a + r() * (b - a);
       cell.drift = (r() - 0.5) * 4;
       cell.base = Math.round(cell.base / 10) * 10;
@@ -162,7 +163,7 @@ export class Weather {
     const n2 = noise(x / 260 - t * 0.03, seed + 17);
     wy += level * 1.35 * (0.65 * n1 + 0.35 * n2);
     wx += level * 1.35 * noise(x / 140 + t * 0.05, seed + 31);
-    if (rough > 0) wy += rough * 3.6 * noise(x / 38 + t * 0.35, seed + 59);
+    if (rough > 0) wy += rough * 1.5 * noise(x / 38 + t * 0.35, seed + 59);
 
     // Discrete vertical gusts ("1 − cos" shape): the aircraft is suddenly lifted or dropped.
     const seg = Math.floor(x / 380);

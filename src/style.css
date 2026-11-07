@@ -933,12 +933,13 @@ button {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   pointer-events: none;
 }
 
 .hub-brand {
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .hub-wordmark {
@@ -962,13 +963,18 @@ button {
 
 .hub-stats {
   display: flex;
-  gap: 8px;
-  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: stretch;
+  gap: 6px;
+  flex: 0 1 auto;
+  max-width: min(100%, 420px);
+  pointer-events: auto;
 }
 
 .hub-stat {
-  min-width: 58px;
-  padding: 8px 10px 7px;
+  min-width: 52px;
+  padding: 7px 8px 6px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -996,6 +1002,32 @@ button {
 
 .hub-stat--home span {
   color: var(--hub-amber);
+}
+
+.hub-stat--cash span {
+  color: #9fd6a8;
+  font-size: 15px;
+}
+
+.hub-hangar-btn {
+  flex: 0 0 auto;
+  align-self: stretch;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(126, 200, 255, 0.35);
+  background: rgba(126, 200, 255, 0.1);
+  color: var(--hub-cyan);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.hub-hangar-btn:hover {
+  background: rgba(126, 200, 255, 0.18);
 }
 
 .hub-map {
@@ -1044,8 +1076,7 @@ button {
 }
 
 .hub-route {
-  stroke-dasharray: 420;
-  stroke-dashoffset: 420;
+  /* dasharray/offset set in JS from getTotalLength() so long routes fully draw */
   opacity: 0;
   filter: drop-shadow(0 0 6px rgba(126, 200, 255, 0.55));
 }
@@ -1265,6 +1296,14 @@ button {
   color: rgba(126, 200, 255, 0.7);
 }
 
+.hub-dock-pay {
+  margin-top: 4px;
+  color: #9fd6a8 !important;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  text-transform: none;
+}
+
 .hub-dock-actions {
   display: flex;
   gap: 8px;
@@ -1310,6 +1349,142 @@ button {
 @keyframes hubCta {
   0%, 100% { transform: translateY(0); box-shadow: 0 10px 28px rgba(240, 180, 41, 0.35); }
   50% { transform: translateY(-1px); box-shadow: 0 14px 34px rgba(240, 180, 41, 0.45); }
+}
+
+.hub-hangar {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: rgba(4, 10, 16, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.hub-hangar.is-hidden {
+  display: none;
+}
+
+.hub-hangar-panel {
+  width: min(520px, 100%);
+  max-height: min(78vh, 640px);
+  overflow: auto;
+  padding: 20px 18px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(165deg, #152636 0%, #0c1822 100%);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.hub-hangar-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.hub-hangar-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hub-cyan);
+}
+
+.hub-hangar-head h2 {
+  margin: 2px 0 0;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.hub-hangar-balance {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.hub-hangar-balance strong {
+  color: #9fd6a8;
+  font-weight: 700;
+}
+
+.hub-hangar-list {
+  display: grid;
+  gap: 10px;
+}
+
+.hub-fleet-card {
+  padding: 14px 14px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hub-fleet-card.is-active {
+  border-color: rgba(240, 180, 41, 0.45);
+  background: rgba(240, 180, 41, 0.08);
+}
+
+.hub-fleet-card.is-locked {
+  opacity: 0.92;
+}
+
+.hub-fleet-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hub-fleet-head strong {
+  font-size: 15px;
+}
+
+.hub-fleet-head span {
+  font-size: 12px;
+  color: var(--hub-cyan);
+  font-variant-numeric: tabular-nums;
+}
+
+.hub-fleet-card p {
+  margin: 6px 0 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.hub-fleet-card > small {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: rgba(126, 200, 255, 0.75);
+}
+
+.hub-fleet-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hub-fleet-btn {
+  padding: 9px 14px;
+  font-size: 13px;
+  animation: none;
+  box-shadow: none;
+}
+
+.hub-fleet-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.35);
+}
+
+.hub-fleet-note {
+  font-size: 12px;
+  color: var(--hub-amber);
 }
 
 .hub-toast {
@@ -1401,7 +1576,8 @@ button {
   }
   .hub-stats {
     width: 100%;
-    justify-content: space-between;
+    max-width: none;
+    justify-content: flex-start;
   }
   .hub-dock {
     grid-template-columns: 1fr;
@@ -1611,6 +1787,22 @@ kbd {
 }
 
 .items td.neg {
+  color: var(--warn);
+}
+
+.report-money {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.report-money.gain {
+  color: #9fd6a8;
+}
+
+.report-money.loss {
   color: var(--warn);
 }
 

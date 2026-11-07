@@ -1,4 +1,12 @@
 import { AIRPORTS, airportByIata, type Airport } from '../meta/airports';
+import {
+  buyAircraft,
+  estimatePayout,
+  FLEET,
+  fleetById,
+  formatCredits,
+  selectAircraft,
+} from '../meta/economy';
 import { airportStatus, loadProgress, type Progress } from '../meta/progress';
 import { getRoute } from '../meta/routes';
 
@@ -39,6 +47,8 @@ export class HubMenu {
   private readonly routePath: SVGPathElement;
   private readonly dock: HTMLElement;
   private readonly toastEl: HTMLElement;
+  private readonly hangar: HTMLElement;
+  private readonly hangarList: HTMLElement;
   private progress: Progress;
   private selected: string | null = null;
   private toastTimer = 0;
@@ -52,6 +62,8 @@ export class HubMenu {
     this.mapStage = root.querySelector('[data-hub="map"]')!;
     this.dock = root.querySelector('[data-hub="dock"]')!;
     this.toastEl = root.querySelector('[data-hub="toast"]')!;
+    this.hangar = root.querySelector('[data-hub="hangar"]')!;
+    this.hangarList = root.querySelector('[data-hub="hangarList"]')!;
 
     const svg = this.mapStage.querySelector('svg')!;
     this.pinsLayer = svg.querySelector('[data-hub="pins"]') as unknown as SVGElement;
@@ -70,12 +82,27 @@ export class HubMenu {
     root.querySelector('[data-hub="fly"]')!.addEventListener('click', () => this.fly());
     root.querySelector('[data-hub="clear"]')?.addEventListener('click', () => this.clearSelection());
     root.querySelector('[data-hub="random"]')?.addEventListener('click', () => this.pickRandom());
+    root.querySelector('[data-hub="hangarOpen"]')?.addEventListener('click', () => this.openHangar());
+    root.querySelector('[data-hub="hangarClose"]')?.addEventListener('click', () => this.closeHangar());
+    this.hangar.addEventListener('click', (e) => {
+      if (e.target === this.hangar) this.closeHangar();
+    });
+    this.hangarList.addEventListener('click', (e) => {
+      const btn = (e.target as Element).closest('[data-fleet-action]') as HTMLElement | null;
+      if (!btn) return;
+      const id = btn.dataset.fleetId;
+      const action = btn.dataset.fleetAction;
+      if (!id || !action) return;
+      if (action === 'buy') this.buyFleet(id);
+      else if (action === 'select') this.selectFleet(id);
+    });
   }
 
   show(visible: boolean): void {
     this.root.classList.toggle('is-hidden', !visible);
     if (visible) {
       this.progress = loadProgress();
+      this.closeHangar();
       this.renderStats();
       this.renderPins();
       if (this.selected) this.selectDestination(this.selected);
@@ -147,6 +174,8 @@ export class HubMenu {
     this.setText('dockTitle', `${home.city} → ${dest.city}`);
     this.setText('dockBrief', route?.brief ?? dest.brief ?? '');
     this.setText('dockMeta', this.routeMeta(home, dest));
+    const pay = estimatePayout(home.iata, dest.iata, this.progress.activeAircraft);
+    this.setText('dockPay', `Charter ~${formatCredits(pay)}`);
     this.setText('flyLabel', `Fly to ${dest.city}`);
   }
 
@@ -154,6 +183,7 @@ export class HubMenu {
     this.selected = null;
     this.routePath.setAttribute('d', '');
     this.routePath.classList.remove('is-drawn');
+    this.routePath.removeAttribute('style');
     this.pinsLayer.querySelectorAll('[data-iata]').forEach((el) => el.classList.remove('is-selected'));
     this.dock.classList.add('is-hidden');
     this.dock.classList.remove('is-open');
@@ -180,11 +210,19 @@ export class HubMenu {
   private drawRoute(from: Airport, to: Airport): void {
     const a = this.pinPoint(from);
     const b = this.pinPoint(to);
+    const span = Math.hypot(b.x - a.x, b.y - a.y);
+    // Cap arc height so long hops stay on the map instead of looping off-canvas.
+    const lift = Math.min(span * 0.28, 110);
     const mx = (a.x + b.x) / 2;
-    const my = (a.y + b.y) / 2 - Math.hypot(b.x - a.x, b.y - a.y) * 0.28;
+    const my = (a.y + b.y) / 2 - lift;
     const d = `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
     this.routePath.classList.remove('is-drawn');
+    this.routePath.removeAttribute('style');
     this.routePath.setAttribute('d', d);
+    // Dash length must match the real path — a fixed CSS value stops short on long hops (e.g. VIE–WAW).
+    const len = Math.max(1, this.routePath.getTotalLength());
+    this.routePath.style.strokeDasharray = `${len}`;
+    this.routePath.style.strokeDashoffset = `${len}`;
     // Restart the draw animation.
     void this.routePath.getBoundingClientRect();
     this.routePath.classList.add('is-drawn');
@@ -194,7 +232,8 @@ export class HubMenu {
     const km =
       111.32 *
       Math.sqrt((to.lat - from.lat) ** 2 + ((to.lon - from.lon) * Math.cos((((from.lat + to.lat) / 2) * Math.PI) / 180)) ** 2);
-    return `${Math.round(km)} km · visual flight · day or night`;
+    const craft = fleetById(this.progress.activeAircraft);
+    return `${Math.round(km)} km · ${craft.shortName} · visual flight`;
   }
 
   private renderPins(): void {
@@ -258,10 +297,106 @@ export class HubMenu {
 
   private renderStats(): void {
     const fmt = (n: number) => (n > 0 ? String(n) : '—');
+    this.setText('statCredits', formatCredits(this.progress.credits));
     this.setText('statFlights', fmt(this.progress.successfulFlights));
     this.setText('statCrashes', fmt(this.progress.crashes));
     this.setText('statDeaths', fmt(this.progress.deaths));
     this.setText('statHome', this.progress.homeAirport);
+  }
+
+  private openHangar(): void {
+    this.progress = loadProgress();
+    this.renderHangar();
+    this.hangar.classList.remove('is-hidden');
+    this.hangar.setAttribute('aria-hidden', 'false');
+  }
+
+  private closeHangar(): void {
+    this.hangar.classList.add('is-hidden');
+    this.hangar.setAttribute('aria-hidden', 'true');
+  }
+
+  private renderHangar(): void {
+    this.setText('hangarCredits', formatCredits(this.progress.credits));
+    this.hangarList.innerHTML = '';
+    for (const craft of FLEET) {
+      const owned = this.progress.ownedAircraft.includes(craft.id);
+      const active = this.progress.activeAircraft === craft.id;
+      const card = document.createElement('article');
+      card.className = `hub-fleet-card${owned ? ' is-owned' : ' is-locked'}${active ? ' is-active' : ''}`;
+
+      const head = document.createElement('div');
+      head.className = 'hub-fleet-head';
+      const name = document.createElement('strong');
+      name.textContent = craft.name;
+      const tag = document.createElement('span');
+      tag.textContent = active ? 'Active' : owned ? 'Owned' : formatCredits(craft.price);
+      head.append(name, tag);
+
+      const blurb = document.createElement('p');
+      blurb.textContent = craft.blurb;
+
+      const meta = document.createElement('small');
+      meta.textContent = `Fare ×${craft.seatsMult.toFixed(2)}`;
+
+      const actions = document.createElement('div');
+      actions.className = 'hub-fleet-actions';
+      if (owned) {
+        if (!active) {
+          const select = document.createElement('button');
+          select.type = 'button';
+          select.className = 'hub-fly hub-fleet-btn';
+          select.dataset.fleetAction = 'select';
+          select.dataset.fleetId = craft.id;
+          select.textContent = 'Select';
+          actions.appendChild(select);
+        } else {
+          const note = document.createElement('span');
+          note.className = 'hub-fleet-note';
+          note.textContent = 'Flying this ship';
+          actions.appendChild(note);
+        }
+      } else {
+        const need = craft.price - this.progress.credits;
+        const buy = document.createElement('button');
+        buy.type = 'button';
+        buy.className = 'hub-fly hub-fleet-btn';
+        buy.dataset.fleetAction = 'buy';
+        buy.dataset.fleetId = craft.id;
+        buy.disabled = need > 0;
+        buy.textContent = need > 0 ? `Need ${formatCredits(need)} more` : `Buy ${formatCredits(craft.price)}`;
+        actions.appendChild(buy);
+      }
+
+      card.append(head, blurb, meta, actions);
+      this.hangarList.appendChild(card);
+    }
+  }
+
+  private buyFleet(id: string): void {
+    const result = buyAircraft(this.progress, id);
+    if (!result.ok) {
+      this.toast(result.reason);
+      return;
+    }
+    this.progress = result.progress;
+    this.renderStats();
+    this.renderHangar();
+    if (this.selected) this.selectDestination(this.selected);
+    this.toast(`Acquired · ${fleetById(id).shortName}`);
+  }
+
+  private selectFleet(id: string): void {
+    const result = selectAircraft(this.progress, id);
+    if (!result.ok) {
+      this.toast(result.reason);
+      return;
+    }
+    this.progress = result.progress;
+    this.renderStats();
+    this.renderHangar();
+    if (this.selected) this.selectDestination(this.selected);
+    this.toast(`Active · ${fleetById(id).shortName}`);
   }
 
   private setText(ref: string, value: string): void {
