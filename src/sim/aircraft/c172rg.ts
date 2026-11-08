@@ -8,6 +8,16 @@ import type { AircraftConfig } from './AircraftConfig.ts';
 export const C172RG: AircraftConfig = {
   id: 'c172rg',
   name: 'Cessna 172RG Cutlass',
+  registration: 'OM-BTV',
+  propulsion: 'piston',
+  engineCount: 1,
+
+  performance: {
+    cruiseKmh: 200,
+    cruiseAltM: 350,
+    runwayM: 2000,
+    padTimeS: 70,
+  },
 
   mass: {
     emptyKg: 780,

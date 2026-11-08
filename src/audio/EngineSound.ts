@@ -1,4 +1,10 @@
-/** Small synthesized engine + wind sound (Web Audio, no assets). */
+import type { Propulsion } from '../sim/aircraft/AircraftConfig';
+
+/**
+ * Small synthesized engine + wind sound (Web Audio, no assets).
+ * Piston: a buzzy firing-rate tone. Turboprop: propeller drone plus turbine whine.
+ * Jet: broadband roar with a fan whine that climbs with thrust.
+ */
 export class EngineSound {
   private ctx: AudioContext | null = null;
   private master!: GainNode;
@@ -6,10 +12,15 @@ export class EngineSound {
   private oscA!: OscillatorNode;
   private oscB!: OscillatorNode;
   private filter!: BiquadFilterNode;
+  private whine!: OscillatorNode;
+  private whineGain!: GainNode;
+  private roarFilter!: BiquadFilterNode;
+  private roarGain!: GainNode;
   private windGain!: GainNode;
   private windFilter!: BiquadFilterNode;
   private noise!: AudioBuffer;
   private rainGain!: GainNode;
+  private profile: Propulsion = 'piston';
   muted = false;
 
   /** Must be called from a user gesture. */
@@ -44,9 +55,29 @@ export class EngineSound {
     this.oscA.start();
     this.oscB.start();
 
+    this.whine = ctx.createOscillator();
+    this.whine.type = 'sine';
+    this.whineGain = ctx.createGain();
+    this.whineGain.gain.value = 0;
+    this.whine.connect(this.whineGain).connect(this.master);
+    this.whine.start();
+
     this.noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const data = this.noise.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+
+    const roarSrc = ctx.createBufferSource();
+    roarSrc.buffer = this.noise;
+    roarSrc.loop = true;
+    this.roarFilter = ctx.createBiquadFilter();
+    this.roarFilter.type = 'lowpass';
+    this.roarFilter.frequency.value = 400;
+    this.roarFilter.Q.value = 0.7;
+    this.roarGain = ctx.createGain();
+    this.roarGain.gain.value = 0;
+    roarSrc.connect(this.roarFilter).connect(this.roarGain).connect(this.master);
+    roarSrc.start(0, 1.3);
+
     const src = ctx.createBufferSource();
     src.buffer = this.noise;
     src.loop = true;
@@ -71,6 +102,11 @@ export class EngineSound {
     rainSrc.start(0, 0.7);
   }
 
+  /** Which engine voice to synthesize. */
+  setProfile(p: Propulsion): void {
+    this.profile = p;
+  }
+
   setMuted(m: boolean): void {
     this.muted = m;
     if (this.ctx) this.master.gain.setTargetAtTime(m ? 0 : 0.6, this.ctx.currentTime, 0.05);
@@ -86,19 +122,46 @@ export class EngineSound {
   }
 
   /**
-   * @param engine 0 = off, 0..1 while cranking, 1 = running
+   * @param engine 0 = off, 0..1 while starting, 1 = running
    */
   update(throttle: number, airspeed: number, engine = 1, rain = 0): void {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    const rpm = engine < 1 ? engine * 0.18 : 0.22 + throttle * 0.78;
-    const f = 34 + rpm * 62;
-    this.oscA.frequency.setTargetAtTime(f, t, 0.15);
-    this.oscB.frequency.setTargetAtTime(f * 2.02, t, 0.15);
-    this.filter.frequency.setTargetAtTime(300 + rpm * 900, t, 0.2);
-    this.engineGain.gain.setTargetAtTime(engine > 0 ? 0.035 + rpm * 0.085 : 0, t, 0.2);
+    const on = engine > 0;
+    if (this.profile === 'piston') {
+      const rpm = engine < 1 ? engine * 0.18 : 0.22 + throttle * 0.78;
+      const f = 34 + rpm * 62;
+      this.oscA.frequency.setTargetAtTime(f, t, 0.15);
+      this.oscB.frequency.setTargetAtTime(f * 2.02, t, 0.15);
+      this.filter.frequency.setTargetAtTime(300 + rpm * 900, t, 0.2);
+      this.engineGain.gain.setTargetAtTime(on ? 0.035 + rpm * 0.085 : 0, t, 0.2);
+      this.whineGain.gain.setTargetAtTime(0, t, 0.2);
+      this.roarGain.gain.setTargetAtTime(0, t, 0.2);
+    } else if (this.profile === 'turboprop') {
+      // Gas generator spools up during the start; the propeller beat follows torque.
+      const n = engine < 1 ? engine * 0.55 : 0.6 + throttle * 0.4;
+      const blade = 48 + throttle * 26;
+      this.oscA.frequency.setTargetAtTime(blade, t, 0.25);
+      this.oscB.frequency.setTargetAtTime(blade * 2.01, t, 0.25);
+      this.filter.frequency.setTargetAtTime(220 + throttle * 700, t, 0.3);
+      this.engineGain.gain.setTargetAtTime(engine >= 1 ? 0.03 + throttle * 0.07 : 0, t, 0.4);
+      this.whine.frequency.setTargetAtTime(1500 + n * 1900, t, 0.4);
+      this.whineGain.gain.setTargetAtTime(on ? 0.006 + n * 0.012 : 0, t, 0.4);
+      this.roarFilter.frequency.setTargetAtTime(500 + throttle * 900, t, 0.3);
+      this.roarGain.gain.setTargetAtTime(on ? 0.01 + throttle * 0.03 : 0, t, 0.4);
+    } else {
+      const n1 = engine < 1 ? engine * 0.25 : 0.25 + throttle * 0.75;
+      this.oscA.frequency.setTargetAtTime(28 + n1 * 30, t, 0.5);
+      this.oscB.frequency.setTargetAtTime(56 + n1 * 60, t, 0.5);
+      this.filter.frequency.setTargetAtTime(160 + n1 * 200, t, 0.5);
+      this.engineGain.gain.setTargetAtTime(on ? 0.012 + n1 * 0.03 : 0, t, 0.6);
+      this.whine.frequency.setTargetAtTime(900 + n1 * 2600, t, 0.6);
+      this.whineGain.gain.setTargetAtTime(on ? 0.004 + n1 * 0.01 : 0, t, 0.6);
+      this.roarFilter.frequency.setTargetAtTime(250 + n1 * 1400, t, 0.6);
+      this.roarGain.gain.setTargetAtTime(on ? 0.015 + n1 * n1 * 0.16 : 0, t, 0.6);
+    }
     this.rainGain.gain.setTargetAtTime(rain * 0.09, t, 0.5);
-    const w = Math.min(1, airspeed / 70);
+    const w = Math.min(1, airspeed / (this.profile === 'jet' ? 120 : this.profile === 'turboprop' ? 95 : 70));
     this.windGain.gain.setTargetAtTime(w * w * 0.12, t, 0.3);
     this.windFilter.frequency.setTargetAtTime(500 + w * 900, t, 0.3);
   }

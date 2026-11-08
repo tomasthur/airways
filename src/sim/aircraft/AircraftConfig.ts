@@ -19,9 +19,78 @@ export interface FlapDetent {
   vfeKmh: number;
 }
 
+export type Propulsion = 'piston' | 'turboprop' | 'jet';
+
+/** Shape description for the parametric 3D model (render/ParametricAirplane). Metres, nose towards +x. */
+export interface AircraftVisual {
+  lengthM: number;
+  /** Fuselage cross-section (height ≈ width for airliners). */
+  fuselageHeightM: number;
+  fuselageWidthM: number;
+  /** Two full passenger decks (A380). */
+  doubleDeck?: boolean;
+  /** Height of the fuselage belly above the ground with the gear down. */
+  bellyHeightM: number;
+  wing: {
+    /** Root leading edge, as a fraction of the length from the nose. */
+    rootXFrac: number;
+    rootChordM: number;
+    tipChordM: number;
+    sweepDeg: number;
+    dihedralDeg: number;
+    mount: 'high' | 'low';
+    tip: 'plain' | 'winglet' | 'sharklet' | 'raked' | 'fence';
+  };
+  tail: {
+    type: 'conventional' | 't';
+    finHeightM: number;
+    finChordM: number;
+    stabSpanM: number;
+    stabChordM: number;
+    sweepDeg: number;
+  };
+  engines: {
+    kind: 'wing-prop' | 'turbofan';
+    /** Spanwise positions as fractions of the half-span (one entry per engine pair). */
+    spanFrac: number[];
+    nacelleLengthM: number;
+    nacelleDiaM: number;
+    /** Propeller diameter (wing-prop only). */
+    propDiaM?: number;
+    blades?: number;
+  };
+  gear: {
+    /** Wheels per main gear leg. */
+    mainWheels: 1 | 2 | 4 | 6;
+    wheelDiaM: number;
+    /** Extra pair of body gear legs (A380, 747). */
+    bodyGear?: boolean;
+  };
+  /** Cabin windows per side (painted). */
+  windows: number;
+  livery: { body: string; belly: string; stripe: string; accent: string; tail: string; engine: string };
+}
+
 export interface AircraftConfig {
   id: string;
   name: string;
+  /** Painted on the airframe and used as the ATC callsign. */
+  registration: string;
+  propulsion: Propulsion;
+  engineCount: number;
+
+  /** Game-scale mission performance: sizes the corridor and drives guidance copy. */
+  performance: {
+    cruiseKmh: number;
+    cruiseAltM: number;
+    /** Runway length this type is given at both ends of the corridor. */
+    runwayM: number;
+    /** Seconds of the target flight time spent on take-off, climb, approach and landing. */
+    padTimeS: number;
+  };
+
+  /** Parametric model description; absent = hand-built model (C172). */
+  visual?: AircraftVisual;
 
   mass: {
     emptyKg: number;
@@ -140,6 +209,15 @@ export interface AircraftConfig {
     /** Seconds above Vne the airframe tolerates. */
     overspeedToleranceS: number;
   };
+}
+
+/**
+ * Full-power thrust at true airspeed V (m/s). Propellers are power-limited (P/V);
+ * turbofans keep most of their static thrust and lose a little with speed (ram drag).
+ */
+export function fullThrust(propulsion: Propulsion, e: AircraftConfig['engine'], V: number): number {
+  if (propulsion === 'jet') return e.staticThrustN * Math.max(0.3, 1 - (0.3 * V) / 340);
+  return Math.min(e.staticThrustN, e.maxPowerW / Math.max(V, 1));
 }
 
 /** Flap deflection (deg) of the largest detent. */

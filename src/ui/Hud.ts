@@ -45,6 +45,7 @@ export class Hud {
   private landmarkKey = '';
 
   private readonly root: HTMLElement;
+  private speedMaxKmh = 320;
 
   constructor(root: HTMLElement, input: Input) {
     this.root = root;
@@ -108,7 +109,7 @@ export class Hud {
 
   update(d: HudData): void {
     this.text('speed', Math.round(d.speedKmh).toString());
-    this.style('speedBar', 'width', `${Math.min(100, (d.speedKmh / 320) * 100).toFixed(1)}%`);
+    this.style('speedBar', 'width', `${Math.min(100, (d.speedKmh / this.speedMaxKmh) * 100).toFixed(1)}%`);
     this.text('alt', Math.round(d.altitude).toString());
     const vs = Math.abs(d.verticalSpeed) < 0.05 ? 0 : d.verticalSpeed;
     this.text('vs', `${vs > 0 ? '+' : ''}${vs.toFixed(1)}`);
@@ -140,6 +141,15 @@ export class Hud {
       d.distanceKm > 0.05 ? `${d.destCode} ${d.distanceKm.toFixed(1)} km` : `${d.destCode} runway ${d.destRunway}`,
     );
     this.text('phase', d.phase);
+  }
+
+  /** Engine temperature gauge name (CHT / ITT / EGT) and the speed-bar full scale for the flown type. */
+  setAircraft(tempLabel: string, speedMaxKmh: number, takeoffFlapDeg: number, engineCount: number): void {
+    this.speedMaxKmh = speedMaxKmh;
+    this.ref('clFlapsLabel').textContent = `Flaps take-off ${takeoffFlapDeg}°`;
+    this.ref('clEngineLabel').textContent = engineCount > 1 ? 'Engines' : 'Engine';
+    this.ref('chtLabel').textContent = tempLabel;
+    this.ref('chtWarn').textContent = tempLabel;
   }
 
   setMissionRoute(fromCode: string, fromCity: string, toCode: string, toCity: string): void {

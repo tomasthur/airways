@@ -58,12 +58,21 @@ export class Passengers {
     ]);
   }
 
-  /** Starts boarding `count` passengers walking from `from` to the door at `door`. */
-  start(count: number, from: THREE.Vector3, door: THREE.Vector3): void {
+  /**
+   * Starts boarding `count` passengers walking from `from` to the door at `door`.
+   * `stairRun` is how far the foot of the airstairs sits out from the fuselage (0 = step straight in).
+   */
+  start(count: number, from: THREE.Vector3, door: THREE.Vector3, stairRun = 0): void {
     this.clear();
     this.path.length = 0;
-    // Walk in, turn towards the door just outside the wing, then step up into the cabin.
-    this.path.push(from.clone(), new THREE.Vector3(door.x + 2.4, 0, door.z + 2.2), new THREE.Vector3(door.x, 0, door.z + 0.9), new THREE.Vector3(door.x, door.y, door.z - 0.2));
+    const foot = Math.max(0.9, stairRun);
+    // Walk in, turn towards the door (or the foot of the stairs), then climb up into the cabin.
+    this.path.push(
+      from.clone(),
+      new THREE.Vector3(door.x + 2.4, 0, door.z + foot + 1.3),
+      new THREE.Vector3(door.x, 0, door.z + foot),
+      new THREE.Vector3(door.x, door.y, door.z - 0.2),
+    );
     this.pathLength = 0;
     for (let i = 1; i < this.path.length; i++) this.pathLength += this.path[i].distanceTo(this.path[i - 1]);
     const seed = Math.floor(Math.random() * 1000);

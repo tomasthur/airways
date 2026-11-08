@@ -13,7 +13,7 @@ import { seaSprites } from '../art/seas';
 import { viennaSprites } from '../art/vienna';
 import { BTS_RUNWAY, DANUBE, DANUBE_CANAL, RUNWAY_WIDTH, RUNWAY_Z, VIE_RUNWAY, ZONES, type Runway } from '../config';
 import { FLYABLE_IATAS, airportByIata } from '../meta/airports';
-import { BASE_DEST_X0, remapCorridorSpan, remapCorridorX } from '../meta/flightLength';
+import { REFERENCE_LAYOUT, remapCorridorSpan, remapCorridorX, type CorridorLayout } from '../meta/flightLength';
 import { type SceneryTheme } from '../meta/routes';
 import { buildSpriteBatches, buildTileStrip, type Placement } from './Billboards';
 
@@ -48,8 +48,16 @@ export const THEME_SEA_SPANS: Partial<Record<SceneryTheme, [number, number][]>> 
 };
 
 const WORLD_X0 = -3500;
-/** Long enough for the longest ~40 km corridor plus overrun. */
-const WORLD_X1 = 45000;
+/** Long enough for the longest corridor (A380, 12 min ≈ 157 km) plus overrun. */
+const WORLD_X1 = 175000;
+/** End of the authored reference layout; corridor scenery is generated up to here and remapped. */
+const REF_X1 = 19000;
+/** Shared full-length layers (clouds, far ridges) stay put when the corridor is remapped. */
+function fixed<T extends THREE.Object3D>(obj: T): T {
+  obj.userData.fixedCorridor = true;
+  return obj;
+}
+
 const GROUND_Z0 = -420;
 const GROUND_Z1 = 90;
 
@@ -79,9 +87,10 @@ export class World {
   private readonly tmpMatrix = new THREE.Matrix4();
   private readonly tmpQuat = new THREE.Quaternion();
   private readonly tmpPos = new THREE.Vector3();
-  /** Live destination pad start; scenery is remapped from the authored 11.5 km layout. */
-  private corridorDestX0 = BASE_DEST_X0;
+  /** Live corridor; scenery is remapped from the authored reference layout. */
+  private layout: CorridorLayout = REFERENCE_LAYOUT;
   private readonly authSpans: { mesh: THREE.Object3D; x0: number; x1: number }[] = [];
+  private readonly authStrips: { mesh: THREE.InstancedMesh; segs: Float32Array; tileW: number }[] = [];
   private readonly authObjects: { obj: THREE.Object3D; x: number }[] = [];
   private readonly authInstances: { mesh: THREE.InstancedMesh; xs: Float32Array }[] = [];
   private readonly authPoints: { points: THREE.Points; xs: Float32Array }[] = [];
@@ -121,22 +130,28 @@ export class World {
     this.captureCorridorBases();
     this.setRouteScenery('danubeWest');
     this.setRouteAirports('BTS', 'VIE');
-    this.setCorridorLength(BASE_DEST_X0);
+    this.setCorridor(REFERENCE_LAYOUT);
   }
 
   /**
-   * Stretch / shift authored scenery onto the live corridor for this hop.
+   * Place authored scenery onto the live corridor for this hop and aircraft: runways, aprons and
+   * water stretch to their live spans (textures keep their density), thresholds stay on the
+   * runway ends, and everything else moves with {@link remapCorridorX}.
    * Always remaps from the captured reference positions (never compounds).
    */
-  setCorridorLength(destX0: number): void {
-    this.corridorDestX0 = destX0;
+  setCorridor(layout: CorridorLayout): void {
+    this.layout = layout;
     for (const { mesh, x0, x1 } of this.authSpans) {
-      const [na, nb] = remapCorridorSpan(x0, x1, destX0);
+      const [na, nb] = remapCorridorSpan(x0, x1, layout);
       mesh.position.x = (na + nb) / 2;
       mesh.scale.x = (nb - na) / Math.max(1e-3, x1 - x0);
+      const perM = mesh.userData.texRepeatPerM as number | undefined;
+      const map = ((mesh as THREE.Mesh).material as THREE.MeshLambertMaterial | undefined)?.map;
+      if (perM && map) map.repeat.x = (nb - na) * perM;
     }
     for (const { obj, x } of this.authObjects) {
-      obj.position.x = remapCorridorX(x, destX0);
+      const anchor = obj.userData.anchorX as number | undefined;
+      obj.position.x = anchor === undefined ? remapCorridorX(x, layout) : remapCorridorX(anchor, layout) + (x - anchor);
     }
     const m4 = this.tmpMatrix;
     const p = this.tmpPos;
@@ -146,30 +161,49 @@ export class World {
       for (let i = 0; i < mesh.count; i++) {
         mesh.getMatrixAt(i, m4);
         m4.decompose(p, q, s);
-        p.x = remapCorridorX(xs[i], destX0);
+        p.x = remapCorridorX(xs[i], layout);
         m4.compose(p, q, s);
         mesh.setMatrixAt(i, m4);
       }
       mesh.instanceMatrix.needsUpdate = true;
+      mesh.computeBoundingSphere();
+    }
+    for (const { mesh, segs, tileW } of this.authStrips) {
+      const rects = mesh.geometry.getAttribute('uvRect') as THREE.InstancedBufferAttribute;
+      for (let i = 0; i < mesh.count; i++) {
+        const a = remapCorridorX(segs[i * 2], layout);
+        const b = remapCorridorX(segs[i * 2 + 1], layout);
+        mesh.getMatrixAt(i, m4);
+        m4.decompose(p, q, s);
+        p.x = (a + b) / 2;
+        s.x = b - a;
+        m4.compose(p, q, s);
+        mesh.setMatrixAt(i, m4);
+        rects.setX(i, a / tileW);
+        rects.setZ(i, b / tileW);
+      }
+      rects.needsUpdate = true;
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.computeBoundingSphere();
     }
     for (const { points, xs } of this.authPoints) {
       const attr = points.geometry.getAttribute('position');
-      for (let i = 0; i < xs.length; i++) attr.setX(i, remapCorridorX(xs[i], destX0));
+      for (let i = 0; i < xs.length; i++) attr.setX(i, remapCorridorX(xs[i], layout));
       attr.needsUpdate = true;
+      points.geometry.computeBoundingSphere();
     }
     for (let i = 0; i < this.turbineData.length; i++) {
-      this.turbineData[i].x = remapCorridorX(this.turbineAuthX[i] ?? this.turbineData[i].x, destX0);
+      this.turbineData[i].x = remapCorridorX(this.turbineAuthX[i] ?? this.turbineData[i].x, layout);
     }
   }
 
   /** Water hazard spans for the active corridor (ditch checks). */
   waterHazards(theme: SceneryTheme): [number, number][] {
-    const dest = this.corridorDestX0;
     const authored =
       this.themeWaterAuth.find((t) => t.theme === theme)?.spans ??
       THEME_SEA_SPANS[theme] ??
       [];
-    return authored.map(([a, b]) => remapCorridorSpan(a, b, dest));
+    return authored.map(([a, b]) => remapCorridorSpan(a, b, this.layout));
   }
 
   private captureCorridorBases(): void {
@@ -178,6 +212,11 @@ export class World {
       if (obj.userData.corridorSpan) {
         const [x0, x1] = obj.userData.corridorSpan as [number, number];
         this.authSpans.push({ mesh: obj, x0, x1 });
+        return;
+      }
+      if (obj.userData.tileStrip) {
+        const { segments, tileW } = obj.userData.tileStrip as { segments: [number, number][]; tileW: number };
+        this.authStrips.push({ mesh: obj as THREE.InstancedMesh, segs: new Float32Array(segments.flat()), tileW });
         return;
       }
       if ((obj as THREE.InstancedMesh).isInstancedMesh) {
@@ -279,12 +318,12 @@ export class World {
     for (let x = WORLD_X0; x < WORLD_X1; x += range(r, 600, 1200)) {
       farClouds.push({ frame: this.frame(`cloud_${Math.floor(r() * 5)}`), x, y: range(r, 180, 620), z: r() * 10, scale: range(r, 1.4, 2.6), flip: r() < 0.5 });
     }
-    buildSpriteBatches(P, farClouds, { hazeAmount: 0.3, skirt: 0, renderOrder: 0, opacity: 0.9 }).forEach((m) => cloudsFar.add(m));
+    buildSpriteBatches(P, farClouds, { hazeAmount: 0.3, skirt: 0, renderOrder: 0, opacity: 0.9 }).forEach((m) => cloudsFar.add(fixed(m)));
 
     // Mountains (shared base silhouette)
     const mountains = this.addLayer(-1500, 0.86);
     const mt = paintMountainTile();
-    mountains.add(buildTileStrip(this.tile(mt, anisotropy), mt.w, mt.h, [[WORLD_X0, WORLD_X1]], { hazeAmount: 0.42, skirt: 8, renderOrder: 10 }));
+    mountains.add(fixed(buildTileStrip(this.tile(mt, anisotropy), mt.w, mt.h, [[WORLD_X0, WORLD_X1]], { hazeAmount: 0.42, skirt: 8, renderOrder: 10 })));
 
     // Mid-distance clouds (shared)
     const cloudsMid = this.addLayer(-1100, 0.75);
@@ -292,12 +331,12 @@ export class World {
     for (let x = WORLD_X0; x < WORLD_X1; x += range(r, 700, 1500)) {
       midClouds.push({ frame: this.frame(`cloud_${Math.floor(r() * 5)}`), x, y: range(r, 260, 520), z: r() * 10, scale: range(r, 0.9, 1.5), flip: r() < 0.5 });
     }
-    buildSpriteBatches(P, midClouds, { hazeAmount: 0.18, skirt: 0, renderOrder: 15, opacity: 0.92 }).forEach((m) => cloudsMid.add(m));
+    buildSpriteBatches(P, midClouds, { hazeAmount: 0.18, skirt: 0, renderOrder: 15, opacity: 0.92 }).forEach((m) => cloudsMid.add(fixed(m)));
 
     // Hills base tile (shared) + theme hill accents / far skylines
     const hills = this.addLayer(-800, 0.74);
     const ht = paintHillsTile();
-    hills.add(buildTileStrip(this.tile(ht, anisotropy), ht.w, ht.h, [[WORLD_X0, WORLD_X1]], { hazeAmount: 0.28, skirt: 8, renderOrder: 20, fields: true }));
+    hills.add(fixed(buildTileStrip(this.tile(ht, anisotropy), ht.w, ht.h, [[WORLD_X0, WORLD_X1]], { hazeAmount: 0.28, skirt: 8, renderOrder: 20, fields: true })));
     this.buildHillScenery(hills, P);
 
     // Mid countryside + theme cities / landmarks / turbines
@@ -314,7 +353,7 @@ export class World {
       foreSegments.push([segStart, g0]);
       segStart = g1;
     }
-    foreSegments.push([segStart, WORLD_X1]);
+    foreSegments.push([segStart, REF_X1]);
     const fields = this.addLayer(-290, 0.44);
     fields.add(buildTileStrip(ctTex, ct.w * 0.8, ct.h * 0.8, foreSegments, { hazeAmount: 0.08, skirt: 8, renderOrder: 34, fields: true }));
     const fore = this.addLayer(-200, 0.3);
@@ -329,12 +368,12 @@ export class World {
     for (let x = 2600; x < WORLD_X1; x += range(r, 450, 900)) {
       nearClouds.push({ frame: this.frame(`cloud_${Math.floor(r() * 5)}`), x, y: range(r, 260, 1000), z: range(r, -260, -90), scale: range(r, 0.55, 1.1), flip: r() < 0.5 });
     }
-    buildSpriteBatches(P, nearClouds, { hazeAmount: 0.06, skirt: 0, renderOrder: 50, opacity: 0.88 }).forEach((m) => near.add(m));
+    buildSpriteBatches(P, nearClouds, { hazeAmount: 0.06, skirt: 0, renderOrder: 50, opacity: 0.88 }).forEach((m) => near.add(fixed(m)));
     const frontClouds: Placement[] = [];
     for (let x = 3200; x < WORLD_X1; x += range(r, 1400, 2600)) {
       frontClouds.push({ frame: this.frame(`cloud_${Math.floor(r() * 5)}`), x, y: range(r, 380, 900), z: range(r, 8, 14), scale: range(r, 0.18, 0.28) });
     }
-    buildSpriteBatches(P, frontClouds, { hazeAmount: 0, skirt: 0, renderOrder: 60, opacity: 0.5 }).forEach((m) => near.add(m));
+    buildSpriteBatches(P, frontClouds, { hazeAmount: 0, skirt: 0, renderOrder: 60, opacity: 0.5 }).forEach((m) => near.add(fixed(m)));
   }
 
   private buildHillScenery(hills: THREE.Group, P: THREE.Texture[]): void {
@@ -514,7 +553,7 @@ export class World {
     // --- danubeWest: BTS city → Parndorf → Vienna (legacy look)
     const west = this.sceneryGroup(mid, 'danubeWest');
     west.add(
-      buildTileStrip(ctTex, ctW, ctH, [[WORLD_X0, snpLeft + 2], [snpRight - 2, WORLD_X1]], {
+      buildTileStrip(ctTex, ctW, ctH, [[WORLD_X0, snpLeft + 2], [snpRight - 2, REF_X1]], {
         hazeAmount: 0.1,
         skirt: 8,
         renderOrder: 30,
@@ -620,7 +659,7 @@ export class World {
 
     // --- carpathian: fewer villages, denser tree bands via near layer
     const car = this.sceneryGroup(mid, 'carpathian');
-    car.add(buildTileStrip(ctTex, ctW, ctH, [[WORLD_X0, WORLD_X1]], { hazeAmount: 0.12, skirt: 8, renderOrder: 30, fields: true }));
+    car.add(buildTileStrip(ctTex, ctW, ctH, [[WORLD_X0, REF_X1]], { hazeAmount: 0.12, skirt: 8, renderOrder: 30, fields: true }));
     const carSprites: Placement[] = [];
     for (const x of [3600, 4800, 6200, 8000, 9600]) {
       const f = this.frame('village');
@@ -826,7 +865,7 @@ export class World {
       if (g0 > start) out.push([start, g0]);
       start = Math.max(start, g1);
     }
-    if (start < WORLD_X1) out.push([start, WORLD_X1]);
+    if (start < REF_X1) out.push([start, REF_X1]);
     return out;
   }
 
@@ -1006,7 +1045,7 @@ export class World {
       put('canal_bridge', (DANUBE_CANAL.x0 + DANUBE_CANAL.x1) / 2, -70);
     }
 
-    for (let x = WORLD_X0; x < WORLD_X1; ) {
+    for (let x = WORLD_X0; x < REF_X1; ) {
       if (blocked(x)) {
         x += 10;
         continue;
@@ -1180,6 +1219,7 @@ export class World {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set((rw.x0 + rw.x1) / 2, 0.03, RUNWAY_Z);
     mesh.receiveShadow = true;
+    mesh.userData.texRepeatPerM = 1 / 50;
     this.tagSpan(mesh, rw.x0, rw.x1);
     this.root.add(mesh);
 
@@ -1220,6 +1260,7 @@ export class World {
     const mat = new THREE.MeshLambertMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(reversed ? x - L / 2 : x + L / 2, 0.04, RUNWAY_Z);
+    mesh.userData.anchorX = x;
     if (reversed) mesh.rotation.y = Math.PI;
     mesh.renderOrder = 1;
     this.root.add(mesh);
@@ -1259,6 +1300,7 @@ export class World {
       g.rotateX(-Math.PI / 2);
       const m = new THREE.Mesh(g, waterMat(x1 - x0));
       m.position.set((x0 + x1) / 2, 0.05, (GROUND_Z0 + GROUND_Z1) / 2);
+      m.userData.texRepeatPerM = 1 / 20;
       this.tagSpan(m, x0, x1);
       parent.add(m);
       for (const x of [x0, x1]) {

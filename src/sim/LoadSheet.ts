@@ -16,6 +16,19 @@ export interface LoadSheet {
 /** Pilot plus one passenger, light baggage and most of the fuel: 1100 kg in the 172RG. */
 export const DEFAULT_LOAD: Load = { passengers: 1, baggageKg: 20, fuelKg: 140 };
 
+/**
+ * A charter load for this type: `loadFactor` (0..1) of the seats sold, 15 kg of bags each,
+ * and fuel topped up to the planning figure as far as MTOW allows.
+ */
+export function plannedLoad(c: AircraftConfig, loadFactor: number): Load {
+  const m = c.mass;
+  const passengers = Math.max(1, Math.min(m.maxPassengers, Math.round(m.maxPassengers * loadFactor)));
+  const baggageKg = Math.min(m.maxBaggageKg, 15 * passengers);
+  const withoutFuel = computeLoadSheet(c, { passengers, baggageKg, fuelKg: 0 }).massKg;
+  const fuelKg = Math.round(Math.max(Math.min(30, m.maxFuelKg), Math.min(m.maxFuelKg * 0.83, m.mtowKg - withoutFuel)));
+  return { passengers, baggageKg, fuelKg };
+}
+
 export function computeLoadSheet(c: AircraftConfig, load: Load): LoadSheet {
   const m = c.mass;
   const items = [

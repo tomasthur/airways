@@ -32,8 +32,37 @@ export interface AirplaneVisualState {
   onGround: boolean;
 }
 
-export class Airplane {
+/** What the game needs from any aircraft model (hand-built C172 or parametric types). */
+export interface AircraftModel {
+  readonly root: THREE.Group;
+  doorOpen: boolean;
+  lightsOn: boolean;
+  readonly doorFullyOpen: boolean;
+  readonly doorFullyClosed: boolean;
+  /** Horizontal run of the boarding stairs out from the door (0 = step straight in). */
+  readonly stairRun: number;
+  update(dt: number, x: number, y: number, pitch: number, roll: number, s: AirplaneVisualState): void;
+  getWingTips(right: THREE.Vector3, left: THREE.Vector3): void;
+  doorSill(out: THREE.Vector3): THREE.Vector3;
+  dispose(): void;
+}
+
+/** Releases the GPU resources of a model built from unique geometries / materials / textures. */
+export function disposeObject(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    mesh.geometry?.dispose();
+    const mats = mesh.material ? (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) : [];
+    for (const m of mats) {
+      for (const v of Object.values(m)) if (v instanceof THREE.Texture && v !== (m as THREE.MeshStandardMaterial).envMap) v.dispose();
+      m.dispose();
+    }
+  });
+}
+
+export class Airplane implements AircraftModel {
   readonly root = new THREE.Group();
+  readonly stairRun = 0;
   private readonly model = new THREE.Group();
   private readonly propeller = new THREE.Group();
   private readonly bladeMaterial: THREE.MeshStandardMaterial;
@@ -291,6 +320,10 @@ export class Airplane {
     return this.doorAngle < 0.01;
   }
 
+  dispose(): void {
+    disposeObject(this.root);
+  }
+
   /** Applies physics pose and animates moving parts. */
   update(dt: number, x: number, y: number, pitch: number, roll: number, s: AirplaneVisualState): void {
     this.time += dt;
@@ -339,7 +372,7 @@ export class Airplane {
   }
 }
 
-function glowTexture(): THREE.Texture {
+export function glowTexture(): THREE.Texture {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const g = c.getContext('2d')!;

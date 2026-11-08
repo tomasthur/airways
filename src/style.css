@@ -1517,8 +1517,8 @@ button {
 }
 
 .hub-hangar-panel {
-  width: min(520px, 100%);
-  max-height: min(78vh, 640px);
+  width: min(580px, 100%);
+  max-height: min(82vh, 760px);
   overflow: auto;
   padding: 20px 18px 18px;
   border-radius: 18px;
@@ -1605,11 +1605,48 @@ button {
   color: var(--muted);
 }
 
-.hub-fleet-card > small {
+.hub-fleet-type {
   display: block;
-  margin-bottom: 10px;
+  margin-top: 2px;
   font-size: 11px;
+  letter-spacing: 0.04em;
   color: rgba(126, 200, 255, 0.75);
+}
+
+.hub-fleet-specs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+
+.hub-fleet-specs span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.hub-fleet-specs small {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hub-fleet-specs b {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+  .hub-fleet-specs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .hub-fleet-actions {

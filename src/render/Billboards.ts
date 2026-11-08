@@ -192,7 +192,7 @@ export function buildTileStrip(
   geometry.setAttribute('uvRect', new THREE.InstancedBufferAttribute(rects, 4));
   mesh.computeBoundingSphere();
   mesh.renderOrder = options.renderOrder;
-  // Full-length / gapped ground ribbons already span the max corridor — do not remap.
-  mesh.userData.fixedCorridor = true;
+  // World remaps each segment onto the live corridor (and rewrites uvRect to keep the tile density).
+  mesh.userData.tileStrip = { segments, tileW };
   return mesh;
 }

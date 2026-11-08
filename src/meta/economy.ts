@@ -17,6 +17,8 @@ export interface FleetAircraft {
   id: string;
   name: string;
   shortName: string;
+  /** Passenger seats (crew excluded). */
+  seats: number;
   /** Purchase price; 0 = starter. */
   price: number;
   /** Multiplier on charter fare (capacity / class). */
@@ -31,60 +33,31 @@ export interface FleetAircraft {
   blurb: string;
 }
 
-/** Starter C172 owned; mid twin and late turboprop are buyable placeholders. */
-export const FLEET: FleetAircraft[] = [
-  {
-    id: 'c172rg',
-    name: 'Cessna 172RG',
-    shortName: 'C172',
-    price: 0,
-    seatsMult: 1,
-    repairMult: 1,
-    rangeKm: 420,
-    blurb: 'Four seats, retractable gear. Your first charter ship.',
-  },
-  {
-    id: 'pa34',
-    name: 'Piper Seneca',
-    shortName: 'Twin',
-    price: 48000,
-    seatsMult: 1.45,
-    repairMult: 1.35,
-    rangeKm: 900,
-    blurb: 'Light twin. More seats, better charter rates.',
-  },
-  {
-    id: 'at42',
-    name: 'ATR 42',
-    shortName: 'ATR',
-    price: 175000,
-    seatsMult: 2.15,
-    repairMult: 1.85,
-    rangeKm: 1800,
-    blurb: 'Regional turboprop. Covers Europe end-to-end.',
-  },
-  {
-    id: 'a320',
-    name: 'Airbus A320',
-    shortName: 'A320',
-    price: 420000,
-    seatsMult: 3.2,
-    repairMult: 2.4,
-    rangeKm: 5500,
-    blurb: 'Narrow-body jet. Cross the Atlantic on good days.',
-  },
-  {
-    id: 'b777',
-    name: 'Boeing 777',
-    shortName: '777',
-    price: 980000,
-    seatsMult: 4.5,
-    repairMult: 3.2,
-    rangeKm: 13000,
-    blurb: 'Long-haul widebody. Anywhere on the board.',
-  },
-];
+const plane = (
+  id: string,
+  name: string,
+  shortName: string,
+  seats: number,
+  price: number,
+  seatsMult: number,
+  repairMult: number,
+  rangeKm: number,
+  blurb: string,
+): FleetAircraft => ({ id, name, shortName, seats, price, seatsMult, repairMult, rangeKm, blurb });
 
+/** The career ladder: each step carries more people further and faster. Ids match `sim/aircraft`. */
+export const FLEET: FleetAircraft[] = [
+  plane('c172rg', 'Cessna 172RG', 'C172', 4, 0, 1, 1, 420, 'Four seats, retractable gear. Your first charter ship.'),
+  plane('pa34', 'Piper Seneca V', 'Seneca', 6, 48000, 1.45, 1.35, 900, 'Light piston twin. More seats, better charter rates.'),
+  plane('be350', 'King Air 350', 'King Air', 11, 120000, 1.9, 1.7, 1800, 'Executive turboprop. Quick, quiet and comfortable.'),
+  plane('atr72', 'ATR 72-600', 'ATR 72', 70, 260000, 2.5, 2.2, 1500, 'High-wing regional turboprop with a T-tail. Short hops, full cabins.'),
+  plane('dh8d', 'Dash 8 Q400', 'Q400', 78, 380000, 2.8, 2.5, 2000, 'The fast turboprop. Jet-like times on regional legs.'),
+  plane('e190', 'Embraer E190', 'E190', 100, 600000, 3.3, 3.0, 4000, 'Your first jet. Spool-up lag and a long landing roll.'),
+  plane('a320', 'Airbus A320neo', 'A320', 180, 900000, 3.9, 3.6, 6000, 'The workhorse narrow-body. Europe and beyond.'),
+  plane('b789', 'Boeing 787-9', '787', 290, 1600000, 4.8, 4.6, 13000, 'Composite long-hauler with raked wingtips. Crosses oceans.'),
+  plane('b777', 'Boeing 777-300ER', '777', 396, 2200000, 5.4, 5.2, 13600, 'Twin-engine giant with huge fans. Anywhere on the board.'),
+  plane('a388', 'Airbus A380', 'A380', 555, 3200000, 6.2, 6.0, 15000, 'Four engines, two decks. The queen of the network.'),
+];
 export function fleetById(id: string): FleetAircraft {
   return FLEET.find((a) => a.id === id) ?? FLEET[0];
 }
@@ -101,16 +74,16 @@ export function rangeBlockedMessage(fromIata: string, toIata: string, aircraftId
   return `${km} km is too far for the ${craft.shortName} (range ${craft.rangeKm} km)`;
 }
 
-/** Great-circle distance in km (same formula as the hub map). */
+/** Great-circle (haversine) distance in km; correct across the date line. */
 export function distanceKm(fromIata: string, toIata: string): number {
   const from = airportByIata(fromIata);
   const to = airportByIata(toIata);
   if (!from || !to) return 200;
-  const midLat = (((from.lat + to.lat) / 2) * Math.PI) / 180;
-  return (
-    111.32 *
-    Math.sqrt((to.lat - from.lat) ** 2 + ((to.lon - from.lon) * Math.cos(midLat)) ** 2)
-  );
+  const rad = Math.PI / 180;
+  const dLat = (to.lat - from.lat) * rad;
+  const dLon = (to.lon - from.lon) * rad;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(from.lat * rad) * Math.cos(to.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
 export function baseFare(km: number): number {

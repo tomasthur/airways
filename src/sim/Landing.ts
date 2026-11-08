@@ -1,5 +1,7 @@
 import type { Touchdown } from './FlightModel';
 import type { Runway } from '../config';
+import type { AircraftConfig } from './aircraft/AircraftConfig';
+import { C172RG } from './aircraft/c172rg.ts';
 
 export interface ScoreItem {
   label: string;
@@ -29,15 +31,20 @@ export function onRunway(x: number, rw: Runway): boolean {
 }
 
 /** Evaluates a touchdown on the destination runway. Returns a crash reason or the score breakdown. */
-export function evaluateTouchdown(td: Touchdown, rw: Runway): TouchdownVerdict {
+export function evaluateTouchdown(td: Touchdown, rw: Runway, cfg: AircraftConfig = C172RG): TouchdownVerdict {
+  const L = cfg.limits;
   const vs = -td.verticalSpeed;
   const kmh = td.groundSpeed * 3.6;
   const airKmh = (td.airspeed ?? td.groundSpeed) * 3.6;
   const dist = td.x - rw.x0;
   // Stall in the flare: too slow for the flap setting → the wing quits and the aircraft drops.
-  const minApproach = td.flaps > 0.55 ? 78 : td.flaps > 0.2 ? 88 : 100;
+  const minApproach = Math.round(td.flaps > 0.55 ? L.vs0Kmh : td.flaps > 0.2 ? L.vs0Kmh + (L.vs1Kmh - L.vs0Kmh) * 0.66 : L.vs1Kmh * 1.075);
+  // Scoring bands are tuned on the C172 (4.5 m/s gear, 120 km/h Vref, 2.2 km runway) and scale per type.
+  const sv = L.maxTouchdownVsMs / 4.5;
+  const vref = L.vrefKmh;
+  const sd = Math.max(1, (rw.x1 - rw.x0) / 2200);
 
-  if (vs > 4.5) return { crash: `Touchdown at ${vs.toFixed(1)} m/s was too hard – the landing gear collapsed.`, items: [] };
+  if (vs > L.maxTouchdownVsMs) return { crash: `Touchdown at ${vs.toFixed(1)} m/s was too hard – the landing gear collapsed.`, items: [] };
   if (td.gear < 0.95) return { crash: 'Gear-up landing! The aircraft slid down the runway on its belly.', items: [] };
   if (td.pitch < -0.05 && vs > 1.5) return { crash: 'Nose-first touchdown – the nose gear collapsed.', items: [] };
   if (airKmh < minApproach - 8 && vs > 2.2) {
@@ -54,20 +61,24 @@ export function evaluateTouchdown(td: Touchdown, rw: Runway): TouchdownVerdict {
   }
 
   let vsScore: number;
-  if (vs <= 0.8) vsScore = 40;
-  else if (vs <= 1.5) vsScore = lerp(40, 30, (vs - 0.8) / 0.7);
-  else if (vs <= 3) vsScore = lerp(30, 8, (vs - 1.5) / 1.5);
-  else vsScore = lerp(8, 0, (vs - 3) / 1.5);
+  const v = vs / sv;
+  if (v <= 0.8) vsScore = 40;
+  else if (v <= 1.5) vsScore = lerp(40, 30, (v - 0.8) / 0.7);
+  else if (v <= 3) vsScore = lerp(30, 8, (v - 1.5) / 1.5);
+  else vsScore = lerp(8, 0, (v - 3) / 1.5);
 
+  const lo = (vref * 85) / 120;
+  const hi = (vref * 115) / 120;
   let speedScore: number;
-  if (kmh >= 85 && kmh <= 115) speedScore = 25;
-  else if (kmh > 115) speedScore = lerp(25, 0, (kmh - 115) / 55);
-  else speedScore = lerp(25, 0, (85 - kmh) / 20);
+  if (kmh >= lo && kmh <= hi) speedScore = 25;
+  else if (kmh > hi) speedScore = lerp(25, 0, (kmh - hi) / ((vref * 55) / 120));
+  else speedScore = lerp(25, 0, (lo - kmh) / ((vref * 20) / 120));
 
+  const d = dist / sd;
   let alignScore: number;
-  if (dist >= 150 && dist <= 600) alignScore = 25;
-  else if (dist < 150) alignScore = lerp(15, 25, dist / 150);
-  else if (dist <= 1200) alignScore = lerp(25, 8, (dist - 600) / 600);
+  if (d >= 150 && d <= 600) alignScore = 25;
+  else if (d < 150) alignScore = lerp(15, 25, d / 150);
+  else if (d <= 1200) alignScore = lerp(25, 8, (d - 600) / 600);
   else alignScore = 4;
 
   return {

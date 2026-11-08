@@ -21,7 +21,11 @@ import {
 } from '../meta/progress';
 import { getRoute } from '../meta/routes';
 import { BORDER_PATH, LAND_PATH, WORLD_H, WORLD_W, projectLonLat } from '../meta/worldMap';
+import { aircraftById } from '../sim/aircraft';
+import type { Propulsion } from '../sim/aircraft/AircraftConfig';
 import { MapCamera, type CameraView } from './MapCamera';
+
+const PROPULSION_LABEL: Record<Propulsion, string> = { piston: 'piston prop', turboprop: 'turboprop', jet: 'turbofan' };
 
 /** Screen-pixel nudges so BTS/VIE (55 km apart) stay separately tappable. */
 const PIN_NUDGE: Record<string, { x: number; y: number }> = {
@@ -508,11 +512,32 @@ export class HubMenu {
       tag.textContent = active ? 'Active' : owned ? 'Owned' : formatCredits(craft.price);
       head.append(name, tag);
 
+      const cfg = aircraftById(craft.id);
+      const type = document.createElement('small');
+      type.className = 'hub-fleet-type';
+      type.textContent = `${cfg.engineCount}× ${PROPULSION_LABEL[cfg.propulsion]} · ${cfg.registration}`;
+
       const blurb = document.createElement('p');
       blurb.textContent = craft.blurb;
 
-      const meta = document.createElement('small');
-      meta.textContent = `Fare ×${craft.seatsMult.toFixed(2)} · range ${craft.rangeKm} km`;
+      const meta = document.createElement('div');
+      meta.className = 'hub-fleet-specs';
+      const specs: [string, string][] = [
+        ['Seats', craft.seats.toString()],
+        ['Cruise', `${cfg.performance.cruiseKmh} km/h`],
+        ['Range', `${craft.rangeKm.toLocaleString('en-US')} km`],
+        ['Runway', `${cfg.performance.runwayM.toLocaleString('en-US')} m`],
+        ['Fare', `×${craft.seatsMult.toFixed(2)}`],
+      ];
+      for (const [label, value] of specs) {
+        const cell = document.createElement('span');
+        const l = document.createElement('small');
+        l.textContent = label;
+        const v = document.createElement('b');
+        v.textContent = value;
+        cell.append(l, v);
+        meta.appendChild(cell);
+      }
 
       const actions = document.createElement('div');
       actions.className = 'hub-fleet-actions';
@@ -543,7 +568,7 @@ export class HubMenu {
         actions.appendChild(buy);
       }
 
-      card.append(head, blurb, meta, actions);
+      card.append(head, type, blurb, meta, actions);
       this.hangarList.appendChild(card);
     }
   }

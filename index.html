@@ -42,7 +42,7 @@
           <span class="warn" data-warn="sink">SINK RATE</span>
           <span class="warn amber" data-warn="flaps">FLAP SPEED</span>
           <span class="warn amber" data-warn="terrain">TERRAIN</span>
-          <span class="warn amber" data-warn="cht">CHT</span>
+          <span class="warn amber" data-warn="cht" data-ref="chtWarn">CHT</span>
         </div>
 
         <div class="hint" data-ref="hint"></div>
@@ -61,9 +61,9 @@
           <div class="cl-row" data-cl="door"><i></i><span>Cabin door</span><b data-ref="clDoor"></b><button type="button" data-action="door" data-ref="clDoorBtn">Open</button></div>
           <div class="cl-row" data-cl="boarding"><i></i><span>Passengers</span><b data-ref="clBoarding"></b></div>
           <div class="cl-row" data-cl="lights"><i></i><span>Beacon &amp; nav lights</span><b data-ref="clLights"></b><button type="button" data-action="lights" data-ref="clLightsBtn">On</button></div>
-          <div class="cl-row" data-cl="flaps"><i></i><span>Flaps take-off 10°</span><b data-ref="clFlaps"></b><button type="button" data-action="flapsTakeoff">Set</button></div>
+          <div class="cl-row" data-cl="flaps"><i></i><span data-ref="clFlapsLabel">Flaps take-off 10°</span><b data-ref="clFlaps"></b><button type="button" data-action="flapsTakeoff">Set</button></div>
           <div class="cl-row" data-cl="belts"><i></i><span>Seatbelt sign</span><b data-ref="clBelts"></b><button type="button" data-action="belts" data-ref="clBeltsBtn">On</button></div>
-          <div class="cl-row" data-cl="engine"><i></i><span>Engine</span><b data-ref="clEngine"></b><button type="button" data-action="engineStart" data-ref="clEngineBtn">Start</button></div>
+          <div class="cl-row" data-cl="engine"><i></i><span data-ref="clEngineLabel">Engine</span><b data-ref="clEngine"></b><button type="button" data-action="engineStart" data-ref="clEngineBtn">Start</button></div>
         </section>
 
         <div class="panel papi" data-ref="papi">
@@ -93,7 +93,7 @@
             <div class="bar"><div class="bar-fill power" data-ref="powerBar"></div></div>
           </div>
           <div class="inst">
-            <label>CHT</label>
+            <label data-ref="chtLabel">CHT</label>
             <div class="val"><b data-ref="cht">0</b><small>%</small></div>
             <div class="bar cht-bar"><div class="bar-fill cht" data-ref="chtBar"></div></div>
           </div>

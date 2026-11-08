@@ -6,7 +6,8 @@ const LEGACY_KEYS = ['airways.progress.v2', 'airways.progress.v1'];
 
 /** Kept here (not in economy) to avoid a circular import with progress ↔ economy. */
 export const STARTER_AIRCRAFT_ID = 'c172rg';
-export const STARTING_CREDITS = 7500;
+/** Temporary testing balance so the full fleet and airport unlocks are buyable. */
+export const STARTING_CREDITS = 100_000_000;
 
 export interface Progress {
   /** Airport where the aircraft currently sits. */
@@ -56,15 +57,17 @@ export function loadProgress(): Progress {
       const to = id.split('-')[1];
       if (to && AIRPORTS.some((a) => a.iata === to)) unlockedAirports.add(to);
     }
-    const owned = parsed.ownedAircraft?.length ? [...parsed.ownedAircraft] : [STARTER_AIRCRAFT_ID];
+    // The ATR 42 placeholder became the ATR 72.
+    const renamed = (id: string) => (id === 'at42' ? 'atr72' : id);
+    const owned = parsed.ownedAircraft?.length ? [...new Set(parsed.ownedAircraft.map(renamed))] : [STARTER_AIRCRAFT_ID];
     if (!owned.includes(STARTER_AIRCRAFT_ID)) owned.unshift(STARTER_AIRCRAFT_ID);
     const home =
       parsed.homeAirport && AIRPORTS.some((a) => a.iata === parsed.homeAirport)
         ? parsed.homeAirport
         : DEFAULT.homeAirport;
     const active =
-      parsed.activeAircraft && owned.includes(parsed.activeAircraft)
-        ? parsed.activeAircraft
+      parsed.activeAircraft && owned.includes(renamed(parsed.activeAircraft))
+        ? renamed(parsed.activeAircraft)
         : STARTER_AIRCRAFT_ID;
     const next: Progress = {
       homeAirport: home,
@@ -73,7 +76,8 @@ export function loadProgress(): Progress {
       successfulFlights: parsed.successfulFlights ?? 0,
       crashes: parsed.crashes ?? 0,
       deaths: parsed.deaths ?? 0,
-      credits: typeof parsed.credits === 'number' ? parsed.credits : STARTING_CREDITS,
+      // Top up older saves that still sit below the current testing starting balance.
+      credits: typeof parsed.credits === 'number' ? Math.max(parsed.credits, STARTING_CREDITS) : STARTING_CREDITS,
       ownedAircraft: owned,
       activeAircraft: active,
     };

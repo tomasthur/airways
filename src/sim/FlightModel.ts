@@ -6,7 +6,7 @@
 import { flapEffect, maxFlapDeg, type AircraftConfig } from './aircraft/AircraftConfig.ts';
 import { C172RG } from './aircraft/c172rg.ts';
 import { Engine } from './Engine.ts';
-import { computeLoadSheet, DEFAULT_LOAD, type Load } from './LoadSheet.ts';
+import { computeLoadSheet, DEFAULT_LOAD, plannedLoad, type Load } from './LoadSheet.ts';
 import type { Weather, WeatherSample } from './Weather.ts';
 
 const G = 9.81;
@@ -50,8 +50,8 @@ const approach = (v: number, target: number, step: number) =>
   v < target ? Math.min(v + step, target) : Math.max(v - step, target);
 
 export class FlightModel {
-  readonly config: AircraftConfig;
-  readonly engine: Engine;
+  config: AircraftConfig;
+  engine: Engine;
   readonly assists: Assists = { pitchHold: true, wingLeveler: true, autoBrakeAtIdle: true };
   mass: number;
   /** Weather the aircraft flies through; null = calm air. */
@@ -113,6 +113,14 @@ export class FlightModel {
     this.config = config;
     this.engine = new Engine(config);
     this.mass = computeLoadSheet(config, load).massKg;
+  }
+
+  /** Swaps the aircraft type (call {@link reset} and {@link setLoad} afterwards). */
+  setAircraft(config: AircraftConfig): void {
+    if (config === this.config) return;
+    this.config = config;
+    this.engine = new Engine(config);
+    this.mass = computeLoadSheet(config, plannedLoad(config, 0.75)).massKg;
   }
 
   /** Applies a load; returns the problems that make it illegal (the mass is set either way). */
