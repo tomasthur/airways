@@ -5,6 +5,11 @@ import { bratislavaSprites, RIVER_WATER, SNP_RIVER_OFFSET } from '../art/bratisl
 import { countrySprites } from '../art/countryside';
 import { paintCountryTile, paintHillsTile, paintMountainTile, type TileSpec } from '../art/tiles';
 import { rng, range, pick, type Rand } from '../art/paint';
+import { londonSprites } from '../art/london';
+import { newyorkSprites } from '../art/newyork';
+import { parisSprites } from '../art/paris';
+import { romeSprites } from '../art/rome';
+import { seaSprites } from '../art/seas';
 import { viennaSprites } from '../art/vienna';
 import { BTS_RUNWAY, DANUBE, DANUBE_CANAL, RUNWAY_WIDTH, RUNWAY_Z, VIE_RUNWAY, ZONES, type Runway } from '../config';
 import { FLYABLE_IATAS, airportByIata } from '../meta/airports';
@@ -18,7 +23,28 @@ const SCENERY_THEMES: SceneryTheme[] = [
   'bohemian',
   'carpathian',
   'vistula',
+  'channelSea',
+  'atlanticOcean',
+  'mediterranean',
+  'alpine',
+  'continental',
+  'desertApproaches',
+  'pacificRim',
 ];
+
+/** Wide mid-corridor water used for ditch checks on over-sea themes. */
+export const THEME_SEA_SPANS: Partial<Record<SceneryTheme, [number, number][]>> = {
+  channelSea: [
+    [4300, 7800],
+    [8200, 8600],
+  ],
+  atlanticOcean: [[3800, 9000]],
+  mediterranean: [
+    [4500, 7200],
+    [7600, 8200],
+  ],
+  pacificRim: [[4000, 8800]],
+};
 
 const WORLD_X0 = -3500;
 const WORLD_X1 = 19000;
@@ -46,6 +72,8 @@ export class World {
   private readonly arrivalTerminals: THREE.Object3D[] = [];
   /** Mid-corridor scenery packs (and theme water) toggled by setRouteScenery. */
   private readonly sceneryGroups: { theme: SceneryTheme; group: THREE.Group }[] = [];
+  /** Landmark city packs toggled by departure / arrival IATA. */
+  private readonly cityLandmarkGroups: { iata: string; dep: THREE.Group; arr: THREE.Group }[] = [];
   private readonly tmpMatrix = new THREE.Matrix4();
   private readonly tmpQuat = new THREE.Quaternion();
   private readonly tmpPos = new THREE.Vector3();
@@ -57,7 +85,17 @@ export class World {
 
   constructor(anisotropy: number) {
     const atlas = new Atlas();
-    atlas.add(...countrySprites(), ...bratislavaSprites(), ...viennaSprites(), ...airportTerminalSprites());
+    atlas.add(
+      ...countrySprites(),
+      ...bratislavaSprites(),
+      ...viennaSprites(),
+      ...londonSprites(),
+      ...newyorkSprites(),
+      ...romeSprites(),
+      ...parisSprites(),
+      ...seaSprites(),
+      ...airportTerminalSprites(),
+    );
     const { pages, frames } = atlas.build(anisotropy);
     this.pages = pages;
     this.frames = frames;
@@ -69,6 +107,7 @@ export class World {
     this.buildLights();
     this.buildLayers(anisotropy);
     this.buildRouteTerminals();
+    this.buildCityLandmarkPacks();
     this.setRouteScenery('danubeWest');
     this.setRouteAirports('BTS', 'VIE');
   }
@@ -84,6 +123,10 @@ export class World {
     const arrival = norm(to);
     for (const m of this.originTerminals) m.visible = m.userData.airport === origin;
     for (const m of this.arrivalTerminals) m.visible = m.userData.airport === arrival;
+    for (const c of this.cityLandmarkGroups) {
+      c.dep.visible = c.iata === origin;
+      c.arr.visible = c.iata === arrival;
+    }
   }
 
   /** Swap mid-corridor set dressing (cities, water, hills) for this undirected hop. */
@@ -320,6 +363,41 @@ export class World {
       ],
       { hazeAmount: 0.26, skirt: 0, renderOrder: 21.5 },
     ).forEach((m) => vis.add(m));
+
+    // World themes — distant water haze / generic ridges; hero cities toggle separately.
+    for (const theme of ['channelSea', 'atlanticOcean', 'mediterranean', 'pacificRim'] as const) {
+      const g = this.sceneryGroup(hills, theme);
+      const far =
+        theme === 'channelSea'
+          ? 'london_far'
+          : theme === 'mediterranean'
+            ? 'rome_far'
+            : theme === 'atlanticOcean'
+              ? 'manhattan_far'
+              : 'paris_far';
+      buildSpriteBatches(
+        P,
+        [
+          { frame: this.frame(far), x: 2800, z: 3, scale: 0.55 },
+          { frame: this.frame(far), x: 9200, z: 3, scale: 0.9 },
+          { frame: this.frame(far), x: 10000, z: 3, scale: 0.85, flip: true },
+        ],
+        { hazeAmount: 0.28, skirt: 0, renderOrder: 21.5 },
+      ).forEach((m) => g.add(m));
+    }
+    for (const theme of ['alpine', 'continental', 'desertApproaches'] as const) {
+      const g = this.sceneryGroup(hills, theme);
+      buildSpriteBatches(
+        P,
+        [
+          { frame: this.frame('kahlenberg'), x: 5200, z: 1, scale: theme === 'alpine' ? 1 : 0.4 },
+          { frame: this.frame('kamzik'), x: 7000, z: 1, scale: theme === 'alpine' ? 0.9 : 0.5 },
+          { frame: this.frame('vienna_far'), x: 9400, z: 3, scale: 0.75 },
+          { frame: this.frame('vienna_far'), x: 10100, z: 3, scale: 0.7, flip: true },
+        ],
+        { hazeAmount: 0.28, skirt: 8, renderOrder: 21, fields: true },
+      ).forEach((m) => g.add(m));
+    }
   }
 
   private buildMidScenery(
@@ -462,6 +540,183 @@ export class World {
     }
     buildSpriteBatches(P, visSprites, { hazeAmount: 0.1, skirt: 0, renderOrder: 31 }).forEach((m) => vis.add(m));
     this.addTurbines(vis, P, 5000, 6000, rng(107));
+
+    // --- Over-sea / world themes (city icons come from cityLandmarkGroups)
+    this.buildSeaMidTheme(mid, P, ctTex, ctW, ctH, 'channelSea', [
+      [4300, 7800],
+      [8200, 8600],
+    ], true);
+    this.buildSeaMidTheme(mid, P, ctTex, ctW, ctH, 'atlanticOcean', [[3800, 9000]], false);
+    this.buildSeaMidTheme(mid, P, ctTex, ctW, ctH, 'mediterranean', [
+      [4500, 7200],
+      [7600, 8200],
+    ], true);
+    this.buildSeaMidTheme(mid, P, ctTex, ctW, ctH, 'pacificRim', [[4000, 8800]], false);
+
+    for (const theme of ['alpine', 'continental', 'desertApproaches'] as const) {
+      const g = this.sceneryGroup(mid, theme);
+      const gaps: [number, number][] =
+        theme === 'alpine' ? [[5600, 6000], [7400, 7700]] : theme === 'desertApproaches' ? [[5200, 5800]] : [[6000, 6400]];
+      g.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(gaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true }));
+      const sprites: Placement[] = [];
+      for (const x of [3200, 4400, 6800, 8600, 9800]) {
+        sprites.push({ frame: this.frame('village'), x: x + this.frame('village').w / 2, z: 2 });
+      }
+      buildSpriteBatches(P, sprites, { hazeAmount: 0.1, skirt: 0, renderOrder: 31 }).forEach((m) => g.add(m));
+      if (theme === 'alpine') this.addTurbines(g, P, 6200, 7200, rng(121));
+    }
+  }
+
+  private buildSeaMidTheme(
+    mid: THREE.Group,
+    P: THREE.Texture[],
+    ctTex: THREE.Texture,
+    ctW: number,
+    ctH: number,
+    theme: SceneryTheme,
+    gaps: [number, number][],
+    withCliffs: boolean,
+  ): void {
+    const g = this.sceneryGroup(mid, theme);
+    g.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(gaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true }));
+    const sprites: Placement[] = [];
+    const put = (name: string, left: number, z = 2, scale = 1, flip = false) => {
+      const f = this.frame(name);
+      sprites.push({ frame: f, x: left + (f.w * scale) / 2, z, scale, flip });
+    };
+    put('village', 2800, 2);
+    put('village', 3400, 2, 1, true);
+    if (withCliffs) {
+      put('channel_cliffs', gaps[0][0] - 180, 1.5, 1.1);
+      put('channel_cliffs', gaps[0][1] + 20, 1.5, 1.0, true);
+    }
+    if (theme === 'atlanticOcean' || theme === 'pacificRim') {
+      put('atlantic_swell', gaps[0][0] + 200, 0.5, 1);
+      put('atlantic_swell', gaps[0][0] + 900, 0.4, 1, true);
+      put('cargo_ship', gaps[0][0] + 1400, 2, 1.1);
+      put('cargo_ship', gaps[0][0] + 3200, 2, 0.9, true);
+    } else {
+      put('ferry', gaps[0][0] + 800, 2.5);
+      put('cargo_ship', gaps[0][0] + 1800, 2);
+      put('ferry', gaps[0][0] + 2600, 2.5, 1, true);
+    }
+    if (theme === 'mediterranean') {
+      put('med_isle', gaps[0][0] + 1100, 1.5);
+      put('med_isle', gaps[0][0] + 2200, 1.2, 0.85, true);
+      put('sea_stack', gaps[0][0] + 600, 2);
+    }
+    put('village', 9200, 2);
+    put('village', 10000, 2, 1, true);
+    buildSpriteBatches(P, sprites, { hazeAmount: 0.1, skirt: 0, renderOrder: 31 }).forEach((m) => g.add(m));
+  }
+
+  /** Iconic city packs at departure (west) and arrival (east) corridor thirds. */
+  private buildCityLandmarkPacks(): void {
+    const mid = this.root; // sit with world so parallax matches mid layer roughly
+    const P = this.pages;
+    const pack = (
+      iata: string,
+      dep: Placement[],
+      arr: Placement[],
+    ) => {
+      const depG = new THREE.Group();
+      const arrG = new THREE.Group();
+      depG.visible = false;
+      arrG.visible = false;
+      depG.name = `city_dep_${iata}`;
+      arrG.name = `city_arr_${iata}`;
+      mid.add(depG);
+      mid.add(arrG);
+      buildSpriteBatches(P, dep, { hazeAmount: 0.1, skirt: 0, renderOrder: 31.5 }).forEach((m) => depG.add(m));
+      buildSpriteBatches(P, arr, { hazeAmount: 0.1, skirt: 0, renderOrder: 31.5 }).forEach((m) => arrG.add(m));
+      this.cityLandmarkGroups.push({ iata, dep: depG, arr: arrG });
+    };
+    const f = (name: string) => this.frame(name);
+    const at = (name: string, x: number, z = 3, scale = 1) => ({
+      frame: f(name),
+      x,
+      z,
+      scale,
+    });
+
+    pack(
+      'LON',
+      [
+        at('london_far', 3000, 2, 0.85),
+        at('london_far', 3600, 2, 0.8),
+        at('the_shard', 3200, 4, 0.7),
+        at('big_ben', 3800, 4, 0.75),
+        at('tower_bridge', 4100, 3, 0.7),
+      ],
+      [
+        at('london_far', 8800, 2),
+        at('london_far', 9400, 2, 1),
+        at('london_far', 10000, 2),
+        at('st_pauls', 9100, 3.5),
+        at('big_ben', 9600, 4),
+        at('london_eye', 10050, 3.5),
+        at('tower_bridge', 10400, 3),
+        at('the_shard', 10750, 4),
+        at('london_block', 8900, 2, 0.9),
+        at('london_block', 9300, 2, 0.9),
+      ],
+    );
+
+    pack(
+      'NYC',
+      [
+        at('manhattan_far', 2900, 2, 0.75),
+        at('statue_liberty', 3400, 4, 0.7),
+        at('empire_state', 3800, 4, 0.55),
+      ],
+      [
+        at('manhattan_far', 8600, 2),
+        at('manhattan_far', 9300, 2),
+        at('manhattan_far', 10000, 2),
+        at('statue_liberty', 8400, 4.5),
+        at('brooklyn_bridge', 9000, 3),
+        at('one_wtc', 9600, 4),
+        at('empire_state', 10050, 4),
+        at('chrysler', 10380, 4),
+        at('nyc_block', 9200, 2),
+        at('nyc_block', 9700, 2),
+        at('nyc_block', 10200, 2),
+      ],
+    );
+
+    pack(
+      'ROM',
+      [
+        at('rome_far', 3100, 2, 0.8),
+        at('colosseum', 3600, 3, 0.75),
+        at('st_peters', 4000, 3.5, 0.7),
+      ],
+      [
+        at('rome_far', 9000, 2),
+        at('rome_far', 9600, 2),
+        at('pantheon', 9200, 3),
+        at('colosseum', 9800, 3.5),
+        at('st_peters', 10400, 4),
+      ],
+    );
+
+    pack(
+      'PAR',
+      [
+        at('paris_far', 3000, 2, 0.8),
+        at('eiffel', 3500, 4, 0.65),
+        at('arc_triomphe', 3900, 3, 0.7),
+      ],
+      [
+        at('paris_far', 8900, 2),
+        at('paris_far', 9500, 2),
+        at('paris_block', 9100, 2),
+        at('paris_block', 9600, 2),
+        at('notre_dame', 9400, 3.5),
+        at('arc_triomphe', 9900, 3),
+        at('eiffel', 10400, 4),
+      ],
+    );
   }
 
   private segmentsMinusGaps(gaps: [number, number][]): [number, number][] {
@@ -549,14 +804,27 @@ export class World {
     city(panForeSprites, ['village'], 3000, 10000, 0.7, 400);
     buildSpriteBatches(P, panForeSprites, { hazeAmount: 0.05, skirt: 0, renderOrder: 36 }).forEach((m) => panFore.add(m));
 
-    for (const theme of ['bohemian', 'carpathian', 'vistula'] as const) {
+    for (const theme of [
+      'bohemian',
+      'carpathian',
+      'vistula',
+      'channelSea',
+      'atlanticOcean',
+      'mediterranean',
+      'alpine',
+      'continental',
+      'desertApproaches',
+      'pacificRim',
+    ] as const) {
       const fGroup = this.sceneryGroup(fields, theme);
       const foreGroup = this.sceneryGroup(fore, theme);
       const fieldPl: Placement[] = [];
-      city(fieldPl, ['village'], 3200, 10000, theme === 'carpathian' ? 0.8 : 0.95, theme === 'carpathian' ? 480 : 380);
+      const seaish = theme === 'channelSea' || theme === 'atlanticOcean' || theme === 'mediterranean' || theme === 'pacificRim';
+      city(fieldPl, ['village'], 2600, seaish ? 4000 : 10000, theme === 'alpine' ? 0.8 : 0.95, seaish ? 520 : 380);
+      if (!seaish) city(fieldPl, ['village'], 7000, 10000, 0.9, 400);
       buildSpriteBatches(P, fieldPl, { hazeAmount: 0.08, skirt: 0, renderOrder: 34.5 }).forEach((m) => fGroup.add(m));
       const forePl: Placement[] = [];
-      city(forePl, ['village'], 3500, 9800, 0.7, 420);
+      city(forePl, ['village'], 2800, seaish ? 3900 : 9800, 0.7, 420);
       buildSpriteBatches(P, forePl, { hazeAmount: 0.05, skirt: 0, renderOrder: 36 }).forEach((m) => foreGroup.add(m));
     }
   }
@@ -619,7 +887,16 @@ export class World {
                 ]
               : theme === 'carpathian'
                 ? [[6400, 6750]]
-                : [[4880, 5380]];
+                : theme === 'alpine'
+                  ? [
+                      [5600, 6000],
+                      [7400, 7700],
+                    ]
+                  : theme === 'desertApproaches'
+                    ? [[5200, 5800]]
+                    : theme === 'continental'
+                      ? [[6000, 6400]]
+                      : THEME_SEA_SPANS[theme] ?? [[4880, 5380]];
 
     const blocked = (x: number) =>
       waterGaps.some(([a, b]) => x > a && x < b) ||
@@ -912,6 +1189,25 @@ export class World {
     river(vis, 4000, 4450, 1.15);
     river(vis, 6200, 6600, 1.1);
     river(vis, 8800, 9200, 1.05);
+
+    const sea = (theme: SceneryTheme, spans: [number, number][], wall: number) => {
+      const g = this.sceneryGroup(this.root, theme);
+      for (const [x0, x1] of spans) river(g, x0, x1, wall);
+    };
+    sea('channelSea', THEME_SEA_SPANS.channelSea!, 0.6);
+    sea('atlanticOcean', THEME_SEA_SPANS.atlanticOcean!, 0.35);
+    sea('mediterranean', THEME_SEA_SPANS.mediterranean!, 0.5);
+    sea('pacificRim', THEME_SEA_SPANS.pacificRim!, 0.35);
+
+    const alp = this.sceneryGroup(this.root, 'alpine');
+    river(alp, 5600, 6000, 0.9);
+    river(alp, 7400, 7700, 0.85);
+
+    const con = this.sceneryGroup(this.root, 'continental');
+    river(con, 6000, 6400, 1.0);
+
+    const des = this.sceneryGroup(this.root, 'desertApproaches');
+    river(des, 5200, 5800, 0.4);
   }
 
   private buildLights(): void {

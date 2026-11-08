@@ -1,5 +1,5 @@
 import { type Landmark, type Runway } from '../config';
-import { routeKey } from './airports';
+import { airportByIata, routeKey } from './airports';
 
 /** Shared corridor geometry – every hop is a compressed side-view segment. */
 const ORIGIN = { x0: 0, x1: 2000 } as const;
@@ -12,7 +12,14 @@ export type SceneryTheme =
   | 'pannonian'
   | 'bohemian'
   | 'carpathian'
-  | 'vistula';
+  | 'vistula'
+  | 'channelSea'
+  | 'atlanticOcean'
+  | 'mediterranean'
+  | 'alpine'
+  | 'continental'
+  | 'desertApproaches'
+  | 'pacificRim';
 
 export interface FlightRoute {
   id: string;
@@ -313,8 +320,209 @@ export function sceneryThemeFor(from: string, to: string): SceneryTheme {
   if (key === 'BTS-PRG' || key === 'PRG-VIE' || key === 'BUD-PRG') return 'bohemian';
   if (key === 'BTS-KRK' || key === 'BUD-KRK' || key === 'KRK-VIE') return 'carpathian';
   if (key === 'BTS-WAW' || key === 'KRK-WAW' || key === 'PRG-WAW' || key === 'VIE-WAW' || key === 'BUD-WAW') return 'vistula';
-  return 'pannonian';
+
+  const a = airportByIata(from);
+  const b = airportByIata(to);
+  const pair = new Set([from, to]);
+  const regions = new Set([a?.region, b?.region]);
+
+  // English Channel / North Sea hops into Britain & Low Countries
+  if (
+    (pair.has('LON') || pair.has('DUB')) &&
+    (pair.has('VIE') ||
+      pair.has('PRG') ||
+      pair.has('PAR') ||
+      pair.has('AMS') ||
+      pair.has('BER') ||
+      pair.has('MUC') ||
+      pair.has('MAD') ||
+      pair.has('LIS'))
+  ) {
+    return 'channelSea';
+  }
+  if (pair.has('LON') && pair.has('AMS')) return 'channelSea';
+
+  // Transatlantic
+  if (regions.has('americas') && (regions.has('europe') || regions.has('ce') || pair.has('LIS') || pair.has('LON') || pair.has('PAR') || pair.has('MAD') || pair.has('AMS'))) {
+    return 'atlanticOcean';
+  }
+  if (pair.has('NYC') || (pair.has('MIA') && regions.has('europe'))) return 'atlanticOcean';
+
+  // Med
+  if (pair.has('ROM') || pair.has('ATH') || (pair.has('CAI') && (pair.has('ROM') || pair.has('ATH') || pair.has('IST')))) {
+    return 'mediterranean';
+  }
+
+  // Alps
+  if (pair.has('MUC') || pair.has('ZRH') || pair.has('MIL')) {
+    if (regions.has('ce') || pair.has('VIE') || pair.has('MIL') || pair.has('ZRH') || pair.has('MUC')) return 'alpine';
+  }
+
+  // Desert / Gulf
+  if (pair.has('DXB') || (pair.has('CAI') && pair.has('DXB'))) return 'desertApproaches';
+
+  // Pacific / Asia long legs
+  if (regions.has('asia') || regions.has('oceania') || pair.has('LAX') || pair.has('SFO') || pair.has('TYO') || pair.has('SIN') || pair.has('SYD') || pair.has('HKG')) {
+    if (regions.has('americas') || regions.has('asia') || regions.has('oceania') || regions.has('mena')) return 'pacificRim';
+  }
+
+  return 'continental';
 }
+
+/** HUD captions for procedurally added world hops. */
+function corridorLandmarks(from: string, to: string, theme: SceneryTheme): Landmark[] {
+  const A = airportByIata(from)!;
+  const B = airportByIata(to)!;
+  const midTitle =
+    theme === 'channelSea'
+      ? 'English Channel'
+      : theme === 'atlanticOcean'
+        ? 'North Atlantic'
+        : theme === 'mediterranean'
+          ? 'Mediterranean'
+          : theme === 'alpine'
+            ? 'Alpine ridges'
+            : theme === 'desertApproaches'
+              ? 'Desert corridor'
+              : theme === 'pacificRim'
+                ? 'Long over-water leg'
+                : 'En route';
+  const midSub =
+    theme === 'channelSea'
+      ? 'whitecaps below'
+      : theme === 'atlanticOcean'
+        ? 'nothing but ocean'
+        : theme === 'mediterranean'
+          ? 'blue water & haze'
+          : theme === 'alpine'
+            ? 'peaks off the wing'
+            : 'cruise altitude';
+  return [
+    { x0: 200, x1: 1500, title: A.name, subtitle: `${A.city} · ${A.iata}` },
+    { x0: 2500, x1: 4200, title: `Leaving ${A.city}`, subtitle: A.region === 'ce' ? 'Central Europe' : A.city },
+    { x0: 4800, x1: 7200, title: midTitle, subtitle: midSub },
+    { x0: 7800, x1: 9800, title: `${B.city} approaches`, subtitle: 'skyline ahead' },
+    { x0: 10000, x1: 11000, title: cityArrivalCaption(B.iata), subtitle: B.city },
+    { x0: 11100, x1: 13700, title: B.name, subtitle: `${B.city} · ${B.iata}` },
+  ];
+}
+
+function cityArrivalCaption(iata: string): string {
+  switch (iata) {
+    case 'LON':
+      return 'Thames & City skyline';
+    case 'NYC':
+      return 'Manhattan & Lady Liberty';
+    case 'ROM':
+      return 'Eternal City';
+    case 'PAR':
+      return 'Tour Eiffel district';
+    case 'SYD':
+      return 'Harbour skyline';
+    case 'SFO':
+      return 'Bay Bridge approaches';
+    case 'DXB':
+      return 'Burj district haze';
+    case 'TYO':
+      return 'Tokyo Bay skyline';
+    default:
+      return 'City skyline';
+  }
+}
+
+function autoHop(from: string, to: string): FlightRoute {
+  const A = airportByIata(from)!;
+  const B = airportByIata(to)!;
+  const scenery = sceneryThemeFor(from, to);
+  return hop(
+    from,
+    to,
+    '27',
+    '09',
+    '09',
+    '27',
+    scenery,
+    corridorLandmarks(from, to, scenery),
+    `${A.city} → ${B.city}. ${B.brief ?? 'File the visual and keep the PAPI honest.'}`,
+    `Welcome to ${B.city}`,
+    `Flight OM-BTV has landed at ${B.name}.`,
+  );
+}
+
+/** Undirected world network edges beyond the hand-authored CE mesh. */
+const WORLD_LINKS: [string, string][] = [
+  // CE ↔ near Europe
+  ['VIE', 'MUC'],
+  ['PRG', 'MUC'],
+  ['VIE', 'ZRH'],
+  ['VIE', 'MIL'],
+  ['BUD', 'MIL'],
+  ['VIE', 'BER'],
+  ['PRG', 'BER'],
+  ['WAW', 'BER'],
+  ['VIE', 'AMS'],
+  ['PRG', 'AMS'],
+  ['VIE', 'LON'],
+  ['PRG', 'LON'],
+  ['MUC', 'LON'],
+  ['VIE', 'PAR'],
+  ['MUC', 'PAR'],
+  ['VIE', 'ROM'],
+  ['BUD', 'ROM'],
+  ['MIL', 'ROM'],
+  ['VIE', 'MAD'],
+  ['VIE', 'IST'],
+  ['BUD', 'IST'],
+  ['ROM', 'ATH'],
+  ['IST', 'ATH'],
+  ['MAD', 'LIS'],
+  ['LON', 'DUB'],
+  ['AMS', 'DUB'],
+  // Europe web
+  ['LON', 'PAR'],
+  ['LON', 'AMS'],
+  ['LON', 'BER'],
+  ['LON', 'ROM'],
+  ['LON', 'MAD'],
+  ['LON', 'LIS'],
+  ['PAR', 'ROM'],
+  ['PAR', 'MAD'],
+  ['PAR', 'AMS'],
+  ['PAR', 'LIS'],
+  ['BER', 'AMS'],
+  ['ZRH', 'MIL'],
+  ['ZRH', 'MUC'],
+  ['AMS', 'BER'],
+  // MENA bridges
+  ['IST', 'DXB'],
+  ['ATH', 'CAI'],
+  ['ROM', 'CAI'],
+  ['CAI', 'DXB'],
+  ['LON', 'DXB'],
+  // Atlantic
+  ['LON', 'NYC'],
+  ['PAR', 'NYC'],
+  ['AMS', 'NYC'],
+  ['MAD', 'NYC'],
+  ['LIS', 'NYC'],
+  ['DUB', 'NYC'],
+  ['NYC', 'MIA'],
+  ['NYC', 'LAX'],
+  ['MIA', 'LAX'],
+  ['LAX', 'SFO'],
+  // Pacific / Asia
+  ['DXB', 'SIN'],
+  ['DXB', 'HKG'],
+  ['SIN', 'TYO'],
+  ['SIN', 'SYD'],
+  ['SIN', 'HKG'],
+  ['HKG', 'TYO'],
+  ['TYO', 'LAX'],
+  ['TYO', 'SFO'],
+  ['SYD', 'HKG'],
+  ['LAX', 'TYO'],
+  ['SFO', 'TYO'],
+];
 
 /** Directed hops across the Central Europe network. */
 export const ROUTES: FlightRoute[] = [
@@ -352,6 +560,22 @@ export const ROUTES: FlightRoute[] = [
   hop('BUD', 'PRG', '13L', '24', '31R', '06', 'bohemian', BUD_PRG_LANDMARKS, 'North-west into Bohemia toward Prague.', 'Welcome to Prague', 'Flight OM-BTV has landed at Václav Havel Airport Prague.'),
   hop('PRG', 'BUD', '06', '31R', '24', '13L', 'bohemian', PRG_BUD_LANDMARKS, 'South-east to Ferenc Liszt. Keep the PAPI honest.', 'Welcome to Budapest', 'Flight OM-BTV has landed at Budapest Ferenc Liszt International Airport.'),
 ];
+
+// Append bidirectional world links (skip any pair already authored above).
+{
+  const have = new Set(ROUTES.map((r) => r.id));
+  for (const [a, b] of WORLD_LINKS) {
+    if (!airportByIata(a) || !airportByIata(b)) continue;
+    if (!have.has(routeKey(a, b))) {
+      ROUTES.push(autoHop(a, b));
+      have.add(routeKey(a, b));
+    }
+    if (!have.has(routeKey(b, a))) {
+      ROUTES.push(autoHop(b, a));
+      have.add(routeKey(b, a));
+    }
+  }
+}
 
 /** @deprecated use NETWORK_ROUTE_IDS */
 export const TRIANGLE_ROUTE_IDS = ROUTES.map((r) => r.id);

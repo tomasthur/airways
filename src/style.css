@@ -1033,32 +1033,110 @@ button {
 .hub-map {
   position: relative;
   z-index: 1;
-  min-height: 0;
-  width: 100%;
-  display: grid;
-  place-items: center;
-  margin: 0;
-  animation: hubDrift 18s ease-in-out infinite alternate;
+  min-height: 220px;
+  width: auto;
+  margin: 0 clamp(8px, 2vw, 24px);
+  border-radius: 20px;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  background: #06121c;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(126, 200, 255, 0.12);
 }
 
-@keyframes hubDrift {
-  from { transform: translate3d(-0.4%, 0.3%, 0) scale(1.04); }
-  to { transform: translate3d(0.5%, -0.4%, 0) scale(1.07); }
+.hub-map::after {
+  /* Soft vignette so the chart melts into the hub chrome. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 80px 10px rgba(3, 9, 15, 0.75);
+}
+
+.hub-map.is-panning {
+  cursor: grabbing;
 }
 
 .hub-svg {
-  width: min(108%, 1400px);
+  position: absolute;
+  inset: 0;
+  width: 100%;
   height: 100%;
-  max-height: min(78vh, 680px);
-  margin: 0 -4%;
-  overflow: visible;
-  filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.45));
+  display: block;
 }
 
-.hub-grid path {
+.hub-grid-line {
   fill: none;
-  stroke: rgba(126, 200, 255, 0.22);
+  stroke: rgba(126, 200, 255, 0.07);
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.hub-grid-equator {
+  fill: none;
+  stroke: rgba(240, 180, 41, 0.14);
+  stroke-width: 1;
+  stroke-dasharray: 6 6;
+  vector-effect: non-scaling-stroke;
+}
+
+.hub-land-glow {
+  fill: none;
+  stroke: rgba(126, 200, 255, 0.12);
+  stroke-width: 7;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.hub-land {
+  fill: url(#hubLand);
+  stroke: rgba(170, 220, 255, 0.42);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.hub-borders {
+  fill: none;
+  stroke: rgba(200, 230, 255, 0.16);
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.hub-map-tools {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  top: 12px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.hub-map-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 20, 32, 0.72);
+  color: #e8f0f6;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.hub-map-btn:hover {
+  border-color: rgba(126, 200, 255, 0.45);
+  color: var(--hub-cyan);
 }
 
 .hub-haze {
@@ -1076,14 +1154,20 @@ button {
 }
 
 .hub-route {
-  /* dasharray/offset set in JS from getTotalLength() so long routes fully draw */
+  fill: none;
+  stroke: var(--hub-cyan);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
   opacity: 0;
-  filter: drop-shadow(0 0 6px rgba(126, 200, 255, 0.55));
+  filter: drop-shadow(0 0 5px rgba(126, 200, 255, 0.6));
 }
 
 .hub-route.is-drawn {
   opacity: 1;
-  animation: hubRouteDraw 0.85s cubic-bezier(0.22, 0.8, 0.28, 1) forwards;
+  animation: hubRouteDraw 0.9s cubic-bezier(0.22, 0.8, 0.28, 1) forwards;
 }
 
 @keyframes hubRouteDraw {
@@ -1093,11 +1177,21 @@ button {
 .hub-pin {
   cursor: pointer;
   touch-action: manipulation;
+  outline: none;
+}
+
+.hub-pin:focus-visible .hub-pin-core {
+  stroke: var(--hub-amber);
+  stroke-width: 2.5;
+}
+
+.hub-pin-hit {
+  fill: transparent;
 }
 
 .hub-pin-core {
   fill: var(--hub-steel);
-  stroke: rgba(255, 255, 255, 0.35);
+  stroke: rgba(255, 255, 255, 0.4);
   stroke-width: 1.2;
 }
 
@@ -1106,42 +1200,63 @@ button {
   pointer-events: none;
 }
 
-.hub-pin-label {
-  fill: rgba(230, 238, 245, 0.72);
+.hub-pin-label,
+.hub-pin-city {
   font-family: var(--font);
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
   text-anchor: middle;
   pointer-events: none;
+  paint-order: stroke;
+  stroke: rgba(4, 12, 20, 0.85);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  transition: opacity 0.25s ease;
 }
 
-.hub-pin-lock {
-  fill: rgba(230, 238, 245, 0.35);
-  font-size: 10px;
-  text-anchor: middle;
-  pointer-events: none;
+.hub-pin-label {
+  fill: rgba(230, 238, 245, 0.75);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.hub-pin-city {
+  fill: rgba(230, 238, 245, 0.5);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  opacity: 0;
+}
+
+.hub-pin--home .hub-pin-city,
+.hub-pin.is-selected .hub-pin-city {
+  opacity: 1;
+}
+
+.hub-pin:hover .hub-pin-city {
+  opacity: 1;
+}
+
+.hub-svg--far .hub-pin--locked .hub-pin-label,
+.hub-svg--far .hub-pin--open .hub-pin-label {
+  opacity: 0;
+}
+
+.hub-svg--far .hub-pin.is-selected .hub-pin-label {
+  opacity: 1;
 }
 
 .hub-pin-ring {
   fill: none;
-  stroke: rgba(240, 180, 41, 0.55);
+  stroke: rgba(240, 180, 41, 0.6);
   stroke-width: 1.5;
   stroke-dasharray: 4 3;
-  animation: hubRing 6s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hubRing 8s linear infinite;
 }
 
 @keyframes hubRing {
   to { transform: rotate(360deg); }
-}
-
-.hub-pin-plane {
-  fill: none;
-  stroke: #fff;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  pointer-events: none;
 }
 
 .hub-pin--home .hub-pin-core {
@@ -1150,12 +1265,16 @@ button {
 }
 
 .hub-pin--home .hub-pin-pulse {
-  fill: rgba(240, 180, 41, 0.18);
+  fill: rgba(240, 180, 41, 0.2);
 }
 
 .hub-pin--home .hub-pin-label {
   fill: #fff;
-  font-size: 14px;
+  font-size: 12.5px;
+}
+
+.hub-pin--home .hub-pin-city {
+  fill: rgba(255, 228, 160, 0.85);
 }
 
 .hub-pin--open .hub-pin-core {
@@ -1167,7 +1286,7 @@ button {
   fill: rgba(126, 200, 255, 0.22);
   transform-box: fill-box;
   transform-origin: center;
-  animation: hubPulse 2.4s ease-out infinite;
+  animation: hubPulse 2.6s ease-out infinite;
 }
 
 .hub-pin--open .hub-pin-label {
@@ -1176,11 +1295,17 @@ button {
 
 @keyframes hubPulse {
   0% { transform: scale(0.7); opacity: 0.55; }
-  100% { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.2); opacity: 0; }
 }
 
-.hub-pin--locked {
-  opacity: 0.72;
+.hub-pin--locked .hub-pin-core {
+  fill: rgba(120, 136, 150, 0.55);
+  stroke: rgba(255, 255, 255, 0.25);
+  stroke-width: 1;
+}
+
+.hub-pin--locked .hub-pin-label {
+  fill: rgba(200, 212, 222, 0.45);
 }
 
 .hub-pin.is-selected .hub-pin-core {
@@ -1302,6 +1427,30 @@ button {
   letter-spacing: 0.04em;
   font-weight: 700;
   text-transform: none;
+}
+
+.hub-dock.is-out-of-range .hub-dock-pay {
+  color: var(--warn) !important;
+}
+
+.hub-fly:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+  animation: none;
+  box-shadow: none;
+}
+
+.hub-fly.is-hidden,
+.hub-unlock.is-hidden {
+  display: none;
+}
+
+.hub-unlock {
+  background: linear-gradient(180deg, #7ec8ff, #4a9fd4 55%, #2f7fb0);
+  color: #071018;
+  box-shadow: 0 10px 28px rgba(126, 200, 255, 0.3);
+  animation: none;
 }
 
 .hub-dock-actions {
@@ -1528,11 +1677,6 @@ button {
   .hub-stat span {
     font-size: 14px;
   }
-  .hub-svg {
-    width: min(112%, 1400px);
-    max-height: min(72vh, 340px);
-    margin: 0 -6%;
-  }
   .hub-dock {
     grid-template-columns: auto 1fr auto;
     gap: 10px 14px;
@@ -1565,11 +1709,6 @@ button {
 }
 
 @media (orientation: portrait) and (max-width: 700px) {
-  .hub-svg {
-    width: min(110%, 1400px);
-    max-height: min(56vh, 520px);
-    margin: 0 -5%;
-  }
   .hub-top {
     flex-direction: column;
     gap: 10px;

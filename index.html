@@ -151,7 +151,7 @@
         <header class="hub-top">
           <div class="hub-brand">
             <div class="hub-wordmark">AIRWAYS</div>
-            <p class="hub-tag">Central Europe · visual ops</p>
+            <p class="hub-tag">World charter · earn · unlock · fly</p>
           </div>
           <div class="hub-stats" aria-label="Career stats">
             <div class="hub-stat hub-stat--cash"><span data-hub="statCredits">€0</span><small>Cash</small></div>
@@ -163,43 +163,40 @@
           </div>
         </header>
 
-        <div class="hub-map" data-hub="map">
-          <svg class="hub-svg" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid meet" aria-label="Central Europe route map">
+                <div class="hub-map" data-hub="map">
+          <svg class="hub-svg" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid slice" aria-label="World route map">
             <defs>
-              <linearGradient id="hubLand" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stop-color="#0e1a24" />
-                <stop offset="55%" stop-color="#152636" />
-                <stop offset="100%" stop-color="#1c3348" />
+              <linearGradient id="hubLand" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="720">
+                <stop offset="0%" stop-color="#3a5a6c" />
+                <stop offset="35%" stop-color="#30525e" />
+                <stop offset="60%" stop-color="#34574c" />
+                <stop offset="100%" stop-color="#2c4e52" />
               </linearGradient>
-              <radialGradient id="hubSea" cx="50%" cy="45%" r="70%">
-                <stop offset="0%" stop-color="#152636" />
-                <stop offset="100%" stop-color="#071018" />
+              <radialGradient id="hubSea" gradientUnits="userSpaceOnUse" cx="560" cy="250" r="900">
+                <stop offset="0%" stop-color="#0b2236" />
+                <stop offset="55%" stop-color="#081a2a" />
+                <stop offset="100%" stop-color="#050f19" />
               </radialGradient>
-              <filter id="hubSoft" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="1.2" />
-              </filter>
             </defs>
-            <rect class="hub-sea" width="1000" height="620" fill="url(#hubSea)" />
-            <g class="hub-grid" opacity="0.18">
-              <path d="M0 100 H1000 M0 200 H1000 M0 300 H1000 M0 400 H1000 M0 500 H1000 M100 0 V620 M200 0 V620 M300 0 V620 M400 0 V620 M500 0 V620 M600 0 V620 M700 0 V620 M800 0 V620 M900 0 V620" />
-            </g>
-            <path
-              class="hub-land"
-              fill="url(#hubLand)"
-              stroke="rgba(126,200,255,0.16)"
-              stroke-width="1.5"
-              d="M 118 470 C 130 510 168 545 230 555 C 290 565 340 540 390 525 C 430 545 480 570 545 560 C 610 548 660 500 700 455 C 745 470 800 455 845 410 C 890 365 920 300 910 245 C 900 190 850 155 790 145 C 740 138 700 160 660 150 C 620 120 560 95 500 105 C 440 115 400 150 360 145 C 310 138 270 115 220 130 C 170 148 140 190 125 240 C 108 300 100 370 118 470 Z"
-            />
-            <path class="hub-coast" fill="none" stroke="rgba(240,180,41,0.12)" stroke-width="6" filter="url(#hubSoft)" d="M 118 470 C 130 510 168 545 230 555 C 290 565 340 540 390 525 C 430 545 480 570 545 560 C 610 548 660 500 700 455 C 745 470 800 455 845 410 C 890 365 920 300 910 245 C 900 190 850 155 790 145 C 740 138 700 160 660 150 C 620 120 560 95 500 105 C 440 115 400 150 360 145 C 310 138 270 115 220 130 C 170 148 140 190 125 240 C 108 300 100 370 118 470 Z" />
-            <path class="hub-route" data-hub="route" fill="none" stroke="#7ec8ff" stroke-width="2.4" stroke-linecap="round" />
+            <rect class="hub-sea" data-hub="sea" x="-500" y="-300" width="2000" height="1300" fill="url(#hubSea)" />
+            <g class="hub-grid" data-hub="grid"></g>
+            <path class="hub-land-glow" data-hub="landGlow" />
+            <path class="hub-land" data-hub="land" />
+            <path class="hub-borders" data-hub="borders" />
+            <path class="hub-route" data-hub="route" />
             <g data-hub="pins"></g>
           </svg>
+          <div class="hub-map-tools" aria-label="Map controls">
+            <button type="button" class="hub-map-btn" data-hub="zoomIn" title="Zoom in">+</button>
+            <button type="button" class="hub-map-btn" data-hub="zoomOut" title="Zoom out">−</button>
+            <button type="button" class="hub-map-btn" data-hub="zoomHome" title="Center on base">◎</button>
+          </div>
           <div class="hub-haze" aria-hidden="true"></div>
         </div>
 
-        <p class="hub-hint">Tap an open airport · or <button type="button" class="hub-link" data-hub="random">surprise me</button></p>
+        <p class="hub-hint">Drag to pan · scroll to zoom · tap a city · or <button type="button" class="hub-link" data-hub="random">surprise me</button></p>
 
-        <div class="hub-dock is-hidden" data-hub="dock">
+<div class="hub-dock is-hidden" data-hub="dock">
           <div class="hub-dock-route">
             <span class="hub-dock-code" data-hub="dockFrom">BTS</span>
             <span class="hub-dock-arrow" aria-hidden="true">→</span>
@@ -213,6 +210,9 @@
           </div>
           <div class="hub-dock-actions">
             <button type="button" class="hub-ghost" data-hub="clear">Clear</button>
+            <button type="button" class="hub-fly hub-unlock is-hidden" data-hub="unlock">
+              <span data-hub="unlockLabel">Unlock</span>
+            </button>
             <button type="button" class="hub-fly" data-hub="fly">
               <span data-hub="flyLabel">Fly to Vienna</span>
               <small>Enter</small>

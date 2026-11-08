@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { EngineSound } from '../audio/EngineSound';
 import { DANUBE, DANUBE_CANAL, GLIDE_SLOPE_DEG, START_X, SUGGESTED_CRUISE_ALT } from '../config';
 import { airportByIata } from '../meta/airports';
-import { formatCredits, settleCrash, settleSuccess } from '../meta/economy';
+import { formatCredits, isWithinRange, settleCrash, settleSuccess } from '../meta/economy';
 import { loadProgress, recordCrash } from '../meta/progress';
 import { DEFAULT_ROUTE, getRoute, type FlightRoute } from '../meta/routes';
 import { Airplane } from '../render/Airplane';
@@ -11,7 +11,7 @@ import { Sky, createPalette, samplePalette } from '../render/Sky';
 import { Passengers } from '../render/Passengers';
 import { Storms } from '../render/Storms';
 import { Trails } from '../render/Trails';
-import { World } from '../render/World';
+import { THEME_SEA_SPANS, World } from '../render/World';
 import { FlightModel, type Touchdown } from '../sim/FlightModel';
 import { computeLoadSheet } from '../sim/LoadSheet';
 import { Weather } from '../sim/Weather';
@@ -467,7 +467,8 @@ export class Game {
 
   private begin(from: string, to: string): void {
     const route = getRoute(from, to);
-    if (!route) {
+    const progress = loadProgress();
+    if (!route || !isWithinRange(from, to, progress.activeAircraft)) {
       this.hub.show(true);
       return;
     }
@@ -676,8 +677,14 @@ export class Game {
       this.flash(vs < 1 ? 'Butter! Idle power to brake' : 'Touchdown – idle power to brake');
       return;
     }
-    const inWater = (td.x > DANUBE.x0 && td.x < DANUBE.x1) || (td.x > DANUBE_CANAL.x0 && td.x < DANUBE_CANAL.x1);
-    this.crash(inWater ? 'You ditched in the river. The Danube is beautiful, but not a runway.' : 'You touched down outside the runway.');
+    const inDanube = (td.x > DANUBE.x0 && td.x < DANUBE.x1) || (td.x > DANUBE_CANAL.x0 && td.x < DANUBE_CANAL.x1);
+    const seaSpans = THEME_SEA_SPANS[this.route.scenery] ?? [];
+    const inSea = seaSpans.some(([a, b]) => td.x > a && td.x < b);
+    const inWater = inDanube || inSea;
+    const waterMsg = inSea
+      ? 'You ditched in open water. Oceans and channels are not runways.'
+      : 'You ditched in the river. Beautiful from above — fatal on touchdown.';
+    this.crash(inWater ? waterMsg : 'You touched down outside the runway.');
   }
 
   private crash(reason: string, title = 'Crash landing'): void {

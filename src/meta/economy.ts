@@ -3,6 +3,7 @@
  */
 import { airportByIata } from './airports';
 import {
+  isAirportUnlocked,
   loadProgress,
   saveProgress,
   STARTER_AIRCRAFT_ID,
@@ -22,6 +23,11 @@ export interface FleetAircraft {
   seatsMult: number;
   /** Multiplier on crash repair bills. */
   repairMult: number;
+  /**
+   * Practical one-hop charter range (km) with reserves — not ferry brochure range.
+   * Starter C172 stays on short CE hops; longer legs need a bigger ship.
+   */
+  rangeKm: number;
   blurb: string;
 }
 
@@ -34,6 +40,7 @@ export const FLEET: FleetAircraft[] = [
     price: 0,
     seatsMult: 1,
     repairMult: 1,
+    rangeKm: 420,
     blurb: 'Four seats, retractable gear. Your first charter ship.',
   },
   {
@@ -43,6 +50,7 @@ export const FLEET: FleetAircraft[] = [
     price: 48000,
     seatsMult: 1.45,
     repairMult: 1.35,
+    rangeKm: 900,
     blurb: 'Light twin. More seats, better charter rates.',
   },
   {
@@ -52,12 +60,45 @@ export const FLEET: FleetAircraft[] = [
     price: 175000,
     seatsMult: 2.15,
     repairMult: 1.85,
-    blurb: 'Regional turboprop. Serious hops, serious pay.',
+    rangeKm: 1800,
+    blurb: 'Regional turboprop. Covers Europe end-to-end.',
+  },
+  {
+    id: 'a320',
+    name: 'Airbus A320',
+    shortName: 'A320',
+    price: 420000,
+    seatsMult: 3.2,
+    repairMult: 2.4,
+    rangeKm: 5500,
+    blurb: 'Narrow-body jet. Cross the Atlantic on good days.',
+  },
+  {
+    id: 'b777',
+    name: 'Boeing 777',
+    shortName: '777',
+    price: 980000,
+    seatsMult: 4.5,
+    repairMult: 3.2,
+    rangeKm: 13000,
+    blurb: 'Long-haul widebody. Anywhere on the board.',
   },
 ];
 
 export function fleetById(id: string): FleetAircraft {
   return FLEET.find((a) => a.id === id) ?? FLEET[0];
+}
+
+/** True when the hop fits the aircraft’s practical range (with a tiny float margin). */
+export function isWithinRange(fromIata: string, toIata: string, aircraftId: string): boolean {
+  return distanceKm(fromIata, toIata) <= fleetById(aircraftId).rangeKm + 0.5;
+}
+
+/** Copy for hub toast / dock when a cleared destination is still too far. */
+export function rangeBlockedMessage(fromIata: string, toIata: string, aircraftId: string): string {
+  const craft = fleetById(aircraftId);
+  const km = Math.round(distanceKm(fromIata, toIata));
+  return `${km} km is too far for the ${craft.shortName} (range ${craft.rangeKm} km)`;
 }
 
 /** Great-circle distance in km (same formula as the hub map). */
@@ -176,6 +217,27 @@ export function buyAircraft(p: Progress, aircraftId: string): { ok: true; progre
 export function selectAircraft(p: Progress, aircraftId: string): { ok: true; progress: Progress } | { ok: false; reason: string } {
   if (!p.ownedAircraft.includes(aircraftId)) return { ok: false, reason: 'Not owned' };
   const next: Progress = { ...p, activeAircraft: aircraftId };
+  saveProgress(next);
+  return { ok: true, progress: next };
+}
+
+/** One-time clearance to add an airport to the career network. */
+export function buyAirportUnlock(
+  p: Progress,
+  iata: string,
+): { ok: true; progress: Progress } | { ok: false; reason: string } {
+  const ap = airportByIata(iata);
+  if (!ap) return { ok: false, reason: 'Unknown airport' };
+  if (isAirportUnlocked(p, iata)) return { ok: false, reason: 'Already cleared' };
+  if (ap.unlockCost <= 0) return { ok: false, reason: 'Already in the starter network' };
+  if (p.credits < ap.unlockCost) {
+    return { ok: false, reason: `Need ${formatCredits(ap.unlockCost - p.credits)} more` };
+  }
+  const next: Progress = {
+    ...p,
+    credits: p.credits - ap.unlockCost,
+    unlockedAirports: [...p.unlockedAirports, iata],
+  };
   saveProgress(next);
   return { ok: true, progress: next };
 }

@@ -1,8 +1,8 @@
-import { routeKey } from './airports';
-import { NETWORK_ROUTE_IDS } from './routes';
+import { AIRPORTS, STARTER_IATAS, airportByIata } from './airports';
+import { getRoute } from './routes';
 
-const STORAGE_KEY = 'airways.progress.v2';
-const LEGACY_KEY = 'airways.progress.v1';
+const STORAGE_KEY = 'airways.progress.v3';
+const LEGACY_KEYS = ['airways.progress.v2', 'airways.progress.v1'];
 
 /** Kept here (not in economy) to avoid a circular import with progress ↔ economy. */
 export const STARTER_AIRCRAFT_ID = 'c172rg';
@@ -11,6 +11,12 @@ export const STARTING_CREDITS = 7500;
 export interface Progress {
   /** Airport where the aircraft currently sits. */
   homeAirport: string;
+  /** Cleared airports (can be flown to when a route + range allow). */
+  unlockedAirports: string[];
+  /**
+   * Legacy directed route keys — kept for migration; open status prefers unlockedAirports.
+   * Starter CE hops are always treated as cleared.
+   */
   unlockedRoutes: string[];
   successfulFlights: number;
   crashes: number;
@@ -23,7 +29,8 @@ export interface Progress {
 
 const DEFAULT: Progress = {
   homeAirport: 'BTS',
-  unlockedRoutes: [...NETWORK_ROUTE_IDS],
+  unlockedAirports: [...STARTER_IATAS],
+  unlockedRoutes: [],
   successfulFlights: 0,
   crashes: 0,
   deaths: 0,
@@ -34,20 +41,35 @@ const DEFAULT: Progress = {
 
 export function loadProgress(): Progress {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      for (const k of LEGACY_KEYS) {
+        raw = localStorage.getItem(k);
+        if (raw) break;
+      }
+    }
     if (!raw) return clone(DEFAULT);
     const parsed = JSON.parse(raw) as Partial<Progress>;
-    // Always merge in the current network so new hops appear without a progress wipe.
-    const unlocked = new Set([...(parsed.unlockedRoutes ?? []), ...NETWORK_ROUTE_IDS]);
+    const unlockedAirports = new Set([...(parsed.unlockedAirports ?? []), ...STARTER_IATAS]);
+    // Legacy v1/v2 treated every network route as open — map those destinations into airports.
+    for (const id of parsed.unlockedRoutes ?? []) {
+      const to = id.split('-')[1];
+      if (to && AIRPORTS.some((a) => a.iata === to)) unlockedAirports.add(to);
+    }
     const owned = parsed.ownedAircraft?.length ? [...parsed.ownedAircraft] : [STARTER_AIRCRAFT_ID];
     if (!owned.includes(STARTER_AIRCRAFT_ID)) owned.unshift(STARTER_AIRCRAFT_ID);
+    const home =
+      parsed.homeAirport && AIRPORTS.some((a) => a.iata === parsed.homeAirport)
+        ? parsed.homeAirport
+        : DEFAULT.homeAirport;
     const active =
       parsed.activeAircraft && owned.includes(parsed.activeAircraft)
         ? parsed.activeAircraft
         : STARTER_AIRCRAFT_ID;
     const next: Progress = {
-      homeAirport: parsed.homeAirport ?? DEFAULT.homeAirport,
-      unlockedRoutes: [...unlocked],
+      homeAirport: home,
+      unlockedAirports: [...unlockedAirports],
+      unlockedRoutes: parsed.unlockedRoutes ?? [],
       successfulFlights: parsed.successfulFlights ?? 0,
       crashes: parsed.crashes ?? 0,
       deaths: parsed.deaths ?? 0,
@@ -55,7 +77,6 @@ export function loadProgress(): Progress {
       ownedAircraft: owned,
       activeAircraft: active,
     };
-    // Persist migration to v2.
     saveProgress(next);
     return next;
   } catch {
@@ -67,14 +88,27 @@ export function saveProgress(p: Progress): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
 }
 
+export function isAirportUnlocked(p: Progress, iata: string): boolean {
+  return p.unlockedAirports.includes(iata);
+}
+
 export function isRouteUnlocked(p: Progress, from: string, to: string): boolean {
-  return p.unlockedRoutes.includes(routeKey(from, to));
+  if (!isAirportUnlocked(p, from) || !isAirportUnlocked(p, to)) return false;
+  return getRoute(from, to) !== undefined;
 }
 
 export function airportStatus(p: Progress, iata: string): 'home' | 'open' | 'locked' {
   if (iata === p.homeAirport) return 'home';
-  if (p.unlockedRoutes.some((r) => r === routeKey(p.homeAirport, iata))) return 'open';
+  if (!isAirportUnlocked(p, iata)) return 'locked';
+  if (getRoute(p.homeAirport, iata)) return 'open';
   return 'locked';
+}
+
+/** Hint when a cleared airport has no hop from the current base. */
+export function noRouteHint(homeIata: string, destIata: string): string {
+  const home = airportByIata(homeIata)?.city ?? homeIata;
+  const dest = airportByIata(destIata)?.city ?? destIata;
+  return `No direct service ${home} → ${dest}. Unlock a connecting hub or relocate.`;
 }
 
 /** After a safe arrival the fleet relocates to the destination (credits applied separately). */
@@ -99,5 +133,10 @@ export function recordCrash(p: Progress, soulsOnBoard: number): Progress {
 }
 
 function clone(p: Progress): Progress {
-  return { ...p, unlockedRoutes: [...p.unlockedRoutes], ownedAircraft: [...p.ownedAircraft] };
+  return {
+    ...p,
+    unlockedAirports: [...p.unlockedAirports],
+    unlockedRoutes: [...p.unlockedRoutes],
+    ownedAircraft: [...p.ownedAircraft],
+  };
 }
