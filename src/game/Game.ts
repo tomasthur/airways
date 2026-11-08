@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { EngineSound } from '../audio/EngineSound';
-import { DANUBE, DANUBE_CANAL, GLIDE_SLOPE_DEG, START_X, SUGGESTED_CRUISE_ALT } from '../config';
+import { GLIDE_SLOPE_DEG, START_X, SUGGESTED_CRUISE_ALT } from '../config';
 import { airportByIata } from '../meta/airports';
-import { formatCredits, isWithinRange, settleCrash, settleSuccess } from '../meta/economy';
+import { distanceKm, formatCredits, isWithinRange, settleCrash, settleSuccess } from '../meta/economy';
+import { remapCorridorX } from '../meta/flightLength';
 import { loadProgress, recordCrash } from '../meta/progress';
 import { DEFAULT_ROUTE, getRoute, type FlightRoute } from '../meta/routes';
 import { Airplane } from '../render/Airplane';
@@ -11,7 +12,7 @@ import { Sky, createPalette, samplePalette } from '../render/Sky';
 import { Passengers } from '../render/Passengers';
 import { Storms } from '../render/Storms';
 import { Trails } from '../render/Trails';
-import { THEME_SEA_SPANS, World } from '../render/World';
+import { World } from '../render/World';
 import { FlightModel, type Touchdown } from '../sim/FlightModel';
 import { computeLoadSheet } from '../sim/LoadSheet';
 import { Weather } from '../sim/Weather';
@@ -41,7 +42,7 @@ const PAPI_THRESHOLDS = [3.0, 3.33, 3.67, 4.0];
 export class Game {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.5, 7000);
+  private readonly camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.5, 28000);
   private readonly world: World;
   private readonly plane: Airplane;
   private readonly sky = new Sky();
@@ -309,6 +310,8 @@ export class Game {
     const seed = (Math.random() * 2 ** 31) | 0;
     this.nightFlight = (seed >>> 8) % 100 < 42;
     this.weather = new Weather({ seed });
+    // Storm slots are authored on the 11.5 km reference corridor — stretch with the hop.
+    for (const cell of this.weather.storms) cell.x0 = remapCorridorX(cell.x0, this.route.dest.x0);
     this.fm.weather = this.weather;
     this.fm.reset(START_X, false);
     this.storms.setWeather(this.weather);
@@ -476,6 +479,7 @@ export class Game {
     const origin = airportByIata(route.from);
     const dest = airportByIata(route.to);
     this.hud.setMissionRoute(route.from, origin?.city ?? route.from, route.to, dest?.city ?? route.to);
+    this.world.setCorridorLength(route.dest.x0);
     this.world.setRouteScenery(route.scenery);
     this.world.setRouteAirports(route.from, route.to);
     this.reset();
@@ -611,7 +615,10 @@ export class Game {
         this.takeoffFlapsAtLiftoff = fm.flapIndex;
       } else if (fm.onGround && fm.x > this.route.origin.x1) {
         const city = airportByIata(this.route.from)?.city ?? this.route.from;
-        this.fail('Runway overrun', `You ran out of runway in ${city}. Use full power and lift the nose (W) at about 110 km/h.`);
+        this.fail(
+          'Runway overrun',
+          `You ran out of runway in ${city} before liftoff. No charter pay — use full power and rotate (W) at about 110 km/h.`,
+        );
         return;
       }
     } else if (this.phase === 'rollout') {
@@ -625,7 +632,7 @@ export class Game {
           if (fm.vx > 15) {
             this.fail(
               'Runway overrun',
-              `The aircraft left the end of runway ${this.route.dest.designator} at speed. Touch down earlier and keep the power at idle to brake.`,
+              `You rolled off the end of runway ${this.route.dest.designator} still fast. No charter pay for this flight — touch down earlier and idle to brake.`,
             );
             return;
           }
@@ -643,9 +650,13 @@ export class Game {
       }
     }
 
-    if (!fm.onGround && fm.x > this.route.dest.x1 + 2600) {
+    // Past the far end with no landing — scrub the charter, not a crash.
+    if (!fm.onGround && fm.x > this.route.dest.x1 + 900) {
       const city = airportByIata(this.route.to)?.city ?? this.route.to;
-      this.fail(`Missed ${city}`, `You flew past the destination. Start the descent earlier and follow the PAPI lights to the runway.`);
+      this.fail(
+        'Runway overshot',
+        `You flew past runway ${this.route.dest.designator} at ${city}. No landing means no charter pay for this flight.`,
+      );
     }
   }
 
@@ -677,11 +688,22 @@ export class Game {
       this.flash(vs < 1 ? 'Butter! Idle power to brake' : 'Touchdown – idle power to brake');
       return;
     }
-    const inDanube = (td.x > DANUBE.x0 && td.x < DANUBE.x1) || (td.x > DANUBE_CANAL.x0 && td.x < DANUBE_CANAL.x1);
-    const seaSpans = THEME_SEA_SPANS[this.route.scenery] ?? [];
-    const inSea = seaSpans.some(([a, b]) => td.x > a && td.x < b);
-    const inWater = inDanube || inSea;
-    const waterMsg = inSea
+    // Longitudinally past the far threshold — scrubbed charter, not a wreck.
+    if (td.x > this.route.dest.x1) {
+      this.fail(
+        'Runway overshot',
+        `You overflew runway ${this.route.dest.designator}. Touch down earlier next time — no charter pay for this flight.`,
+      );
+      return;
+    }
+    const waterSpans = this.world.waterHazards(this.route.scenery);
+    const inWater = waterSpans.some(([a, b]) => td.x > a && td.x < b);
+    const seaish =
+      this.route.scenery === 'channelSea' ||
+      this.route.scenery === 'atlanticOcean' ||
+      this.route.scenery === 'mediterranean' ||
+      this.route.scenery === 'pacificRim';
+    const waterMsg = seaish
       ? 'You ditched in open water. Oceans and channels are not runways.'
       : 'You ditched in the river. Beautiful from above — fatal on touchdown.';
     this.crash(inWater ? waterMsg : 'You touched down outside the runway.');
@@ -811,9 +833,10 @@ export class Game {
     return Math.max(0, ((thrust - drag) * v) / W);
   }
 
+  /** Mission scrubbed without a wreck — no pay, no crash/death counters. */
   private fail(title: string, message: string): void {
     this.state = 'report';
-    this.hud.showReport(failureReport(title, message), this.statsLine());
+    this.hud.showReport(failureReport(title, message), this.statsLine(), '€0 · no charter pay');
   }
 
   private statsLine(): string {
@@ -931,6 +954,8 @@ export class Game {
     const kmh = fm.airspeed * 3.6;
     const flying = this.state === 'flying';
     const routeLen = this.route.dest.x0 + 300 - START_X;
+    const progress = Math.min(1, Math.max(0, (fm.x - START_X) / routeLen));
+    const realKm = distanceKm(this.route.from, this.route.to);
     this.hud.update({
       speedKmh: kmh,
       altitude: fm.y,
@@ -941,8 +966,8 @@ export class Game {
       flapsTargetDeg: fm.flapTargetDeg,
       gear: fm.gear,
       gearTarget: fm.gearTarget,
-      progress: (fm.x - START_X) / routeLen,
-      distanceKm: Math.max(0, this.route.dest.x0 - fm.x) / 1000,
+      progress,
+      distanceKm: realKm * (1 - progress),
       phase: this.phaseLabel(toAim),
       destCode: this.route.to,
       destRunway: this.route.dest.designator,

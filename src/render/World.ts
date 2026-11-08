@@ -13,6 +13,7 @@ import { seaSprites } from '../art/seas';
 import { viennaSprites } from '../art/vienna';
 import { BTS_RUNWAY, DANUBE, DANUBE_CANAL, RUNWAY_WIDTH, RUNWAY_Z, VIE_RUNWAY, ZONES, type Runway } from '../config';
 import { FLYABLE_IATAS, airportByIata } from '../meta/airports';
+import { BASE_DEST_X0, remapCorridorSpan, remapCorridorX } from '../meta/flightLength';
 import { type SceneryTheme } from '../meta/routes';
 import { buildSpriteBatches, buildTileStrip, type Placement } from './Billboards';
 
@@ -47,7 +48,8 @@ export const THEME_SEA_SPANS: Partial<Record<SceneryTheme, [number, number][]>> 
 };
 
 const WORLD_X0 = -3500;
-const WORLD_X1 = 19000;
+/** Long enough for the longest ~40 km corridor plus overrun. */
+const WORLD_X1 = 45000;
 const GROUND_Z0 = -420;
 const GROUND_Z1 = 90;
 
@@ -77,6 +79,14 @@ export class World {
   private readonly tmpMatrix = new THREE.Matrix4();
   private readonly tmpQuat = new THREE.Quaternion();
   private readonly tmpPos = new THREE.Vector3();
+  /** Live destination pad start; scenery is remapped from the authored 11.5 km layout. */
+  private corridorDestX0 = BASE_DEST_X0;
+  private readonly authSpans: { mesh: THREE.Object3D; x0: number; x1: number }[] = [];
+  private readonly authObjects: { obj: THREE.Object3D; x: number }[] = [];
+  private readonly authInstances: { mesh: THREE.InstancedMesh; xs: Float32Array }[] = [];
+  private readonly authPoints: { points: THREE.Points; xs: Float32Array }[] = [];
+  private readonly turbineAuthX: number[] = [];
+  private readonly themeWaterAuth: { theme: SceneryTheme; spans: [number, number][] }[] = [];
   private readonly tmpScale = new THREE.Vector3();
   private readonly zAxis = new THREE.Vector3(0, 0, 1);
   private readonly white = new THREE.Color(1, 1, 0.92);
@@ -108,8 +118,97 @@ export class World {
     this.buildLayers(anisotropy);
     this.buildRouteTerminals();
     this.buildCityLandmarkPacks();
+    this.captureCorridorBases();
     this.setRouteScenery('danubeWest');
     this.setRouteAirports('BTS', 'VIE');
+    this.setCorridorLength(BASE_DEST_X0);
+  }
+
+  /**
+   * Stretch / shift authored scenery onto the live corridor for this hop.
+   * Always remaps from the captured reference positions (never compounds).
+   */
+  setCorridorLength(destX0: number): void {
+    this.corridorDestX0 = destX0;
+    for (const { mesh, x0, x1 } of this.authSpans) {
+      const [na, nb] = remapCorridorSpan(x0, x1, destX0);
+      mesh.position.x = (na + nb) / 2;
+      mesh.scale.x = (nb - na) / Math.max(1e-3, x1 - x0);
+    }
+    for (const { obj, x } of this.authObjects) {
+      obj.position.x = remapCorridorX(x, destX0);
+    }
+    const m4 = this.tmpMatrix;
+    const p = this.tmpPos;
+    const q = this.tmpQuat;
+    const s = this.tmpScale;
+    for (const { mesh, xs } of this.authInstances) {
+      for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, m4);
+        m4.decompose(p, q, s);
+        p.x = remapCorridorX(xs[i], destX0);
+        m4.compose(p, q, s);
+        mesh.setMatrixAt(i, m4);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    for (const { points, xs } of this.authPoints) {
+      const attr = points.geometry.getAttribute('position');
+      for (let i = 0; i < xs.length; i++) attr.setX(i, remapCorridorX(xs[i], destX0));
+      attr.needsUpdate = true;
+    }
+    for (let i = 0; i < this.turbineData.length; i++) {
+      this.turbineData[i].x = remapCorridorX(this.turbineAuthX[i] ?? this.turbineData[i].x, destX0);
+    }
+  }
+
+  /** Water hazard spans for the active corridor (ditch checks). */
+  waterHazards(theme: SceneryTheme): [number, number][] {
+    const dest = this.corridorDestX0;
+    const authored =
+      this.themeWaterAuth.find((t) => t.theme === theme)?.spans ??
+      THEME_SEA_SPANS[theme] ??
+      [];
+    return authored.map(([a, b]) => remapCorridorSpan(a, b, dest));
+  }
+
+  private captureCorridorBases(): void {
+    this.root.traverse((obj) => {
+      if (obj.userData.fixedCorridor) return;
+      if (obj.userData.corridorSpan) {
+        const [x0, x1] = obj.userData.corridorSpan as [number, number];
+        this.authSpans.push({ mesh: obj, x0, x1 });
+        return;
+      }
+      if ((obj as THREE.InstancedMesh).isInstancedMesh) {
+        if (obj.userData.turbineOffset != null) return;
+        const mesh = obj as THREE.InstancedMesh;
+        const xs = new Float32Array(mesh.count);
+        for (let i = 0; i < mesh.count; i++) {
+          mesh.getMatrixAt(i, this.tmpMatrix);
+          this.tmpPos.setFromMatrixPosition(this.tmpMatrix);
+          xs[i] = this.tmpPos.x;
+        }
+        this.authInstances.push({ mesh, xs });
+        return;
+      }
+      if ((obj as THREE.Points).isPoints) {
+        const points = obj as THREE.Points;
+        const attr = points.geometry.getAttribute('position');
+        const xs = new Float32Array(attr.count);
+        for (let i = 0; i < attr.count; i++) xs[i] = attr.getX(i);
+        this.authPoints.push({ points, xs });
+        return;
+      }
+      if (obj !== this.root && Math.abs(obj.position.x) > 1e-4) {
+        this.authObjects.push({ obj, x: obj.position.x });
+      }
+    });
+    for (const t of this.turbineData) this.turbineAuthX.push(t.x);
+  }
+
+  private tagSpan(obj: THREE.Object3D, x0: number, x1: number): void {
+    obj.userData.corridorSpan = [x0, x1];
   }
 
   /**
@@ -1031,6 +1130,7 @@ export class World {
     const ground = new THREE.Mesh(geo, mat);
     ground.position.set((WORLD_X0 + WORLD_X1) / 2, 0, (GROUND_Z0 + GROUND_Z1) / 2);
     ground.receiveShadow = true;
+    ground.userData.fixedCorridor = true;
     this.root.add(ground);
 
     // Aprons
@@ -1041,6 +1141,7 @@ export class World {
       const m = new THREE.Mesh(g, apronMat);
       m.position.set((x0 + x1) / 2, 0.02, (z0 + z1) / 2);
       m.receiveShadow = true;
+      this.tagSpan(m, x0, x1);
       this.root.add(m);
     };
     apron(420, 1150, -100, -50);
@@ -1079,6 +1180,7 @@ export class World {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set((rw.x0 + rw.x1) / 2, 0.03, RUNWAY_Z);
     mesh.receiveShadow = true;
+    this.tagSpan(mesh, rw.x0, rw.x1);
     this.root.add(mesh);
 
     this.addThreshold(rw.x0, rw.designator, false, anisotropy);
@@ -1157,6 +1259,7 @@ export class World {
       g.rotateX(-Math.PI / 2);
       const m = new THREE.Mesh(g, waterMat(x1 - x0));
       m.position.set((x0 + x1) / 2, 0.05, (GROUND_Z0 + GROUND_Z1) / 2);
+      this.tagSpan(m, x0, x1);
       parent.add(m);
       for (const x of [x0, x1]) {
         const wall = new THREE.Mesh(new THREE.BoxGeometry(3, wallH, depth), stoneMat);
@@ -1165,34 +1268,60 @@ export class World {
       }
     };
 
+    const recordWater = (theme: SceneryTheme, spans: [number, number][]) => {
+      this.themeWaterAuth.push({ theme, spans: spans.map(([a, b]) => [a, b]) });
+    };
+
     const west = this.sceneryGroup(this.root, 'danubeWest');
     river(west, DANUBE.x0, DANUBE.x1, 1.2);
     river(west, DANUBE_CANAL.x0, DANUBE_CANAL.x1, 1.6);
+    recordWater('danubeWest', [
+      [DANUBE.x0, DANUBE.x1],
+      [DANUBE_CANAL.x0, DANUBE_CANAL.x1],
+    ]);
 
     const east = this.sceneryGroup(this.root, 'danubeEast');
     river(east, DANUBE.x0, DANUBE.x1, 1.2);
     river(east, 5180, 5500, 1.0);
     river(east, 6780, 7080, 1.0);
     river(east, 8380, 8680, 0.9);
+    recordWater('danubeEast', [
+      [DANUBE.x0, DANUBE.x1],
+      [5180, 5500],
+      [6780, 7080],
+      [8380, 8680],
+    ]);
 
     const pan = this.sceneryGroup(this.root, 'pannonian');
     river(pan, 4880, 5380, 1.1);
+    recordWater('pannonian', [[4880, 5380]]);
 
     const boh = this.sceneryGroup(this.root, 'bohemian');
     river(boh, 5200, 5550, 1.0);
     river(boh, 7800, 8100, 0.9);
+    recordWater('bohemian', [
+      [5200, 5550],
+      [7800, 8100],
+    ]);
 
     const car = this.sceneryGroup(this.root, 'carpathian');
     river(car, 6400, 6750, 0.85);
+    recordWater('carpathian', [[6400, 6750]]);
 
     const vis = this.sceneryGroup(this.root, 'vistula');
     river(vis, 4000, 4450, 1.15);
     river(vis, 6200, 6600, 1.1);
     river(vis, 8800, 9200, 1.05);
+    recordWater('vistula', [
+      [4000, 4450],
+      [6200, 6600],
+      [8800, 9200],
+    ]);
 
     const sea = (theme: SceneryTheme, spans: [number, number][], wall: number) => {
       const g = this.sceneryGroup(this.root, theme);
       for (const [x0, x1] of spans) river(g, x0, x1, wall);
+      recordWater(theme, spans);
     };
     sea('channelSea', THEME_SEA_SPANS.channelSea!, 0.6);
     sea('atlanticOcean', THEME_SEA_SPANS.atlanticOcean!, 0.35);
@@ -1202,12 +1331,18 @@ export class World {
     const alp = this.sceneryGroup(this.root, 'alpine');
     river(alp, 5600, 6000, 0.9);
     river(alp, 7400, 7700, 0.85);
+    recordWater('alpine', [
+      [5600, 6000],
+      [7400, 7700],
+    ]);
 
     const con = this.sceneryGroup(this.root, 'continental');
     river(con, 6000, 6400, 1.0);
+    recordWater('continental', [[6000, 6400]]);
 
     const des = this.sceneryGroup(this.root, 'desertApproaches');
     river(des, 5200, 5800, 0.4);
+    recordWater('desertApproaches', [[5200, 5800]]);
   }
 
   private buildLights(): void {

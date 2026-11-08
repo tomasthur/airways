@@ -1,9 +1,10 @@
 import { type Landmark, type Runway } from '../config';
 import { airportByIata, routeKey } from './airports';
+import { distanceKm } from './economy';
+import { corridorDest, ORIGIN_PAD_END, remapCorridorX } from './flightLength';
 
-/** Shared corridor geometry – every hop is a compressed side-view segment. */
-const ORIGIN = { x0: 0, x1: 2000 } as const;
-const DEST = { x0: 11500, x1: 13700 } as const;
+/** Shared origin pad – mid length and dest pad slide with real hop distance. */
+const ORIGIN = { x0: 0, x1: ORIGIN_PAD_END } as const;
 
 /** Mid-corridor set dressing shared by both directions of a hop. */
 export type SceneryTheme =
@@ -38,8 +39,16 @@ export interface FlightRoute {
   welcomeMessage: string;
 }
 
-function rw(code: string, designator: string, slot: typeof ORIGIN | typeof DEST): Runway {
+function rw(code: string, designator: string, slot: { x0: number; x1: number }): Runway {
   return { code, designator, x0: slot.x0, x1: slot.x1 };
+}
+
+function scaleLandmarks(landmarks: Landmark[], destX0: number): Landmark[] {
+  return landmarks.map((l) => ({
+    ...l,
+    x0: remapCorridorX(l.x0, destX0),
+    x1: remapCorridorX(l.x1, destX0),
+  }));
 }
 
 const BTS_VIE_LANDMARKS: Landmark[] = [
@@ -295,16 +304,17 @@ function hop(
   welcomeTitle: string,
   welcomeMessage: string,
 ): FlightRoute {
+  const destSlot = corridorDest(distanceKm(from, to));
   return {
     id: routeKey(from, to),
     from,
     to,
     origin: rw(from, fromDes, ORIGIN),
-    dest: rw(to, toDes, DEST),
+    dest: rw(to, toDes, destSlot),
     originReciprocal: fromRecip,
     destReciprocal: toRecip,
     scenery,
-    landmarks,
+    landmarks: scaleLandmarks(landmarks, destSlot.x0),
     brief,
     welcomeTitle,
     welcomeMessage,

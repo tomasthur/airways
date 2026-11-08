@@ -2,6 +2,7 @@ import { AIRPORTS, airportByIata, type Airport } from '../meta/airports';
 import {
   buyAircraft,
   buyAirportUnlock,
+  distanceKm,
   estimatePayout,
   FLEET,
   fleetById,
@@ -10,6 +11,7 @@ import {
   rangeBlockedMessage,
   selectAircraft,
 } from '../meta/economy';
+import { formatFlightMinutes } from '../meta/flightLength';
 import {
   airportStatus,
   isAirportUnlocked,
@@ -398,11 +400,9 @@ export class HubMenu {
   }
 
   private routeMeta(from: Airport, to: Airport): string {
-    const km =
-      111.32 *
-      Math.sqrt((to.lat - from.lat) ** 2 + ((to.lon - from.lon) * Math.cos((((from.lat + to.lat) / 2) * Math.PI) / 180)) ** 2);
+    const km = distanceKm(from.iata, to.iata);
     const craft = fleetById(this.progress.activeAircraft);
-    return `${Math.round(km)} km · ${craft.shortName} · visual flight`;
+    return `${Math.round(km)} km · ${formatFlightMinutes(km)} · ${craft.shortName}`;
   }
 
   private renderPins(): void {
