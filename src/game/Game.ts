@@ -333,7 +333,8 @@ export class Game {
     this.atc.reset(this.weather, {
       callsign: cfg.registration,
       cruiseAlt: this.route.layout.cruiseAltM,
-      ceiling: Math.max(1600, cfg.performance.cruiseAltM + 600),
+      // Storm climbs stay near the hop's cruise — never the brochure ceiling on a short leg.
+      ceiling: this.route.layout.cruiseAltM + 200,
       turbulenceKmh: round10(cfg.limits.vnoKmh * 0.74),
     });
     // 55–95 % of the seats sold; fuel is planned so the take-off mass stays within MTOW.

@@ -56,12 +56,22 @@ export function targetFlightSec(km: number): number {
  * as the aircraft covers at cruise in the target time minus its take-off / landing budget —
  * so every aircraft flies a hop in about the same time and faster ones simply go further.
  */
+const GLIDE_SLOPE = Math.tan((3.5 * Math.PI) / 180);
+
 export function corridorLayout(km: number, p: CorridorPerformance): CorridorLayout {
   const cruiseSec = Math.max(30, targetFlightSec(km) - p.padTimeS);
   const originEnd = p.runwayM;
   const mid = Math.round((p.cruiseKmh / 3.6) * cruiseSec);
   const destX0 = originEnd + mid;
-  const cruiseAltM = Math.max(300, Math.min(p.cruiseAltM, Math.round((mid * 0.035) / 50) * 50));
+  // Cruise height must leave room to decelerate in level flight, then descend on a 3.5° path
+  // (and still climb out of the origin). Fast jets on short hops therefore stay lower.
+  const cruiseMs = p.cruiseKmh / 3.6;
+  const approachMs = cruiseMs * 0.35;
+  const decelA = p.cruiseKmh >= 600 ? 0.8 : p.cruiseKmh >= 400 ? 0.55 : 0.45;
+  const decelM = Math.max(0, (cruiseMs ** 2 - approachMs ** 2) / (2 * decelA));
+  const usable = Math.max(2000, mid - decelM - 1500);
+  const fromPath = usable * 0.42 * GLIDE_SLOPE;
+  const cruiseAltM = Math.max(300, Math.min(p.cruiseAltM, Math.round(fromPath / 50) * 50));
   return { originEnd, destX0, destX1: destX0 + p.runwayM, cruiseAltM };
 }
 

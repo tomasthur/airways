@@ -27,6 +27,10 @@ export interface AtcContext {
 }
 
 const round50 = (v: number) => Math.round(v / 50) * 50;
+/** Same 3.5° path the player flies — used to decide when ATC must release a level. */
+const GLIDE_SLOPE = Math.tan((3.5 * Math.PI) / 180);
+/** Extra metres beyond the pure glide so the pilot can slow down before top of descent. */
+const DESCENT_PAD_M = 2500;
 
 /** Rule-based ATC: take-off and landing clearances, weather advisories with altitude recommendations. */
 export class Atc {
@@ -109,6 +113,24 @@ export class Atc {
 
     if (c.phase !== 'airborne') return;
 
+    // Free the pilot once top of descent is near — holding the cruise level would block a calm approach.
+    if (this.assignedAltitude !== null) {
+      const releaseAt = this.assignedAltitude / GLIDE_SLOPE + DESCENT_PAD_M;
+      if (c.toAim < releaseAt) {
+        if (!this.said.has('tod-release')) {
+          this.said.add('tod-release');
+          this.queue.push({
+            station: 'Wien Radar',
+            text: `${this.callsign}, descend at your discretion for runway ${c.destRunway}.`,
+            replies: [],
+            ttl: 6,
+          });
+        }
+        this.assignedAltitude = null;
+        this.deviationTimer = 0;
+      }
+    }
+
     if (c.y > 120) {
       const stormsAhead = w.storms.filter((s) => w.stormX(s, c.time) > c.x);
       this.say('radar', {
@@ -119,7 +141,8 @@ export class Atc {
       });
       if (!this.said.has('radar-alt')) {
         this.said.add('radar-alt');
-        this.assignedAltitude = this.cruiseAlt;
+        // Only lock the cruise level when there is still room to climb and later descend.
+        if (c.toAim > this.cruiseAlt / GLIDE_SLOPE + DESCENT_PAD_M) this.assignedAltitude = this.cruiseAlt;
       }
     }
 
@@ -128,7 +151,7 @@ export class Atc {
       const entry = cx - cell.radius;
       const exit = cx + cell.radius;
       const id = `storm-${cell.x0}`;
-      if (!this.said.has(id) && entry - c.x < Math.max(7500, c.groundSpeed * 45) && entry - c.x > 600) this.adviseStorm(id, cell, entry, c);
+      if (!this.said.has(id) && entry - c.x < Math.max(7500, c.groundSpeed * 45) && entry - c.x > 600) this.adviseStorm(id, cell, entry, exit, c);
       if (this.advisories.has(cell) && c.x > exit + 250) {
         this.say(`clear-${cell.x0}`, {
           station: 'Wien Radar',
@@ -144,7 +167,8 @@ export class Atc {
     const a = this.assignedAltitude;
     if (a !== null && Math.abs(c.y - a) > 150) this.deviationTimer += dt;
     else this.deviationTimer = 0;
-    if (a !== null && this.deviationTimer > 35 && c.time - this.lastDeviationCall > 45 && c.toAim > 6500) {
+    const holdUntil = a !== null ? a / GLIDE_SLOPE + DESCENT_PAD_M : 0;
+    if (a !== null && this.deviationTimer > 35 && c.time - this.lastDeviationCall > 45 && c.toAim > holdUntil) {
       this.lastDeviationCall = c.time;
       this.queue.push({ station: 'Wien Radar', text: `${this.callsign}, check altitude – assigned ${a} m.`, replies: [], ttl: 6 });
     }
@@ -160,7 +184,7 @@ export class Atc {
     }
   }
 
-  private adviseStorm(id: string, cell: StormCell, entry: number, c: AtcContext): void {
+  private adviseStorm(id: string, cell: StormCell, entry: number, exit: number, c: AtcContext): void {
     const km = ((entry - c.x) / 1000).toFixed(1);
     const sev = cell.severity === 'severe' ? 'Severe' : cell.severity === 'moderate' ? 'Moderate' : 'Light';
     const desc = `${sev} thunderstorm ${km} km ahead, base ${cell.base} m, tops ${cell.top} m.`;
@@ -171,11 +195,13 @@ export class Atc {
       return;
     }
 
-    // Can this aircraft get above the tops before reaching the cell?
+    // Can this aircraft get above the tops before reaching the cell — and still descend after it?
     const over = round50(cell.top + 150);
     const timeAvailable = (entry - c.x) / Math.max(c.groundSpeed, 30);
     const timeNeeded = Math.max(0, over - c.y) / Math.max(c.climbRate, 0.5);
-    const canOver = over <= this.ceiling && timeNeeded < timeAvailable * 0.85;
+    const distAfterExit = c.toAim - (exit - c.x);
+    const canDescendAfter = distAfterExit > over / GLIDE_SLOPE + DESCENT_PAD_M;
+    const canOver = over <= this.ceiling && timeNeeded < timeAvailable * 0.85 && canDescendAfter;
     const under = round50(cell.base - 140);
     const canUnder = cell.severity !== 'severe' && under >= 180;
 
