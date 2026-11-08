@@ -35,6 +35,7 @@ export const DH8D = defineAircraft({
   vneKmh: 670,
   maxTouchdownVsMs: 3.8,
   limitLoadG: 2.5,
+  speedBrake: true,
   heft: 0.5,
   visual: {
     lengthM: 32.8,

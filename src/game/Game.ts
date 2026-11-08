@@ -116,9 +116,6 @@ export class Game {
   private flashText = '';
   private flashTimer = 0;
   private hudTimer = 0;
-  private fpsFrames = 0;
-  private fpsTime = 0;
-  fps = 0;
 
   private readonly warnings: Record<WarningKey, boolean> = {
     stall: false,
@@ -129,7 +126,7 @@ export class Game {
     terrain: false,
     cht: false,
   };
-  private readonly controls = { pitch: 0, roll: 0, throttle: 0, brake: 0 };
+  private readonly controls = { pitch: 0, roll: 0, throttle: 0, brake: 0, speedBrake: 0 };
 
   private readonly app: HTMLElement;
 
@@ -532,8 +529,15 @@ export class Game {
     cam.updateProjectionMatrix();
     this.sunOffset.normalize().multiplyScalar(60 * this.sizeK);
     this.blob.scale.set(cfg.visual ? len * 0.85 : 7, 1, cfg.roll.wingSpanM * 0.9);
+    this.world.setLightScale(this.sizeK);
     this.sound.setProfile(cfg.propulsion);
-    this.hud.setAircraft(tempGaugeLabel(cfg), cfg.limits.vneKmh * 1.05, this.takeoffFlapDeg, cfg.engineCount);
+    this.hud.setAircraft(
+      tempGaugeLabel(cfg),
+      cfg.limits.vneKmh * 1.05,
+      this.takeoffFlapDeg,
+      cfg.engineCount,
+      !!cfg.speedBrake,
+    );
   }
 
   private begin(from: string, to: string): void {
@@ -599,14 +603,6 @@ export class Game {
     const dt = Math.min(0.05, Math.max(0, (now - this.lastFrame) / 1000));
     this.lastFrame = now;
 
-    this.fpsFrames++;
-    this.fpsTime += dt;
-    if (this.fpsTime >= 0.5) {
-      this.fps = this.fpsFrames / this.fpsTime;
-      this.fpsFrames = 0;
-      this.fpsTime = 0;
-      this.hud.setFps(this.fps);
-    }
 
     if (this.state === 'flying') this.simulate(dt);
     if (this.state !== 'paused') {
@@ -623,6 +619,7 @@ export class Game {
     c.roll = this.input.roll;
     c.throttle = this.input.throttle;
     c.brake = this.input.brake;
+    c.speedBrake = this.input.speedBrake;
     if (this.phase === 'preflight') {
       // Parked: brakes set, power stays at idle until the engine runs.
       c.brake = 1;
@@ -687,7 +684,7 @@ export class Game {
         const city = airportByIata(this.route.from)?.city ?? this.route.from;
         this.fail(
           'Runway overrun',
-          `You ran out of runway in ${city} before liftoff. No charter pay — use full power and rotate (W) at about ${this.fm.config.limits.vrKmh} km/h.`,
+          `You ran out of runway in ${city} before liftoff. No charter pay — use full power and rotate at about ${this.fm.config.limits.vrKmh} km/h.`,
         );
         return;
       }
@@ -929,6 +926,7 @@ export class Game {
       elevator: fm.elevator,
       groundSpeed: fm.vx,
       onGround: fm.onGround,
+      speedBrake: fm.speedBrake,
     });
 
     // Camera: plane slightly left of centre, gentle vertical lag, zoom out with speed and altitude
@@ -1059,6 +1057,7 @@ export class Game {
     this.hud.setControlLit('flapsDown', fm.flapIndex > 0);
     this.hud.setControlLit('gear', fm.gearTarget > 0.5);
     this.hud.setBrakeLit(fm.braking || this.input.brake > 0.05);
+    this.hud.setSpeedBrakeLit(fm.speedBrake > 0.15 || this.input.speedBrake > 0.05);
     this.controlsUi.sync(fm.throttleLever);
     this.hud.setChecklist(flying && this.phase === 'preflight' ? this.checklist() : null);
     const msg = flying ? this.atc.current : null;
@@ -1079,7 +1078,10 @@ export class Game {
     w.cht = flying && fm.engine.state === 'running' && fm.engine.cht >= CHT_YELLOW;
     this.hud.setWarnings(w, fm.engine.cht >= CHT_RED);
 
-    this.hud.setPapi(flying && airborne && toAim > 30 && toAim < 6500 ? whites : -1);
+    // Show PAPI from before top-of-descent: big jets start down much further out than a C172.
+    const glideRad = THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG);
+    const papiFar = Math.max(6500, this.route.layout.cruiseAltM / Math.tan(glideRad) + 4000);
+    this.hud.setPapi(flying && airborne && toAim > 30 && toAim < papiFar ? whites : -1);
 
     const camX = this.camera.position.x;
     const lm = flying || this.state === 'menu' ? this.route.landmarks.find((l) => camX >= l.x0 && camX <= l.x1) : undefined;
@@ -1168,22 +1170,22 @@ export class Game {
     const temp = tempGaugeLabel(fm.config);
     if (this.phase === 'preflight') {
       const c = this.checklist();
-      if (!this.boardingStarted || !c.done.boarding) return this.plane.doorOpen ? 'Passengers are boarding…' : 'Open the cabin door (O) to board the passengers';
-      if (!c.done.door) return 'Close the cabin door (O)';
-      if (!c.done.lights) return this.nightFlight ? 'Night departure – switch on the beacon and navigation lights (L)' : 'Switch on the beacon and navigation lights (L)';
+      if (!this.boardingStarted || !c.done.boarding) return this.plane.doorOpen ? 'Passengers are boarding…' : 'Open the cabin door to board the passengers';
+      if (!c.done.door) return 'Close the cabin door';
+      if (!c.done.lights) return this.nightFlight ? 'Night departure – switch on the beacon and navigation lights' : 'Switch on the beacon and navigation lights';
       if (!c.done.flaps) return `Set take-off flaps ${this.takeoffFlapDeg}°`;
-      if (!c.done.belts) return 'Switch on the seatbelt sign (N)';
+      if (!c.done.belts) return 'Switch on the seatbelt sign';
       if (fm.engine.state === 'starting') return fm.config.engineCount > 1 ? 'Engines starting…' : 'Engine starting…';
-      return `Start the ${this.engineWord} (I)`;
+      return `Start the ${this.engineWord}`;
     }
     if (this.phase === 'takeoff') {
-      if (fm.throttleLever < 0.95) return 'Push the throttle lever to full power (Shift)';
+      if (fm.throttleLever < 0.95) return 'Push the throttle to full power';
       if (kmh < lim.vrKmh * 0.9) return `Accelerating… lift the nose at ${lim.vrKmh} km/h`;
       return 'Rotate! Pull the yoke (W / ↑) to raise the nose';
     }
     if (this.phase === 'rollout') {
       if (Math.abs(fm.vx) <= 0.5) return '';
-      if (fm.throttleLever > 0.05) return 'Idle the throttle (X), then hold Brake';
+      if (fm.throttleLever > 0.05) return 'Idle the throttle, then hold Brake';
       return fm.braking ? 'Braking…' : 'Hold the Brake pedal to stop';
     }
     if (this.phase === 'falling') return '';
@@ -1194,13 +1196,13 @@ export class Game {
       return fm.config.propulsion === 'piston' ? 'CHT rising – ease power or gain speed for cooling' : `${temp} rising – ease the power back`;
     }
     if (fm.loadFactor > fm.config.limits.limitLoadG * 0.85) return 'Too many g – ease off the yoke!';
-    if (Math.abs(fm.roll) > 0.45) return 'Steep bank – level the wings (A / D)';
+    if (Math.abs(fm.roll) > 0.45) return 'Steep bank – level the wings';
     if (fm.air.cloud > 0.3 && fm.air.turbulence > 1.2 && kmh > turbulenceKmh) return `Severe turbulence – slow below ${turbulenceKmh} km/h to protect the airframe`;
     const glideStart = fm.y / Math.tan(THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG));
     const descending = toAim < glideStart + 200;
     if (!descending) {
-      if (fm.gearTarget > 0.5 && fm.y > 15) return 'Positive climb – retract the landing gear (G)';
-      if (fm.flapIndex > 0 && fm.y > 60) return 'Retract the flaps (V) for cruise';
+      if (fm.gearTarget > 0.5 && fm.y > 15) return 'Positive climb – retract the landing gear';
+      if (fm.flapIndex > 0 && fm.y > 60) return 'Retract the flaps for cruise';
       const target = this.atc.assignedAltitude ?? cruiseAlt;
       if (fm.y < target - 60) return `Climb to ${target} m${this.atc.assignedAltitude !== null ? ' as assigned by ATC' : ''}`;
       if (this.atc.assignedAltitude !== null && fm.y > target + 80) return `Descend to ${target} m as assigned by ATC`;
@@ -1213,6 +1215,9 @@ export class Game {
       const decel = fm.config.propulsion === 'jet' ? 0.8 : 0.45;
       const slowDist = Math.max(0, (fm.airspeed ** 2 - (vApp / 3.6) ** 2) / (2 * decel));
       if (kmh > vApp + 20 && toAim < glideStart + slowDist + 1500) {
+        if (fm.config.speedBrake && fm.speedBrake < 0.4) {
+          return `Slow down – idle power, hold Spd Brk, stay level until below ${vApp} km/h`;
+        }
         return `Slow down for the approach – idle power and hold altitude until below ${vApp} km/h`;
       }
       if (toAim < glideStart + 1200) return 'Top of descent ahead – get ready to reduce power';
@@ -1220,13 +1225,18 @@ export class Game {
     }
     if (toAim > 0) {
       if (fm.y < 14 && fm.x > this.route.dest.x0 - 300) {
-        return `Flare: cut the power (X) and gently raise the nose (W) – do not let the speed decay below ~${round10(lim.vs1Kmh * 1.18)} km/h`;
+        return `Flare: cut the power and gently raise the nose – do not let the speed decay below ~${round10(lim.vs1Kmh * 1.18)} km/h`;
       }
       if (fm.stallMargin < 0.18 && fm.y < 80) return 'Too slow on approach – add a little power or lower the nose';
       if (fm.flapOverspeed) return 'Too fast for this flap setting – slow down or retract (V)';
-      if (fm.gearTarget < 0.5 && toAim < 5000) return 'Landing gear down (G)';
-      if (fm.flapsTarget < 1 && toAim < 3500) return `Flaps ${fm.flapIndex === 0 ? 'down' : 'further'} (F) for landing – full is ${maxFlapDeg(fm.config)}°`;
-      if (kmh > lim.vrefKmh * 1.4 && toAim < 3000) return `Too fast – reduce power, aim for ~${lim.vrefKmh} km/h`;
+      if (fm.gearTarget < 0.5 && toAim < 5000) return 'Landing gear down';
+      if (fm.flapsTarget < 1 && toAim < 3500) return `Flaps ${fm.flapIndex === 0 ? 'down' : 'further'} for landing – full is ${maxFlapDeg(fm.config)}°`;
+      if (kmh > lim.vrefKmh * 1.4 && toAim < 3000) {
+        if (fm.config.speedBrake && fm.speedBrake < 0.4) {
+          return `Too fast – hold Spd Brk and reduce power, aim for ~${lim.vrefKmh} km/h`;
+        }
+        return `Too fast – reduce power, aim for ~${lim.vrefKmh} km/h`;
+      }
       if (kmh < lim.vrefKmh * 0.88 && toAim < 2500 && fm.flapIndex < 2) return 'Too slow without enough flaps – add power or set flaps';
       return 'Descend on the glide path: 2 white + 2 red PAPI lights';
     }

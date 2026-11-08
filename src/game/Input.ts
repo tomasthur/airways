@@ -1,4 +1,12 @@
-export type HoldAction = 'pitchUp' | 'pitchDown' | 'rollLeft' | 'rollRight' | 'powerDown' | 'powerUp' | 'brake';
+export type HoldAction =
+  | 'pitchUp'
+  | 'pitchDown'
+  | 'rollLeft'
+  | 'rollRight'
+  | 'powerDown'
+  | 'powerUp'
+  | 'brake'
+  | 'speedBrake';
 export type PressAction =
   | 'flaps'
   | 'flapsDown'
@@ -34,6 +42,7 @@ const HOLD_KEYS: Record<string, HoldAction> = {
   ShiftRight: 'powerUp',
   KeyX: 'powerDown',
   KeyB: 'brake',
+  KeyH: 'speedBrake',
 };
 
 const PRESS_KEYS: Record<string, PressAction> = {
@@ -118,5 +127,9 @@ export class Input {
 
   get brake(): number {
     return this.isHeld('brake') ? 1 : 0;
+  }
+
+  get speedBrake(): number {
+    return this.isHeld('speedBrake') ? 1 : 0;
   }
 }

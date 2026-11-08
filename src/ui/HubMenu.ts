@@ -7,6 +7,7 @@ import {
   FLEET,
   fleetById,
   formatCredits,
+  formatCreditsCompact,
   isWithinRange,
   rangeBlockedMessage,
   selectAircraft,
@@ -476,7 +477,7 @@ export class HubMenu {
 
   private renderStats(): void {
     const fmt = (n: number) => (n > 0 ? String(n) : '—');
-    this.setText('statCredits', formatCredits(this.progress.credits));
+    this.setText('statCredits', formatCreditsCompact(this.progress.credits));
     this.setText('statFlights', fmt(this.progress.successfulFlights));
     this.setText('statCrashes', fmt(this.progress.crashes));
     this.setText('statDeaths', fmt(this.progress.deaths));

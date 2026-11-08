@@ -144,12 +144,19 @@ export class Hud {
   }
 
   /** Engine temperature gauge name (CHT / ITT / EGT) and the speed-bar full scale for the flown type. */
-  setAircraft(tempLabel: string, speedMaxKmh: number, takeoffFlapDeg: number, engineCount: number): void {
+  setAircraft(
+    tempLabel: string,
+    speedMaxKmh: number,
+    takeoffFlapDeg: number,
+    engineCount: number,
+    hasSpeedBrake = false,
+  ): void {
     this.speedMaxKmh = speedMaxKmh;
     this.ref('clFlapsLabel').textContent = `Flaps take-off ${takeoffFlapDeg}°`;
     this.ref('clEngineLabel').textContent = engineCount > 1 ? 'Engines' : 'Engine';
     this.ref('chtLabel').textContent = tempLabel;
     this.ref('chtWarn').textContent = tempLabel;
+    this.ref('speedBrakePedal').classList.toggle('is-hidden', !hasSpeedBrake);
   }
 
   setMissionRoute(fromCode: string, fromCity: string, toCode: string, toCity: string): void {
@@ -157,10 +164,6 @@ export class Hud {
     this.text('routeFromCity', fromCity.toUpperCase());
     this.text('routeToCity', toCity.toUpperCase());
     this.text('routeToCode', toCode);
-  }
-
-  setFps(fps: number): void {
-    this.text('fps', `${Math.round(fps)} fps`);
   }
 
   setQuality(label: string): void {
@@ -232,13 +235,9 @@ export class Hud {
     this.text('atcText', text);
     const buttons = [this.ref('atcReply1'), this.ref('atcReply2')];
     buttons.forEach((b, i) => {
-      const label = replies[i];
+      const label = replies[i] ?? '';
       this.cls(b, `atcReply${i}`, label ? '' : 'is-hidden');
-      const html = label ? `${label} <small>${i + 1}</small>` : '';
-      if (this.cache.get(`atcReplyHtml${i}`) !== html) {
-        this.cache.set(`atcReplyHtml${i}`, html);
-        b.innerHTML = html;
-      }
+      this.text(`atcReply${i === 0 ? '1' : '2'}`, label);
     });
   }
 
@@ -272,6 +271,13 @@ export class Hud {
     el.classList.toggle('lit', lit);
   }
 
+  setSpeedBrakeLit(lit: boolean): void {
+    const el = this.ref('speedBrakePedal');
+    if (this.cache.get('speedBrakeLit') === String(lit)) return;
+    this.cache.set('speedBrakeLit', String(lit));
+    el.classList.toggle('lit', lit);
+  }
+
   setControlLit(action: 'flapsDown' | 'gear', lit: boolean): void {
     const btn = this.root.querySelector<HTMLElement>(`.ctl[data-action="${action}"]`);
     if (btn) this.cls(btn, `ctl.${action}`, `ctl wide${lit ? ' lit' : ''}`);
@@ -301,7 +307,7 @@ export class Hud {
     moneyEl.classList.toggle('is-hidden', !money);
     moneyEl.classList.toggle('gain', money.startsWith('+'));
     moneyEl.classList.toggle('loss', money.startsWith('−') || money.startsWith('-'));
-    this.ref('reportButton').innerHTML = 'Back to map <small>R</small>';
+    this.ref('reportButton').textContent = 'Back to map';
     this.show('report', true);
   }
 }

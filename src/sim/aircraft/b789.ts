@@ -35,6 +35,7 @@ export const B789 = defineAircraft({
   vneKmh: 960,
   maxTouchdownVsMs: 3,
   limitLoadG: 2.5,
+  speedBrake: true,
   heft: 0.85,
   visual: {
     lengthM: 62.8,

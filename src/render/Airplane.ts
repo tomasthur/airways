@@ -30,6 +30,8 @@ export interface AirplaneVisualState {
   elevator: number;
   groundSpeed: number;
   onGround: boolean;
+  /** Flight spoilers 0..1 (0 on types without a speed brake). */
+  speedBrake?: number;
 }
 
 /** What the game needs from any aircraft model (hand-built C172 or parametric types). */

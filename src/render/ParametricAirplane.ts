@@ -52,6 +52,7 @@ export class ParametricAirplane implements AircraftModel {
   private readonly bladeMaterial: THREE.MeshStandardMaterial;
   private readonly discMaterial: THREE.MeshBasicMaterial;
   private readonly flaps: { hinge: THREE.Group; x: number; fowler: number }[] = [];
+  private readonly spoilers: THREE.Group[] = [];
   private readonly elevators: THREE.Group[] = [];
   private readonly mainGears: { leg: THREE.Group; side: number }[] = [];
   private readonly noseGear = new THREE.Group();
@@ -171,6 +172,28 @@ export class ParametricAirplane implements AircraftModel {
         add(loftAirfoil(ascending([fs(za), fs(zb)]), thick, camber, 8), wingMat, hinge);
         this.model.add(hinge);
         this.flaps.push({ hinge, x: hx, fowler: 0.1 * chordAt(zm) });
+      }
+    }
+    // Flight spoilers on the upper wing (speed brake) — hinged at the forward edge.
+    if (cfg.speedBrake) {
+      const spoilerMat = std({ color: jet ? '#b8bec4' : '#c5cad0', roughness: 0.5, metalness: jet ? 0.2 : 0.05 });
+      for (const side of [1, -1]) {
+        for (const [za, zb] of [
+          [zRoot + (semi - zRoot) * 0.08, zMidFlap],
+          [zMidFlap, zFlapEnd - (semi - zRoot) * 0.04],
+        ] as [number, number][]) {
+          const zm = (za + zb) / 2;
+          const c = chordAt(zm);
+          const span = Math.abs(zb - za) * 0.82;
+          const chord = c * 0.2;
+          const hinge = new THREE.Group();
+          hinge.position.set(xLEAt(zm) - 0.32 * c, yAt(zm) + thick * c * 0.42, zm * side);
+          const panel = new THREE.BoxGeometry(chord, Math.max(0.02, 0.022 * c), span);
+          panel.translate(-chord * 0.5, 0.012 * c, 0);
+          add(panel, spoilerMat, hinge);
+          this.model.add(hinge);
+          this.spoilers.push(hinge);
+        }
       }
     }
     // Flap-track fairings under swept wings.
@@ -606,6 +629,8 @@ export class ParametricAirplane implements AircraftModel {
       f.hinge.rotation.z = s.flaps * 0.6;
       f.hinge.position.x = f.x - s.flaps * f.fowler;
     }
+    const sb = s.speedBrake ?? 0;
+    for (const spoiler of this.spoilers) spoiler.rotation.z = sb * 0.95;
     for (const e of this.elevators) e.rotation.z = -s.elevator * 0.3;
 
     for (const { leg, side } of this.mainGears) {

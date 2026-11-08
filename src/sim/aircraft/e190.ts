@@ -34,6 +34,7 @@ export const E190 = defineAircraft({
   vneKmh: 816,
   maxTouchdownVsMs: 3.5,
   limitLoadG: 2.5,
+  speedBrake: true,
   heft: 0.6,
   visual: {
     lengthM: 36.2,

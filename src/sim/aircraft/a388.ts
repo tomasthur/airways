@@ -35,6 +35,7 @@ export const A388 = defineAircraft({
   vneKmh: 1020,
   maxTouchdownVsMs: 3,
   limitLoadG: 2.5,
+  speedBrake: true,
   heft: 1,
   visual: {
     lengthM: 72.7,

@@ -169,6 +169,19 @@ export interface AircraftConfig {
     cd: number;
   };
 
+  /**
+   * Flight spoilers / speed brake (hold-to-deploy). Absent on light types that
+   * can already slow down with idle power and prop disc drag alone.
+   */
+  speedBrake?: {
+    /** Extra parasite drag coefficient when fully deployed. */
+    cd: number;
+    /** Lift dump when fully deployed (negative). */
+    dCl: number;
+    /** Seconds to go from stowed to fully out. */
+    deployS: number;
+  };
+
   engine: {
     maxPowerW: number;
     staticThrustN: number;

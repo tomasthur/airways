@@ -53,6 +53,8 @@ export interface AircraftSpec {
 
   /** 0 = nimble light aircraft, 1 = heavy widebody (pitch / roll authority and rates). */
   heft: number;
+  /** Hold-to-deploy flight spoilers for types that need help bleeding cruise speed. */
+  speedBrake?: boolean;
   visual: AircraftVisual;
 }
 
@@ -151,6 +153,16 @@ export function defineAircraft(s: AircraftSpec): AircraftConfig {
       pitchHoldGain: lerp(6, 4, h),
     },
     ground: { rollFriction: s.propulsion === 'jet' ? 0.02 : 0.025, brakeFriction: 0.42, bellyFriction: 0.6 },
+    ...(s.speedBrake
+      ? {
+          speedBrake: {
+            // Jets need more plate area than a turboprop to bleed Mach-ish cruise speeds.
+            cd: (s.propulsion === 'jet' ? 0.06 : 0.04) + (s.propulsion === 'jet' ? 0.07 : 0.04) * h,
+            dCl: -0.08 - 0.05 * h,
+            deployS: 0.55 + 0.35 * h,
+          },
+        }
+      : {}),
     limits: {
       vs0Kmh: Math.round(vs0),
       vs1Kmh: Math.round(vs1),

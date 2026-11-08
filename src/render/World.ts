@@ -76,6 +76,10 @@ export class World {
   private turbineBlades: THREE.InstancedMesh[] = [];
   private turbineData: { x: number; y: number; phase: number; speed: number }[] = [];
   private papi!: THREE.Points;
+  private runwayLightsMat!: THREE.PointsMaterial;
+  private papiMat!: THREE.PointsMaterial;
+  private readonly baseRunwayLightSize = 2.2;
+  private readonly basePapiSize = 4.5;
   /** Origin (departure) terminal meshes tagged with userData.airport. */
   private readonly originTerminals: THREE.Object3D[] = [];
   /** Destination (arrival) terminal meshes tagged with userData.airport. */
@@ -1417,17 +1421,19 @@ export class World {
         add(rw.x1 + 2, 0.4, RUNWAY_Z + z, '#ff3b30');
       }
     }
-    // Approach lighting system for VIE
-    for (let x = VIE_RUNWAY.x0 - 900; x < VIE_RUNWAY.x0; x += 30) {
+    // Approach lighting system: long enough that jets can pick it up before short final.
+    for (let x = VIE_RUNWAY.x0 - 2400; x < VIE_RUNWAY.x0; x += 30) {
       for (const z of [-1.5, 0, 1.5]) add(x, 1.2, RUNWAY_Z + z, '#fff3cf');
     }
-    for (let z = -15; z <= 15; z += 2.5) add(VIE_RUNWAY.x0 - 300, 1.2, RUNWAY_Z + z, '#fff3cf');
+    for (let z = -18; z <= 18; z += 2.5) add(VIE_RUNWAY.x0 - 300, 1.2, RUNWAY_Z + z, '#fff3cf');
+    for (let z = -12; z <= 12; z += 3) add(VIE_RUNWAY.x0 - 900, 1.2, RUNWAY_Z + z, '#fff3cf');
+    for (let z = -9; z <= 9; z += 3) add(VIE_RUNWAY.x0 - 1500, 1.2, RUNWAY_Z + z, '#fff3cf');
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    const mat = new THREE.PointsMaterial({
-      size: 2.2,
+    this.runwayLightsMat = new THREE.PointsMaterial({
+      size: this.baseRunwayLightSize,
       map: glowTex,
       vertexColors: true,
       transparent: true,
@@ -1435,7 +1441,7 @@ export class World {
       blending: THREE.AdditiveBlending,
       toneMapped: false,
     });
-    const points = new THREE.Points(geo, mat);
+    const points = new THREE.Points(geo, this.runwayLightsMat);
     points.renderOrder = 45;
     this.root.add(points);
 
@@ -1445,11 +1451,18 @@ export class World {
     for (let i = 0; i < 4; i++) papiPos.push(VIE_RUNWAY.x0 + 300, 0.8, RUNWAY_Z - 30 - i * 9);
     papiGeo.setAttribute('position', new THREE.Float32BufferAttribute(papiPos, 3));
     papiGeo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(12).fill(1), 3));
-    const papiMat = mat.clone();
-    papiMat.size = 4.5;
-    this.papi = new THREE.Points(papiGeo, papiMat);
+    this.papiMat = this.runwayLightsMat.clone();
+    this.papiMat.size = this.basePapiSize;
+    this.papi = new THREE.Points(papiGeo, this.papiMat);
     this.papi.renderOrder = 46;
     this.root.add(this.papi);
+  }
+
+  /** Bigger camera pull-back for airliners — keep runway / PAPI lights readable. */
+  setLightScale(k: number): void {
+    const s = Math.max(1, k);
+    this.runwayLightsMat.size = this.baseRunwayLightSize * Math.sqrt(s);
+    this.papiMat.size = this.basePapiSize * Math.sqrt(s);
   }
 
   /** Updates PAPI light colours: `whites` = number of lights showing white (0..4). */

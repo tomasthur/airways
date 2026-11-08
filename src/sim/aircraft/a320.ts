@@ -35,6 +35,7 @@ export const A320 = defineAircraft({
   vneKmh: 888,
   maxTouchdownVsMs: 3.5,
   limitLoadG: 2.5,
+  speedBrake: true,
   heft: 0.68,
   visual: {
     lengthM: 37.6,

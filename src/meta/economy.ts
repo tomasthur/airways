@@ -143,6 +143,17 @@ export function formatCredits(n: number): string {
   return `${sign}€${abs.toLocaleString('en-US')}`;
 }
 
+/** Short cash for tight HUD / hub chrome (€100M, €1.2M, €850k). */
+export function formatCreditsCompact(n: number): string {
+  const sign = n < 0 ? '−' : '';
+  const abs = Math.abs(Math.round(n));
+  const trim = (s: string) => s.replace(/\.0$/, '');
+  if (abs >= 1_000_000_000) return `${sign}€${trim((abs / 1_000_000_000).toFixed(1))}B`;
+  if (abs >= 1_000_000) return `${sign}€${trim((abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1))}M`;
+  if (abs >= 10_000) return `${sign}€${Math.round(abs / 1000)}k`;
+  return formatCredits(n);
+}
+
 export function settleSuccess(
   p: Progress,
   fromIata: string,

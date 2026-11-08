@@ -22,6 +22,8 @@ export interface ControlInput {
   throttle: number;
   /** Wheel brakes 0..1. */
   brake: number;
+  /** Speed brake / spoilers hold 0..1 (ignored when the type has none). */
+  speedBrake?: number;
 }
 
 export interface Assists {
@@ -79,6 +81,10 @@ export class FlightModel {
   flapsTarget = 0;
   gear = 1;
   gearTarget = 1;
+  /** Flight spoilers 0..1 (actual position). */
+  speedBrake = 0;
+  /** Commanded spoilers 0..1. */
+  speedBrakeTarget = 0;
   onGround = true;
   /** Elevator deflection −1..1 (+ = nose up), including trim. */
   elevator = 0;
@@ -149,6 +155,8 @@ export class FlightModel {
     this.flapsTarget = 0;
     this.gear = 1;
     this.gearTarget = 1;
+    this.speedBrake = 0;
+    this.speedBrakeTarget = 0;
     this.onGround = true;
     this.elevator = 0;
     this.aileron = 0;
@@ -218,6 +226,11 @@ export class FlightModel {
     this.throttleLever = clamp(v, 0, 1);
   }
 
+  /** Hold-to-deploy speed brake; no-op on types without spoilers. */
+  setSpeedBrake(held: boolean): void {
+    this.speedBrakeTarget = this.config.speedBrake && held ? 1 : 0;
+  }
+
   update(dt: number, input: ControlInput): void {
     this.accumulator = Math.min(this.accumulator + dt, 0.25);
     while (this.accumulator >= FIXED_DT) {
@@ -236,6 +249,9 @@ export class FlightModel {
     this.flapDeg = approach(this.flapDeg, this.flapTargetDeg, C.flaps.rateDegPerS * dt);
     this.flaps = this.flapDeg / maxFlapDeg(C);
     this.gear = approach(this.gear, this.gearTarget, dt / C.gear.transitTimeS);
+    this.speedBrakeTarget = C.speedBrake && (input.speedBrake ?? 0) > 0.5 ? 1 : 0;
+    if (C.speedBrake) this.speedBrake = approach(this.speedBrake, this.speedBrakeTarget, dt / C.speedBrake.deployS);
+    else this.speedBrake = 0;
 
     const air = this.air;
     if (this.weather) this.weather.sample(this.x, this.y, this.time, air);
@@ -260,6 +276,9 @@ export class FlightModel {
     let cl: number;
     if (alpha > stallAlpha) cl = Math.max(clMax * A.postStallFloor, clMax - (alpha - stallAlpha) * A.postStallSlope);
     else cl = clBase + A.clAlpha * Math.max(alpha, A.minLinearAlpha);
+    const sb = C.speedBrake;
+    const sbPos = sb ? this.speedBrake : 0;
+    if (sb) cl += sb.dCl * sbPos;
     const ge = this.y < A.groundEffectHeightM ? 1 + A.groundEffectLiftGain * (1 - this.y / A.groundEffectHeightM) : 1;
     cl *= ge;
     this.stallMargin = (stallAlpha - alpha) / stallAlpha;
@@ -268,7 +287,7 @@ export class FlightModel {
     if (this.stalled && !wasStalled) this.wingDrop = (air.rollGust >= 0 ? 1 : -1) * (1.1 + 0.6 * Math.min(1, Math.abs(alpha - stallAlpha) * 10));
     if (!this.stalled) this.wingDrop = 0;
 
-    const cd = A.cd0 + (A.inducedK * cl * cl) / ge + f.dCd + C.gear.cd * this.gear;
+    const cd = A.cd0 + (A.inducedK * cl * cl) / ge + f.dCd + C.gear.cd * this.gear + (sb ? sb.cd * sbPos : 0);
     const qbar = 0.5 * RHO * V * V;
     const S = C.geometry.wingAreaM2;
     const lift = qbar * S * cl;

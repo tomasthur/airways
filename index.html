@@ -26,11 +26,9 @@
         </section>
 
         <section class="toolbar">
-          <span class="fps" data-ref="fps">– fps</span>
           <button type="button" data-action="quality" data-ref="quality">High</button>
           <button type="button" data-action="mute" data-ref="mute">Sound on</button>
           <button type="button" data-action="pause">Pause</button>
-          <button type="button" data-action="restart">Restart</button>
         </section>
 
         <div class="landmark" data-ref="landmark"><div class="lm-title" data-ref="lmTitle"></div><div class="lm-sub" data-ref="lmSub"></div></div>
@@ -51,8 +49,8 @@
           <span class="atc-station" data-ref="atcStation"></span>
           <span class="atc-text" data-ref="atcText"></span>
           <span class="atc-replies">
-            <button type="button" data-action="reply1" data-ref="atcReply1">Wilco <small>1</small></button>
-            <button type="button" data-action="reply2" data-ref="atcReply2">Unable <small>2</small></button>
+            <button type="button" data-action="reply1" data-ref="atcReply1">Wilco</button>
+            <button type="button" data-action="reply2" data-ref="atcReply2">Unable</button>
           </span>
         </div>
 
@@ -73,17 +71,17 @@
 
         <section class="panel instruments">
           <div class="inst">
-            <label>Airspeed</label>
+            <label>Speed</label>
             <div class="val"><b data-ref="speed">0</b><small>km/h</small></div>
             <div class="bar speed-bar"><div class="bar-fill" data-ref="speedBar"></div></div>
           </div>
           <div class="inst">
-            <label>Altitude</label>
+            <label>Alt</label>
             <div class="val"><b data-ref="alt">0</b><small>m</small></div>
             <div class="sub" data-ref="altSub">AGL</div>
           </div>
           <div class="inst">
-            <label>Vertical speed</label>
+            <label>VS</label>
             <div class="val"><b data-ref="vs">0.0</b><small>m/s</small></div>
             <div class="vsi"><div class="vsi-needle" data-ref="vsNeedle"></div></div>
           </div>
@@ -97,25 +95,25 @@
             <div class="val"><b data-ref="cht">0</b><small>%</small></div>
             <div class="bar cht-bar"><div class="bar-fill cht" data-ref="chtBar"></div></div>
           </div>
-          <div class="inst state">
-            <label>Flaps</label>
-            <div class="state-val" data-ref="flaps">UP</div>
-            <div class="sub">F / V</div>
-          </div>
-          <div class="inst state">
-            <label>Gear</label>
-            <div class="state-val" data-ref="gear">DOWN</div>
-            <div class="sub">G</div>
-          </div>
         </section>
 
         <section class="controls" aria-label="On-screen flight controls">
           <div class="ctl-group config">
             <span class="ctl-label">Config</span>
+            <div class="cfg-readouts" aria-label="Flaps and gear">
+              <div class="cfg-read">
+                <label>Flaps</label>
+                <div class="state-val" data-ref="flaps">UP</div>
+              </div>
+              <div class="cfg-read">
+                <label>Gear</label>
+                <div class="state-val" data-ref="gear">DOWN</div>
+              </div>
+            </div>
             <div class="ctl-grid">
-              <button type="button" class="ctl wide" data-action="flapsDown">Flaps ▼<small>F</small></button>
-              <button type="button" class="ctl wide" data-action="flapsUp">Flaps ▲<small>V</small></button>
-              <button type="button" class="ctl wide" data-action="gear">Gear<small>G</small></button>
+              <button type="button" class="ctl wide" data-action="flapsDown">Flaps ▼</button>
+              <button type="button" class="ctl wide" data-action="flapsUp">Flaps ▲</button>
+              <button type="button" class="ctl wide" data-action="gear">Gear</button>
             </div>
           </div>
           <div class="ctl-group">
@@ -138,11 +136,14 @@
             <div class="throttle-knob" data-ref="throttleKnob"></div>
           </div>
           <span class="throttle-val" data-ref="throttleVal">0%</span>
-          <span class="ctl-key">⇧ / X</span>
-          <button type="button" class="brake-pedal" data-hold="brake" data-ref="brakePedal" aria-label="Wheel brakes">
-            Brake
-            <small>hold B</small>
-          </button>
+          <div class="throttle-pedals">
+            <button type="button" class="brake-pedal" data-hold="brake" data-ref="brakePedal" aria-label="Wheel brakes">
+              Brake
+            </button>
+            <button type="button" class="brake-pedal speed-brake is-hidden" data-hold="speedBrake" data-ref="speedBrakePedal" aria-label="Speed brake">
+              Spd brk
+            </button>
+          </div>
         </section>
       </div>
 
@@ -215,7 +216,6 @@
             </button>
             <button type="button" class="hub-fly" data-hub="fly">
               <span data-hub="flyLabel">Fly to Vienna</span>
-              <small>Enter</small>
             </button>
           </div>
         </div>
@@ -241,8 +241,8 @@
         <div class="card small">
           <h2>Paused</h2>
           <div class="row">
-            <button type="button" class="primary" data-action="pause">Resume <small>P</small></button>
-            <button type="button" data-action="restart">Restart <small>R</small></button>
+            <button type="button" class="primary" data-action="pause">Resume</button>
+            <button type="button" data-action="restart">Restart</button>
           </div>
         </div>
       </div>
@@ -259,7 +259,7 @@
           <table class="items" data-ref="reportItems"></table>
           <div class="report-money is-hidden" data-ref="reportMoney"></div>
           <div class="stats" data-ref="reportStats"></div>
-          <button type="button" class="primary" data-action="restart" data-ref="reportButton">Back to map <small>R</small></button>
+          <button type="button" class="primary" data-action="restart" data-ref="reportButton">Back to map</button>
         </div>
       </div>
     </div>

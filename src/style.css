@@ -109,12 +109,28 @@ button {
 }
 
 /* ---------- HUD ---------- */
+/* Zone layout (mobile-first): left rail = throttle, bottom centre = gauges,
+   right rail = config/yoke. Nothing absolute-stacks on top of another zone. */
 .hud {
+  --pad-t: max(10px, env(safe-area-inset-top));
+  --pad-r: max(10px, env(safe-area-inset-right));
+  --pad-b: max(10px, env(safe-area-inset-bottom));
+  --pad-l: max(10px, env(safe-area-inset-left));
+  /* Right rail = config column + gap + yoke. Keep this >= real child width. */
+  --rail-l: 128px;
+  --rail-r: 216px; /* cfg-w + 8 + yoke-w */
+  --bar-b: 80px;
+  --gap: 10px;
+  --top-h: 64px;
+  --cfg-w: 78px;
+  --yoke-w: 118px;
+  /* Clearance above bottom controls (config + readouts + buttons). */
+  --ctl-stack: 196px;
   position: absolute;
   inset: 0;
   pointer-events: none;
-  padding: max(14px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom))
-    max(16px, env(safe-area-inset-left));
+  padding: 0;
+  overflow: hidden;
 }
 
 .hud button {
@@ -123,20 +139,27 @@ button {
 
 .mission {
   position: absolute;
-  top: 14px;
-  left: 16px;
-  width: min(360px, 46vw);
-  padding: 10px 14px 9px;
+  top: var(--pad-t);
+  left: calc(var(--pad-l) + var(--rail-l) + var(--gap));
+  right: calc(var(--pad-r) + 168px);
+  width: auto;
+  max-width: 420px;
+  padding: 8px 12px 7px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .route {
   display: flex;
   align-items: baseline;
-  gap: 7px;
-  font-size: 12px;
-  letter-spacing: 0.14em;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
   font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .route .code {
@@ -152,6 +175,9 @@ button {
 
 .route .city {
   color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .track {
@@ -220,42 +246,45 @@ button {
 .mission-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  gap: 8px;
+  font-size: 11px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+
+.mission-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .toolbar {
   position: absolute;
-  top: 14px;
-  right: 16px;
+  top: var(--pad-t);
+  right: var(--pad-r);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  z-index: 4;
 }
 
 .toolbar button {
   background: var(--glass);
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 6px 12px;
+  padding: 6px 11px;
   font-size: 12px;
   letter-spacing: 0.04em;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   transition: background 0.15s;
+  white-space: nowrap;
 }
 
 .toolbar button:hover {
   background: var(--glass-strong);
-}
-
-.fps {
-  font-size: 11px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  margin-right: 4px;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 .landmark {
@@ -289,11 +318,15 @@ button {
 
 .warnings {
   position: absolute;
-  top: 92px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: calc(var(--pad-t) + var(--top-h) + 4px);
+  left: calc(var(--pad-l) + var(--rail-l) + var(--gap));
+  right: calc(var(--pad-r) + var(--rail-r) + var(--gap));
   display: flex;
-  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .warn {
@@ -325,30 +358,37 @@ button {
 
 .hint {
   position: absolute;
-  left: 50%;
-  bottom: 132px;
-  transform: translateX(-50%);
-  max-width: min(640px, 90vw);
-  padding: 7px 16px;
-  font-size: 14px;
+  left: calc(var(--pad-l) + var(--rail-l) + var(--gap));
+  right: calc(var(--pad-r) + var(--rail-r) + var(--gap));
+  bottom: calc(var(--pad-b) + var(--bar-b) + var(--gap));
+  width: auto;
+  max-width: none;
+  margin: 0 auto;
+  padding: 7px 14px;
+  font-size: 13px;
   text-align: center;
   border-radius: 999px;
-  background: rgba(10, 20, 32, 0.38);
+  background: rgba(10, 20, 32, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   transition: opacity 0.4s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  z-index: 2;
 }
 
 .hint:empty {
   opacity: 0;
+  pointer-events: none;
 }
 
 .papi {
   position: absolute;
-  right: 16px;
-  top: 64px;
-  padding: 9px 12px;
+  right: var(--pad-r);
+  top: calc(var(--pad-t) + var(--top-h));
+  padding: 8px 10px;
   text-align: center;
 }
 
@@ -380,48 +420,59 @@ button {
 
 .instruments {
   position: absolute;
-  left: 16px;
-  bottom: 14px;
+  left: calc(var(--pad-l) + var(--rail-l) + var(--gap));
+  right: calc(var(--pad-r) + var(--rail-r) + var(--gap));
+  bottom: var(--pad-b);
+  height: var(--bar-b);
   display: flex;
-  gap: 2px;
-  padding: 8px 6px;
+  align-items: stretch;
+  gap: 0;
+  padding: 6px 4px;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  z-index: 1;
 }
 
 .inst {
-  min-width: 96px;
-  padding: 2px 12px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 2px 8px;
   border-right: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
 }
 
 .inst:last-child {
   border-right: 0;
 }
 
-.inst.state {
-  min-width: 74px;
-}
-
 .inst label {
   display: block;
-  font-size: 10px;
-  letter-spacing: 0.16em;
+  font-size: 9px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .val {
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  gap: 3px;
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .val b {
-  font-size: 26px;
+  font-size: clamp(16px, 2.6vw, 24px);
   font-weight: 600;
   letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .val small {
@@ -521,10 +572,13 @@ button {
 }
 
 .state-val {
-  margin-top: 6px;
-  font-size: 15px;
+  margin-top: 4px;
+  font-size: clamp(12px, 1.8vw, 15px);
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .state-val.on {
@@ -538,20 +592,24 @@ button {
 /* ---------- ATC radio ---------- */
 .atc {
   position: absolute;
-  top: 56px;
-  right: max(16px, env(safe-area-inset-right));
-  width: min(390px, 44vw);
+  top: calc(var(--pad-t) + var(--top-h));
+  left: calc(var(--pad-l) + var(--rail-l) + var(--gap));
+  right: calc(var(--pad-r) + min(280px, 42vw) + var(--gap));
+  width: auto;
+  max-width: 420px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 10px;
-  padding: 8px 14px;
+  padding: 8px 12px;
   border-radius: 14px;
   background: rgba(10, 20, 32, 0.6);
   border: 1px solid rgba(111, 182, 255, 0.45);
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.35;
   pointer-events: auto;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .atc-station {
@@ -563,7 +621,9 @@ button {
 }
 
 .atc-text {
-  flex: 1 1 260px;
+  flex: 1 1 160px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .atc-replies {
@@ -589,38 +649,59 @@ button {
 /* ---------- pre-flight checklist ---------- */
 .checklist {
   position: absolute;
-  right: max(16px, env(safe-area-inset-right));
-  top: 58px;
-  width: 286px;
+  right: var(--pad-r);
+  top: calc(var(--pad-t) + var(--top-h));
+  width: min(280px, 42vw);
+  max-height: calc(100% - var(--pad-t) - var(--top-h) - var(--pad-b) - var(--ctl-stack) - var(--gap));
   padding: 8px 10px;
   font-size: 12px;
   pointer-events: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+  z-index: 2;
 }
 
 .cl-head {
   display: flex;
   justify-content: space-between;
+  gap: 8px;
   margin-bottom: 4px;
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--accent);
+  min-width: 0;
 }
 
 .cl-load {
   color: var(--muted);
   letter-spacing: 0.04em;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 55%;
 }
 
 .cl-row {
   display: grid;
-  grid-template-columns: 14px 1fr auto auto;
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 6px;
-  min-height: 27px;
+  min-height: 26px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 0;
+}
+
+.cl-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .cl-row i {
@@ -643,6 +724,7 @@ button {
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .cl-row button {
@@ -652,6 +734,8 @@ button {
   background: rgba(255, 255, 255, 0.12);
   font-size: 11px;
   font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .cl-row button:disabled {
@@ -663,30 +747,74 @@ button {
   border-color: var(--accent);
 }
 
-@media (max-height: 480px) {
-  .checklist {
-    transform: scale(0.86);
-    transform-origin: right top;
-  }
-  .atc {
-    font-size: 12px;
-  }
-}
-
 /* ---------- on-screen controls ---------- */
 .controls {
   position: absolute;
-  right: 16px;
-  bottom: 14px;
+  right: var(--pad-r);
+  bottom: var(--pad-b);
+  width: var(--rail-r);
+  max-width: var(--rail-r);
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: flex-end;
+  box-sizing: border-box;
+  z-index: 3;
 }
 
 .ctl-group {
   display: grid;
-  grid-template-columns: auto;
-  gap: 5px;
-  justify-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  justify-items: stretch;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.ctl-group.config {
+  width: var(--cfg-w);
+  flex: 0 0 var(--cfg-w);
+}
+
+.cfg-readouts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3px;
+  width: 100%;
+}
+
+.cfg-read {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+  padding: 3px 5px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 16, 24, 0.55);
+}
+
+.cfg-read label {
+  flex: 0 0 auto;
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.cfg-read .state-val {
+  margin-top: 0;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.15;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ctl-label {
@@ -713,18 +841,15 @@ button {
 }
 
 .ctl.wide {
-  width: 64px;
-  font-size: 13px;
+  width: 100%;
+  height: 36px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-}
-
-.ctl small {
-  position: absolute;
-  right: 6px;
-  bottom: 3px;
-  font-size: 9px;
-  color: var(--muted);
+  letter-spacing: 0.02em;
+  padding: 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ctl.active,
@@ -738,26 +863,25 @@ button {
   box-shadow: inset 0 0 0 1px rgba(99, 230, 161, 0.35);
 }
 
+/* One column: flaps / flaps / gear stack beside the yoke, never over the gauges. */
 .ctl-grid {
   display: grid;
-  grid-template-columns: repeat(2, auto);
-  gap: 5px;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  width: 100%;
 }
 
 .ctl-grid .ctl.wide {
-  width: 72px;
-  font-size: 12px;
-}
-
-.controls {
-  align-items: flex-end;
+  width: 100%;
+  min-width: 0;
 }
 
 /* Yoke: drag inside the pad; the wheel follows (rotate = bank, move = pitch). */
 .yoke {
   position: relative;
-  width: 136px;
-  height: 118px;
+  flex: 0 0 var(--yoke-w);
+  width: var(--yoke-w);
+  height: var(--yoke-w);
   border-radius: 18px;
   border: 1px solid var(--line);
   background: var(--glass);
@@ -783,22 +907,37 @@ button {
   transition: transform 0.05s linear;
 }
 
-/* Throttle: vertical lever, full power at the top. */
+/* Throttle column = left rail. Pedals sit in the bottom bar height; lever fills the rest. */
 .throttle {
   position: absolute;
-  left: max(16px, env(safe-area-inset-left));
-  bottom: 112px;
-  display: grid;
-  justify-items: center;
-  gap: 5px;
+  left: var(--pad-l);
+  bottom: var(--pad-b);
+  /* Leave headroom under the top edge; lever stays large without owning the whole screen. */
+  top: max(72px, calc(var(--pad-t) + 56px));
+  width: var(--rail-l);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
   pointer-events: none;
+  z-index: 3;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.throttle > .ctl-label {
+  display: none;
 }
 
 .throttle-track {
   position: relative;
-  width: 46px;
-  height: clamp(96px, 30vh, 176px);
-  border-radius: 12px;
+  flex: 1 1 auto;
+  width: 58px;
+  min-height: 120px;
+  max-height: none;
+  height: auto;
+  border-radius: 14px;
   border: 1px solid var(--line);
   background: var(--glass);
   backdrop-filter: blur(8px);
@@ -811,9 +950,9 @@ button {
   position: absolute;
   left: 50%;
   bottom: 0;
-  width: 4px;
+  width: 5px;
   height: 0;
-  margin-left: -2px;
+  margin-left: -2.5px;
   border-radius: 2px;
   background: linear-gradient(0deg, var(--blue), var(--accent));
 }
@@ -822,10 +961,10 @@ button {
   position: absolute;
   left: 50%;
   bottom: 0;
-  width: 38px;
-  height: 22px;
-  margin: 0 0 -11px -19px;
-  border-radius: 8px;
+  width: 48px;
+  height: 28px;
+  margin: 0 0 -14px -24px;
+  border-radius: 10px;
   background: linear-gradient(180deg, #3b4148, #15191d);
   border: 1px solid rgba(255, 255, 255, 0.35);
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
@@ -836,25 +975,39 @@ button {
 }
 
 .throttle-val {
-  font-size: 13px;
+  flex: 0 0 auto;
+  font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  line-height: 1;
+  padding-bottom: 2px;
 }
 
-.ctl-key {
-  font-size: 9px;
-  color: var(--muted);
-  letter-spacing: 0.1em;
+/* Pedals share the bottom band with the instrument strip — never overlap it. */
+.throttle-pedals {
+  flex: 0 0 var(--bar-b);
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 6px 2px 2px;
+  pointer-events: none;
 }
 
-/* Large hold-to-brake pedal next to the throttle – visible on phones. */
 .brake-pedal {
   pointer-events: auto;
-  width: 64px;
-  min-height: 52px;
-  margin-top: 4px;
-  padding: 8px 6px 6px;
+  flex: 1 1 0;
+  width: auto;
+  max-width: 58px;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  padding: 4px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.32);
   background: rgba(18, 26, 36, 0.72);
@@ -862,22 +1015,25 @@ button {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #fff;
   touch-action: none;
   user-select: none;
 }
 
-.brake-pedal small {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: none;
-  color: var(--muted);
+.brake-pedal.is-hidden {
+  display: none;
+}
+
+.brake-pedal.speed-brake.lit,
+.brake-pedal.speed-brake.active,
+.brake-pedal.speed-brake:active {
+  background: rgba(79, 160, 255, 0.5);
+  border-color: rgba(140, 200, 255, 0.9);
+  box-shadow: 0 0 14px rgba(79, 160, 255, 0.35);
 }
 
 .brake-pedal.active,
@@ -886,14 +1042,6 @@ button {
   background: rgba(255, 90, 79, 0.55);
   border-color: rgba(255, 140, 120, 0.9);
   box-shadow: 0 0 14px rgba(255, 90, 79, 0.35);
-}
-
-@media (max-height: 480px) {
-  .brake-pedal {
-    width: 58px;
-    min-height: 46px;
-    font-size: 11px;
-  }
 }
 
 /* ---------- overlays ---------- */
@@ -934,22 +1082,27 @@ button {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
   pointer-events: none;
 }
 
 .hub-brand {
   min-width: 0;
   flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .hub-wordmark {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(34px, 7.5vw, 56px);
+  font-size: clamp(28px, 6vw, 52px);
   letter-spacing: 0.04em;
-  line-height: 0.95;
+  line-height: 1;
   color: #fff;
   text-shadow: 0 8px 40px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hub-tag {
@@ -959,6 +1112,9 @@ button {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: rgba(230, 238, 245, 0.55);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hub-stats {
@@ -969,6 +1125,7 @@ button {
   gap: 6px;
   flex: 0 1 auto;
   max-width: min(100%, 420px);
+  min-width: 0;
   pointer-events: auto;
 }
 
@@ -1486,15 +1643,6 @@ button {
   animation: hubCta 2.8s ease-in-out infinite;
 }
 
-.hub-fly small {
-  font-family: var(--font);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  opacity: 0.55;
-}
-
 @keyframes hubCta {
   0%, 100% { transform: translateY(0); box-shadow: 0 10px 28px rgba(240, 180, 41, 0.35); }
   50% { transform: translateY(-1px); box-shadow: 0 14px 34px rgba(240, 180, 41, 0.45); }
@@ -1696,23 +1844,61 @@ button {
   transform: translateX(-50%) translateY(0);
 }
 
-@media (max-height: 480px) {
-  .hub {
-    padding-top: max(8px, env(safe-area-inset-top));
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
+/* Phone landscape / short viewports: brand and stats must not share one crowded row. */
+@media (max-height: 520px), (max-width: 900px) {
+  .hub-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .hub-brand {
+    flex: 0 0 auto;
   }
   .hub-wordmark {
-    font-size: clamp(26px, 6.5vw, 36px);
+    font-size: clamp(22px, 5vw, 34px);
   }
   .hub-tag {
-    font-size: 9px;
+    display: none;
+  }
+  .hub-stats {
+    width: 100%;
+    max-width: none;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 5px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .hub-stats::-webkit-scrollbar {
+    display: none;
   }
   .hub-stat {
-    min-width: 46px;
+    flex: 0 0 auto;
+    min-width: 48px;
     padding: 5px 7px;
   }
   .hub-stat span {
     font-size: 14px;
+  }
+  .hub-stat--cash span {
+    font-size: 13px;
+  }
+  .hub-hangar-btn {
+    margin-left: auto;
+    align-self: stretch;
+  }
+}
+
+@media (max-height: 480px) {
+  .hub {
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  .hub-map {
+    min-height: 0;
+    margin-inline: 4px;
+    border-radius: 14px;
   }
   .hub-dock {
     grid-template-columns: auto 1fr auto;
@@ -1988,60 +2174,85 @@ kbd {
   margin-bottom: 18px;
 }
 
-@media (max-width: 900px) {
-  .inst {
-    min-width: 70px;
-    padding: 2px 7px;
+/* Compact phones / landscape: rails stay sized to real controls. */
+@media (max-height: 480px) {
+  .hud {
+    --rail-l: 120px;
+    --cfg-w: 76px;
+    --yoke-w: 108px;
+    --rail-r: 200px; /* cfg + gap + yoke */
+    --bar-b: 72px;
+    --ctl-stack: 156px;
+    --top-h: 52px;
+    --gap: 6px;
   }
-  .val b {
-    font-size: 20px;
+  .throttle > .ctl-label {
+    display: none;
+  }
+  .throttle-track {
+    width: 56px;
+    min-height: 110px;
+  }
+  .throttle-knob {
+    width: 50px;
+    height: 28px;
+    margin: 0 0 -14px -25px;
+  }
+  .yoke {
+    height: 100px;
+  }
+  .yoke-wheel {
+    width: 96px;
+    height: 68px;
+  }
+  .ctl.wide {
+    height: 32px;
+    font-size: 10px;
+  }
+  .cfg-read .state-val {
+    font-size: 10px;
+  }
+  .checklist {
+    width: min(250px, 38vw);
+    font-size: 11px;
   }
   .hint {
-    bottom: 120px;
+    font-size: 12px;
+    padding: 5px 12px;
+  }
+  .atc {
     font-size: 12px;
   }
-  .atc {
-    width: min(360px, 46vw);
+}
+
+@media (max-width: 700px) and (min-height: 520px) {
+  /* Tall portrait phones: keep zone model, slightly taller gauges. */
+  .hud {
+    --rail-l: 118px;
+    --cfg-w: 72px;
+    --yoke-w: 118px;
+    --rail-r: 210px;
+    --bar-b: 92px;
   }
+  .toolbar {
+    top: var(--pad-t);
+    right: var(--pad-r);
+    left: auto;
+    flex-wrap: wrap;
+    max-width: 46vw;
+    justify-content: flex-end;
+  }
+  .checklist {
+    width: min(260px, 48vw);
+  }
+}
+
+@media (max-width: 900px) {
   .toolbar button {
     padding: 5px 9px;
+    font-size: 11px;
   }
-}
-
-@media (max-width: 760px) {
-  .toolbar {
-    top: 112px;
-    left: 16px;
-    right: auto;
-    flex-wrap: wrap;
-  }
-  .landmark {
-    top: 28%;
-  }
-  .instruments {
-    bottom: 150px;
-  }
-  .hint {
-    bottom: 230px;
-  }
-  .atc {
-    top: 196px;
-    left: 16px;
-    right: 16px;
-    width: auto;
-  }
-}
-
-@media (max-width: 700px), (max-height: 480px) {
-  .instruments {
-    transform: scale(0.82);
-    transform-origin: left bottom;
-  }
-  .controls {
-    transform: scale(0.9);
-    transform-origin: right bottom;
-  }
-  .inst label {
-    font-size: 8px;
+  .val b {
+    font-size: clamp(15px, 2.4vw, 20px);
   }
 }
