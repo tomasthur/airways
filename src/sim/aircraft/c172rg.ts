@@ -87,7 +87,7 @@ export const C172RG: AircraftConfig = {
     maxPowerW: 108000,
     staticThrustN: 3400,
     spoolTimeS: 0.6,
-    startTimeS: 2.5,
+    startTimeS: 3.2,
     leverRatePerS: 0.45,
   },
 

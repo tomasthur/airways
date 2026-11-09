@@ -85,6 +85,7 @@ export class Game {
   private passengerCount = 1;
   private belts = false;
   private boardingStarted = false;
+  private lastDoorClosed = true;
   /** Random day / night departure for this flight. */
   private nightFlight = false;
   private takeoffFlapsAtLiftoff = -1;
@@ -319,6 +320,7 @@ export class Game {
   }
 
   private reset(): void {
+    this.sound.setFlapsMoving(false);
     const seed = (Math.random() * 2 ** 31) | 0;
     this.nightFlight = (seed >>> 8) % 100 < 42;
     this.weather = new Weather({ seed });
@@ -343,6 +345,7 @@ export class Game {
     this.plane.lightsOn = false;
     this.belts = false;
     this.boardingStarted = false;
+    this.lastDoorClosed = true;
     this.passengers.clear();
     this.trails.reset();
     this.takeoffFlapsAtLiftoff = -1;
@@ -404,7 +407,10 @@ export class Game {
         else if (a === 'flapsDown') fm.flapsDown();
         else fm.flapsUp();
         if (fm.flapIndex === before) this.flash(a === 'flapsDown' ? 'Flaps are fully down' : 'Flaps are already up');
-        else this.flash(fm.flapIndex === 0 ? 'Flaps retracting' : `Flaps ${fm.flapTargetDeg}°`);
+        else {
+          this.sound.flapSelect();
+          this.flash(fm.flapIndex === 0 ? 'Flaps retracting' : `Flaps ${fm.flapTargetDeg}°`);
+        }
         break;
       }
       case 'gear':
@@ -414,6 +420,7 @@ export class Game {
         break;
       case 'flapsTakeoff':
         if (this.state !== 'flying') break;
+        if (this.fm.flapIndex !== 1) this.sound.flapSelect();
         this.fm.setFlapIndex(1);
         this.flash(`Flaps ${this.takeoffFlapDeg}° for take-off`);
         break;
@@ -452,10 +459,12 @@ export class Game {
         return;
       }
       p.doorOpen = false;
+      this.sound.doorClose();
       this.flash('Cabin door closed and locked');
       return;
     }
     p.doorOpen = true;
+    this.sound.doorOpen();
     if (!this.boardingStarted) {
       this.boardingStarted = true;
       const door = p.doorSill(this.tmpV);
@@ -1012,9 +1021,12 @@ export class Game {
 
     if (this.state === 'flying') {
       const e = fm.engine;
-      const crank = fm.config.propulsion === 'piston' ? 0.4 + 0.6 * Math.abs(Math.sin(this.time * 9)) : 0.15 + 0.85 * e.startProgress;
-      const level = e.state === 'running' ? 1 : e.state === 'starting' ? crank : 0;
+      const level = e.state === 'running' ? 1 : e.state === 'starting' ? e.startProgress : 0;
       this.sound.update(fm.throttle, V, level, fm.air.rain);
+      this.sound.setFlapsMoving(Math.abs(fm.flapDeg - fm.flapTargetDeg) > 0.35);
+      const closed = this.plane.doorFullyClosed;
+      if (closed && !this.lastDoorClosed) this.sound.doorLatch();
+      this.lastDoorClosed = closed;
     }
 
     this.hudTimer -= dt;
