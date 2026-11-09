@@ -126,7 +126,7 @@ button {
   --cfg-w: 78px;
   --yoke-w: 118px;
   /* Clearance above bottom controls (config + readouts + buttons). */
-  --ctl-stack: 196px;
+  --ctl-stack: 236px;
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -658,6 +658,180 @@ button {
   font-size: 9px;
 }
 
+/* ---------- cabin call (meal service / engine out) ---------- */
+.cabin {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 12px;
+  border-radius: 16px;
+  background: rgba(28, 22, 12, 0.78);
+  border: 1px solid rgba(255, 195, 92, 0.6);
+  font-size: 13px;
+  line-height: 1.35;
+  pointer-events: auto;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.cabin.urgent {
+  background: rgba(48, 10, 10, 0.86);
+  border-color: rgba(255, 110, 80, 0.85);
+  box-shadow: 0 0 22px rgba(255, 70, 50, 0.28);
+}
+
+.cabin-icon {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: rgba(255, 195, 92, 0.16);
+}
+
+.cabin-icon svg {
+  width: 32px;
+  height: 32px;
+  display: none;
+}
+
+.cabin.kind-meal .ico-meal,
+.cabin.kind-engine .ico-engine {
+  display: block;
+}
+
+.cabin.kind-meal .cabin-icon {
+  animation: cabinPulse 1.35s ease-in-out infinite;
+  box-shadow: 0 0 16px rgba(255, 195, 92, 0.4);
+}
+
+.cabin.kind-engine .cabin-icon {
+  color: #ff8a70;
+  background: rgba(255, 80, 60, 0.22);
+  animation: cabinPulseUrgent 0.7s ease-in-out infinite;
+  box-shadow: 0 0 18px rgba(255, 70, 50, 0.5);
+}
+
+.cabin-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cabin-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.cabin.urgent .cabin-tag {
+  color: #ff8a70;
+}
+
+.cabin-text {
+  min-width: 0;
+}
+
+.cabin button {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 195, 92, 0.32);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cabin.urgent button {
+  background: rgba(255, 90, 70, 0.42);
+  border-color: rgba(255, 180, 160, 0.55);
+}
+
+.cabin-timer-track {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.cabin.kind-meal .cabin-timer-track {
+  display: block;
+}
+
+.cabin-timer-track i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--accent);
+}
+
+@keyframes cabinPulse {
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 0 22px rgba(255, 195, 92, 0.65);
+  }
+}
+
+@keyframes cabinPulseUrgent {
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 24px rgba(255, 70, 50, 0.8);
+  }
+}
+
+/* ---------- FASTEN SEATBELTS cabin sign ---------- */
+.belt-sign {
+  position: absolute;
+  top: 26%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 18px 10px;
+  min-width: 128px;
+  border-radius: 16px;
+  background: rgba(10, 14, 20, 0.82);
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35), 0 0 24px rgba(255, 195, 92, 0.28);
+}
+
+.belt-sign svg {
+  width: 52px;
+  height: 52px;
+}
+
+.belt-sign b {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.belt-sign.off {
+  color: rgba(210, 220, 230, 0.9);
+  border-color: rgba(180, 200, 210, 0.5);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3);
+}
+
 /* ---------- pre-flight checklist ---------- */
 .checklist {
   position: absolute;
@@ -886,6 +1060,25 @@ button {
 .ctl-grid .ctl.wide {
   width: 100%;
   min-width: 0;
+}
+
+.ctl[data-action="belts"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.ctl[data-action="belts"] .belt-ico {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.ctl[data-action="belts"].lit .belt-ico {
+  color: var(--good);
 }
 
 /* Yoke: drag inside the pad; the wheel follows (rotate = bank, move = pitch). */
@@ -2194,7 +2387,7 @@ kbd {
     --yoke-w: 108px;
     --rail-r: 200px; /* cfg + gap + yoke */
     --bar-b: 72px;
-    --ctl-stack: 156px;
+    --ctl-stack: 192px;
     --top-h: 72px;
     --gap: 6px;
   }
@@ -2241,8 +2434,30 @@ kbd {
     font-size: 12px;
     padding: 5px 12px;
   }
-  .atc {
+  .atc,
+  .cabin {
     font-size: 12px;
+  }
+  .cabin-icon {
+    flex-basis: 40px;
+    width: 40px;
+    height: 40px;
+  }
+  .cabin-icon svg {
+    width: 26px;
+    height: 26px;
+  }
+  .belt-sign {
+    top: 22%;
+    padding: 8px 14px 8px;
+    min-width: 108px;
+  }
+  .belt-sign svg {
+    width: 40px;
+    height: 40px;
+  }
+  .belt-sign b {
+    font-size: 10px;
   }
 }
 

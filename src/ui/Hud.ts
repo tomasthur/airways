@@ -34,7 +34,18 @@ export interface ChecklistView {
   next: keyof ChecklistView['done'] | null;
 }
 
-export type WarningKey = 'stall' | 'overspeed' | 'gear' | 'sink' | 'flaps' | 'terrain' | 'cht';
+export type WarningKey = 'stall' | 'overspeed' | 'gear' | 'sink' | 'flaps' | 'terrain' | 'cht' | 'engine';
+
+export interface CabinCallView {
+  kind: 'meal' | 'engine';
+  tag: string;
+  text: string;
+  /** Show the in-flight Relight button. */
+  start: boolean;
+  urgent?: boolean;
+  /** Meal-service time remaining, 0..1. */
+  timer?: number;
+}
 
 /** DOM HUD. Writes to the DOM only when values change. */
 export class Hud {
@@ -281,6 +292,34 @@ export class Hud {
   setControlLit(action: 'flapsDown' | 'gear', lit: boolean): void {
     const btn = this.root.querySelector<HTMLElement>(`.ctl[data-action="${action}"]`);
     if (btn) this.cls(btn, `ctl.${action}`, `ctl wide${lit ? ' lit' : ''}`);
+  }
+
+  /** In-flight seatbelt sign, shown once the pre-flight checklist is gone. */
+  setFlightBelts(show: boolean, on: boolean): void {
+    const btn = this.ref('beltsBtn');
+    this.cls(btn, 'beltsBtn', `ctl wide${show ? '' : ' is-hidden'}${on ? ' lit' : ''}`);
+    this.text('beltsBtnLabel', on ? 'ON' : 'OFF');
+  }
+
+  /** Overhead FASTEN SEATBELTS plaque; null hides it. */
+  setBeltSign(mode: 'on' | 'off' | null): void {
+    const el = this.ref('beltSign');
+    this.cls(el, 'beltSign', `belt-sign${mode ? ` ${mode}` : ' is-hidden'}`);
+    if (mode) this.text('beltSignText', mode === 'on' ? 'FASTEN SEATBELTS' : 'SEATBELTS OFF');
+  }
+
+  setCabin(view: CabinCallView | null): void {
+    const panel = this.ref('cabin');
+    this.cls(
+      panel,
+      'cabinCls',
+      `cabin${view ? '' : ' is-hidden'}${view ? ` kind-${view.kind}` : ''}${view?.urgent ? ' urgent' : ''}`,
+    );
+    if (!view) return;
+    this.text('cabinTag', view.tag);
+    this.text('cabinText', view.text);
+    this.cls(this.ref('cabinStart'), 'cabinStart', view.start ? '' : 'is-hidden');
+    if (view.timer != null) this.style('cabinTimer', 'width', `${Math.max(0, Math.min(1, view.timer)) * 100}%`);
   }
 
   showReport(r: LandingReport, stats: string, money = ''): void {

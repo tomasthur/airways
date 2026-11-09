@@ -48,16 +48,26 @@ export class Engine {
     this.chtHotTime = 0;
   }
 
-  /** Returns false when the engine is not off. */
-  start(): boolean {
+  /**
+   * Begin the start sequence. In-flight relight skips most of a long spool so a jet
+   * comes back within a few seconds instead of a full cold start.
+   */
+  start(inFlight = false): boolean {
     if (this.state !== 'off') return false;
     this.state = 'starting';
-    this.startTimer = 0;
+    this.startTimer = inFlight ? Math.max(0, this.config.engine.startTimeS - 4.5) : 0;
     return true;
   }
 
   stop(): void {
     this.state = 'off';
+  }
+
+  /** Sudden cutoff — leftover power winds down instead of dropping to idle first. */
+  fail(): void {
+    this.state = 'off';
+    this.power *= 0.12;
+    this.startTimer = 0;
   }
 
   /** 0..1 progress of the start sequence (1 once running). */

@@ -292,6 +292,34 @@ export class EngineSound {
     this.click(t + 0.055, 0.07, 3100);
   }
 
+  /**
+   * Airbus CIDS passenger-sign chime: two bright descending bells
+   * (the cabin “ding-dong” when the seatbelt sign goes on or off).
+   */
+  seatbeltChime(): void {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.bell(t, 2093, 0.2, 0.16);
+    this.bell(t, 4186, 0.04, 0.1);
+    this.bell(t + 0.15, 1568, 0.18, 0.22);
+    this.bell(t + 0.15, 784, 0.05, 0.2);
+  }
+
+  private bell(at: number, hz: number, gain: number, dur: number): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = hz;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(gain, at + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+    osc.connect(g).connect(this.master);
+    osc.start(at);
+    osc.stop(at + dur + 0.03);
+  }
+
   private clunk(gain: number, hz: number): void {
     if (!this.ctx) return;
     const ctx = this.ctx;

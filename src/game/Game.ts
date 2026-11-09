@@ -3,7 +3,7 @@ import { EngineSound } from '../audio/EngineSound';
 import { GLIDE_SLOPE_DEG, START_X } from '../config';
 import { airportByIata } from '../meta/airports';
 import { distanceKm, formatCredits, isWithinRange, settleCrash, settleSuccess } from '../meta/economy';
-import { aimPointX, remapCorridorX } from '../meta/flightLength';
+import { aimPointX, remapCorridorX, targetFlightSec } from '../meta/flightLength';
 import { loadProgress, recordCrash } from '../meta/progress';
 import { DEFAULT_ROUTE, getRoute, layoutRoute, type FlightRoute } from '../meta/routes';
 import type { AircraftModel } from '../render/Airplane';
@@ -90,6 +90,22 @@ export class Game {
   private nightFlight = false;
   private takeoffFlapsAtLiftoff = -1;
   private stormEncounter: 'none' | 'light' | 'moderate' | 'severe' = 'none';
+  /** Corridor x positions where a cruise meal service may start. */
+  private mealAt: number[] = [];
+  private meal: { left: number; rough: number } | null = null;
+  private mealResults: { ok: boolean; rough: number }[] = [];
+  /** Corridor x of a one-shot cruise engine failure; 0 = none this hop. */
+  private engineFailX = 0;
+  private engineFailed = false;
+  private engineRelit = false;
+  /** Seconds of cruise with the seatbelt sign off / still on. */
+  private beltCruiseOffS = 0;
+  private beltCruiseOnS = 0;
+  private beltDescentOffS = 0;
+  private beltWxOffS = 0;
+  private beltHintCruise = false;
+  private beltHintDescent = false;
+  private beltWxHintCool = 0;
   private atcTimer = 0;
   private routeStormTimer = 0;
   private quality: Quality;
@@ -118,6 +134,8 @@ export class Game {
   private flashText = '';
   private flashTimer = 0;
   private hudTimer = 0;
+  private beltSign: 'on' | 'off' | null = null;
+  private beltSignTimer = 0;
 
   private readonly warnings: Record<WarningKey, boolean> = {
     stall: false,
@@ -127,6 +145,7 @@ export class Game {
     flaps: false,
     terrain: false,
     cht: false,
+    engine: false,
   };
   private readonly controls = { pitch: 0, roll: 0, throttle: 0, brake: 0, speedBrake: 0 };
 
@@ -350,6 +369,7 @@ export class Game {
     this.trails.reset();
     this.takeoffFlapsAtLiftoff = -1;
     this.stormEncounter = 'none';
+    this.scheduleCabinEvents(seed);
     this.atcTimer = 0;
     this.routeStormTimer = 0;
     this.input.yoke.pitch = this.input.yoke.roll = 0;
@@ -371,6 +391,8 @@ export class Game {
     this.lead = 3.5 * this.sizeK;
     this.flashText = '';
     this.flashTimer = 0;
+    this.beltSign = null;
+    this.beltSignTimer = 0;
   }
 
   // ------------------------------------------------------------------ input
@@ -435,10 +457,15 @@ export class Game {
       case 'belts':
         if (this.state !== 'flying') break;
         this.belts = !this.belts;
+        this.sound.seatbeltChime();
+        this.beltSign = this.belts ? 'on' : 'off';
+        this.beltSignTimer = 2.6;
         this.flash(this.belts ? 'Fasten seatbelts sign on' : 'Seatbelt sign off');
         break;
       case 'engineStart':
-        if (this.state === 'flying' && this.phase === 'preflight') this.startEngine();
+        if (this.state !== 'flying') break;
+        if (this.phase === 'preflight') this.startEngine();
+        else this.relightEngine();
         break;
       case 'reply1':
       case 'reply2':
@@ -516,6 +543,168 @@ export class Game {
       this.fm.setThrottleLever(0);
       this.flash(this.fm.config.engineCount > 1 ? 'Engines starting…' : 'Engine starting…');
     }
+  }
+
+  /** Airborne restart after a cruise cutoff — skip the boarding checklist. */
+  private relightEngine(): void {
+    if (this.fm.engine.state !== 'off') return;
+    if (this.plane.doorOpen || !this.plane.doorFullyClosed) {
+      this.flash(`Close the cabin door before starting the ${this.engineWord}`);
+      return;
+    }
+    if (this.fm.engine.start(true)) {
+      this.flash(this.fm.config.engineCount > 1 ? 'Relighting engines…' : 'Relighting engine…');
+    }
+  }
+
+  /** Place meal service (and maybe an engine cut) on longer hops only. */
+  private scheduleCabinEvents(seed: number): void {
+    this.mealAt = [];
+    this.meal = null;
+    this.mealResults = [];
+    this.engineFailX = 0;
+    this.engineFailed = false;
+    this.engineRelit = false;
+    this.beltCruiseOffS = 0;
+    this.beltCruiseOnS = 0;
+    this.beltDescentOffS = 0;
+    this.beltWxOffS = 0;
+    this.beltHintCruise = false;
+    this.beltHintDescent = false;
+    this.beltWxHintCool = 0;
+
+    const km = distanceKm(this.route.from, this.route.to);
+    const cruiseSec = Math.max(30, targetFlightSec(km) - this.fm.config.performance.padTimeS);
+    const origin = this.route.layout.originEnd;
+    const dest = this.route.layout.destX0;
+    const span = Math.max(1000, dest - origin);
+    let s = seed | 0;
+    const rnd = () => {
+      s = (Math.imul(s, 1664525) + 1013904223) | 0;
+      return (s >>> 0) / 4294967296;
+    };
+
+    if (cruiseSec >= 90) this.mealAt.push(origin + span * 0.3);
+    if (cruiseSec >= 210) this.mealAt.push(origin + span * 0.52);
+    if (cruiseSec >= 110 && rnd() < 0.55) {
+      const gap = Math.max(1200, span * 0.06);
+      for (const f of [0.48, 0.42, 0.58, 0.38, 0.34]) {
+        const x = origin + span * f;
+        if (this.mealAt.every((m) => Math.abs(m - x) > gap)) {
+          this.engineFailX = x;
+          break;
+        }
+      }
+    }
+  }
+
+  private weatherNeedsBelts(): boolean {
+    const a = this.fm.air;
+    return a.rain > 0.12 || a.cloud > 0.35 || a.turbulence > 0.85;
+  }
+
+  /** Level cruise, well before top of descent. */
+  private inCruise(toAim: number): boolean {
+    if (this.phase !== 'airborne' || this.fm.onGround) return false;
+    const glideStart = this.fm.y / Math.tan(THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG));
+    if (toAim < glideStart + 1500) return false;
+    return this.fm.y > this.route.layout.cruiseAltM * 0.55 && this.fm.vy < 2.8;
+  }
+
+  private inDescent(toAim: number): boolean {
+    if (this.phase !== 'airborne' || this.fm.onGround) return false;
+    const glideStart = this.fm.y / Math.tan(THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG));
+    return toAim < glideStart + 300;
+  }
+
+  private stepCabin(dt: number): void {
+    if (this.phase !== 'airborne' || this.crashed) return;
+    const fm = this.fm;
+    const toAim = this.aimX - fm.x;
+    const cruise = this.inCruise(toAim);
+    const descent = this.inDescent(toAim);
+    const wx = this.weatherNeedsBelts();
+
+    if (cruise && !wx) {
+      if (this.belts) this.beltCruiseOnS += dt;
+      else this.beltCruiseOffS += dt;
+    }
+    if (descent && !this.belts) this.beltDescentOffS += dt;
+    if (wx && !this.belts) this.beltWxOffS += dt;
+
+    if (cruise && !wx && this.belts && !this.beltHintCruise && this.beltCruiseOnS > 8) {
+      this.beltHintCruise = true;
+      this.flash('Cruise — you may switch off the seatbelt sign', 5);
+    }
+    if (descent && !this.belts && !this.beltHintDescent) {
+      this.beltHintDescent = true;
+      this.flash('Descent — switch on the seatbelt sign', 5);
+    }
+    this.beltWxHintCool = Math.max(0, this.beltWxHintCool - dt);
+    if (wx && !this.belts && this.beltWxHintCool <= 0) {
+      this.beltWxHintCool = 18;
+      this.flash('Seatbelt sign — rain and turbulence', 4);
+    }
+
+    if (
+      this.engineFailX > 0 &&
+      !this.engineFailed &&
+      cruise &&
+      fm.x >= this.engineFailX &&
+      fm.engine.state === 'running'
+    ) {
+      this.engineFailed = true;
+      if (this.meal) this.finishMeal(false);
+      fm.engine.fail();
+      this.shake = Math.max(this.shake, 0.5);
+      this.flash(`Engine failure! Relight the ${this.engineWord} (Start / I)`, 6);
+    }
+    if (this.engineFailed && !this.engineRelit && fm.engine.state === 'running') {
+      this.engineRelit = true;
+      this.flash(this.fm.config.engineCount > 1 ? 'Engines running again' : 'Engine running again', 3);
+    }
+
+    if (this.meal) {
+      if (!cruise || fm.engine.state !== 'running') {
+        this.finishMeal(false);
+      } else {
+        this.meal.left -= dt;
+        const bank = Math.abs(fm.roll) * (180 / Math.PI);
+        const pitch = Math.abs(fm.pitch) * (180 / Math.PI);
+        if (bank > 10 || pitch > 12 || Math.abs(fm.vy) > 2.8) this.meal.rough += dt;
+        if (bank > 22 || pitch > 20 || Math.abs(fm.vy) > 6) this.finishMeal(false);
+        else if (this.meal.left <= 0) this.finishMeal(this.meal.rough < 4);
+      }
+    } else if (
+      cruise &&
+      fm.engine.state === 'running' &&
+      !wx &&
+      this.mealAt.length > 0 &&
+      fm.x >= this.mealAt[0]
+    ) {
+      // Late into cruise: keep at most one overdue service so they do not stack.
+      while (this.mealAt.length > 1 && fm.x >= this.mealAt[1]) this.mealAt.shift();
+      this.mealAt.shift();
+      this.meal = { left: 20, rough: 0 };
+      this.flash('Cabin crew serving meals — keep the aircraft straight and level', 5);
+    } else if (this.mealAt.length > 0 && descent && fm.x >= this.mealAt[0]) {
+      this.mealAt.shift();
+    }
+  }
+
+  private finishMeal(ok: boolean): void {
+    if (!this.meal) return;
+    const rough = this.meal.rough;
+    this.mealResults.push({ ok, rough });
+    this.meal = null;
+    this.flash(
+      ok
+        ? rough < 1.2
+          ? 'Meal service complete — well flown'
+          : 'Meal service finished'
+        : 'Meal service interrupted — too much movement',
+      4,
+    );
   }
 
   /** Fly a different type: flight model, 3D model, engine voice, gauges and camera scale. */
@@ -660,6 +849,8 @@ export class Game {
       const rank = { none: 0, light: 1, moderate: 2, severe: 3 };
       if (rank[sev] > rank[this.stormEncounter]) this.stormEncounter = sev;
     }
+
+    this.stepCabin(dt);
 
     this.atcTimer -= dt;
     if (this.atcTimer <= 0) {
@@ -891,6 +1082,29 @@ export class Game {
       const score = this.stormEncounter === 'severe' ? -15 : this.stormEncounter === 'moderate' ? -8 : -3;
       items.push({ label: 'Thunderstorm', value: `Flew through ${this.stormEncounter} storm`, score, max: 0 });
     }
+    for (let i = 0; i < this.mealResults.length; i++) {
+      const r = this.mealResults[i];
+      const n = this.mealResults.length > 1 ? ` ${i + 1}` : '';
+      if (!r.ok) items.push({ label: `Meal service${n}`, value: 'Interrupted — too much movement', score: -3, max: 0 });
+      else if (r.rough < 1.2) items.push({ label: `Meal service${n}`, value: 'Smooth', score: 8, max: 8 });
+      else items.push({ label: `Meal service${n}`, value: 'Completed', score: 3, max: 8 });
+    }
+    if (this.engineFailed) {
+      if (this.engineRelit) items.push({ label: 'Engine relight', value: 'Restarted in flight', score: 8, max: 8 });
+      else items.push({ label: 'Engine out', value: `Landed without the ${this.engineWord}`, score: -10, max: 0 });
+    }
+    if (this.beltCruiseOffS + this.beltCruiseOnS > 12) {
+      if (this.beltCruiseOffS >= 20) items.push({ label: 'Seatbelt sign', value: 'Off in cruise', score: 4, max: 4 });
+      else if (this.beltCruiseOnS > this.beltCruiseOffS) {
+        items.push({ label: 'Seatbelt sign', value: 'Left on in cruise', score: -2, max: 0 });
+      }
+    }
+    if (this.beltDescentOffS > 4) {
+      items.push({ label: 'Seatbelts on descent', value: `${this.beltDescentOffS.toFixed(0)} s off`, score: -8, max: 0 });
+    }
+    if (this.beltWxOffS > 3) {
+      items.push({ label: 'Seatbelts in weather', value: 'Off in rain / storm', score: -6, max: 0 });
+    }
     return items;
   }
 
@@ -1071,6 +1285,38 @@ export class Game {
     }
     this.hud.setControlLit('flapsDown', fm.flapIndex > 0);
     this.hud.setControlLit('gear', fm.gearTarget > 0.5);
+    this.hud.setFlightBelts(
+      (this.state === 'flying' || this.state === 'paused') && this.phase !== 'preflight',
+      this.belts,
+    );
+    const engineOut = this.engineFailed && fm.engine.state !== 'running';
+    if (engineOut) {
+      this.hud.setCabin({
+        kind: 'engine',
+        tag: 'ENGINE',
+        text:
+          fm.engine.state === 'starting'
+            ? `Relighting the ${this.engineWord}…`
+            : `Engine failure — relight the ${this.engineWord}`,
+        start: fm.engine.state === 'off',
+        urgent: true,
+      });
+    } else if (this.meal) {
+      this.hud.setCabin({
+        kind: 'meal',
+        tag: 'CABIN',
+        text: `Keep the aircraft straight and level — meal service ${Math.ceil(this.meal.left)} s`,
+        start: false,
+        timer: this.meal.left / 20,
+      });
+    } else {
+      this.hud.setCabin(null);
+    }
+    if (this.beltSignTimer > 0) {
+      this.beltSignTimer -= 1 / 20;
+      if (this.beltSignTimer <= 0) this.beltSign = null;
+    }
+    this.hud.setBeltSign(this.beltSign);
     this.hud.setBrakeLit(fm.braking || this.input.brake > 0.05);
     this.hud.setSpeedBrakeLit(fm.speedBrake > 0.15 || this.input.speedBrake > 0.05);
     this.controlsUi.sync(fm.throttleLever);
@@ -1091,6 +1337,7 @@ export class Game {
     w.flaps = flying && fm.flapOverspeed;
     w.terrain = flying && airborne && fm.y < 40 && fm.vy < -3 && !nearAirport;
     w.cht = flying && fm.engine.state === 'running' && fm.engine.cht >= CHT_YELLOW;
+    w.engine = flying && airborne && this.engineFailed && fm.engine.state !== 'running';
     this.hud.setWarnings(w, fm.engine.cht >= CHT_RED);
 
     // Show PAPI from before top-of-descent: big jets start down much further out than a C172.
@@ -1204,6 +1451,12 @@ export class Game {
       return fm.braking ? 'Braking…' : 'Hold the Brake pedal to stop';
     }
     if (this.phase === 'falling') return '';
+    if (this.engineFailed && !this.engineRelit && fm.engine.state !== 'running') {
+      return fm.engine.state === 'starting'
+        ? 'Relighting… keep the nose up'
+        : `Engine failure — relight the ${this.engineWord} (I)`;
+    }
+    if (this.meal) return `Hold wings level — cabin service ${Math.ceil(this.meal.left)} s`;
     if (fm.stalled) return 'STALL! Nose down and add power – do not pull!';
     if (fm.overspeed) return 'Overspeed! Reduce power and raise the nose';
     if (fm.engine.cht >= CHT_RED) return 'Engine heat – reduce throttle';
@@ -1212,6 +1465,8 @@ export class Game {
     }
     if (fm.loadFactor > fm.config.limits.limitLoadG * 0.85) return 'Too many g – ease off the yoke!';
     if (Math.abs(fm.roll) > 0.45) return 'Steep bank – level the wings';
+    if (this.inDescent(toAim) && !this.belts) return 'Switch on the seatbelt sign for descent';
+    if (this.weatherNeedsBelts() && !this.belts) return 'Seatbelt sign — rain and turbulence';
     if (fm.air.cloud > 0.3 && fm.air.turbulence > 1.2 && kmh > turbulenceKmh) return `Severe turbulence – slow below ${turbulenceKmh} km/h to protect the airframe`;
     const glideStart = fm.y / Math.tan(THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG));
     const descending = toAim < glideStart + 200;
@@ -1236,6 +1491,9 @@ export class Game {
         return `Slow down for the approach – idle power and hold altitude until below ${vApp} km/h`;
       }
       if (toAim < glideStart + 1200) return 'Top of descent ahead – get ready to reduce power';
+      if (this.belts && this.beltCruiseOnS > 8 && !this.weatherNeedsBelts()) {
+        return 'You may switch off the seatbelt sign';
+      }
       return `Cruise around ${cruiseAlt} m at ~${fm.config.performance.cruiseKmh} km/h (about 70% power)`;
     }
     if (toAim > 0) {
