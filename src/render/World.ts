@@ -928,6 +928,9 @@ export class World {
     const near = this.addLayer(0, 0);
     this.nearLayer = near;
     near.add(...buildSpriteBatches(P, this.nearAirportPlacements(), { hazeAmount: 0.03, skirt: 0, renderOrder: 40 }));
+    // Parked airliners draw after the halls (same renderOrder 40 would let the later
+    // terminal meshes paint over them — billboards do not write depth).
+    near.add(...buildSpriteBatches(P, this.parkedAirlinerPlacements(), { hazeAmount: 0.03, skirt: 0, renderOrder: 41 }));
     this.buildNearScenery(near, P);
     const nearClouds: Placement[] = [];
     for (let x = 2600; x < WORLD_X1; x += range(r, 450, 900)) {
@@ -1714,15 +1717,23 @@ export class World {
       list.push({ frame: this.frame(name), x, z, scale, flip });
     put('bts_tower', 860, -105);
     put('hangar', 1020, -110);
-    put('airliner_generic', 560, -68);
-    put('airliner_generic', 760, -72, 1, true);
     put('vie_tower', VIE_RUNWAY.x0 + 900, -125);
     put('hangar', VIE_RUNWAY.x0 + 1180, -112);
     put('hangar', VIE_RUNWAY.x0 + 1260, -116);
-    put('airliner_austrian', VIE_RUNWAY.x0 + 470, -72);
-    put('airliner_austrian', VIE_RUNWAY.x0 + 560, -74);
-    put('airliner_generic', VIE_RUNWAY.x0 + 700, -73);
-    put('airliner_austrian', VIE_RUNWAY.x0 + 800, -75, 1, true);
+    return list;
+  }
+
+  /** Gate stands on the apron in front of the halls — not mixed into the hall batch. */
+  private parkedAirlinerPlacements(): Placement[] {
+    const list: Placement[] = [];
+    const put = (name: string, x: number, z: number, scale = 1, flip = false) =>
+      list.push({ frame: this.frame(name), x, z, scale, flip });
+    put('airliner_generic', 560, -58);
+    put('airliner_generic', 760, -60, 1, true);
+    put('airliner_austrian', VIE_RUNWAY.x0 + 470, -58);
+    put('airliner_austrian', VIE_RUNWAY.x0 + 560, -60);
+    put('airliner_generic', VIE_RUNWAY.x0 + 700, -59);
+    put('airliner_austrian', VIE_RUNWAY.x0 + 800, -61, 1, true);
     return list;
   }
 
@@ -1904,14 +1915,53 @@ export class World {
     ground.userData.fixedCorridor = true;
     this.root.add(ground);
 
-    // Aprons
-    const apronMat = new THREE.MeshLambertMaterial({ color: '#a9aba6', polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+    // Aprons — concrete slabs with a yellow taxi lead-in, shared by both pads.
+    const apronCanvas = document.createElement('canvas');
+    apronCanvas.width = apronCanvas.height = 256;
+    const actx = apronCanvas.getContext('2d')!;
+    actx.fillStyle = '#b3b5ae';
+    actx.fillRect(0, 0, 256, 256);
+    const ar = rng(11);
+    for (let i = 0; i < 900; i++) {
+      actx.fillStyle = ar() < 0.5 ? '#aaaca5' : '#babcb5';
+      actx.fillRect(ar() * 256, ar() * 256, 2 + ar() * 4, 1 + ar() * 2);
+    }
+    actx.strokeStyle = 'rgba(78, 80, 74, 0.28)';
+    actx.lineWidth = 1;
+    for (let i = 0; i <= 256; i += 32) {
+      actx.beginPath();
+      actx.moveTo(i, 0);
+      actx.lineTo(i, 256);
+      actx.stroke();
+      actx.beginPath();
+      actx.moveTo(0, i);
+      actx.lineTo(256, i);
+      actx.stroke();
+    }
+    actx.fillStyle = '#e2c44a';
+    actx.fillRect(0, 122, 256, 5);
+    actx.fillStyle = '#c9ad3e';
+    actx.fillRect(0, 122, 256, 1);
+    actx.fillRect(0, 126, 256, 1);
+    const apronTex = makeCanvasTexture(apronCanvas, anisotropy, true);
+    apronTex.premultiplyAlpha = false;
+    apronTex.wrapT = THREE.RepeatWrapping;
     const apron = (x0: number, x1: number, z0: number, z1: number) => {
+      const t = apronTex.clone();
+      t.repeat.set((x1 - x0) / 22, Math.max(0.7, (z1 - z0) / 22));
+      t.needsUpdate = true;
+      const mat = new THREE.MeshLambertMaterial({
+        map: t,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
+      });
       const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0);
       g.rotateX(-Math.PI / 2);
-      const m = new THREE.Mesh(g, apronMat);
+      const m = new THREE.Mesh(g, mat);
       m.position.set((x0 + x1) / 2, 0.02, (z0 + z1) / 2);
       m.receiveShadow = true;
+      m.userData.texRepeatPerM = 1 / 22;
       this.tagSpan(m, x0, x1);
       this.root.add(m);
     };
@@ -1930,18 +1980,23 @@ export class World {
     base.height = 128;
     const ctx = base.getContext('2d')!;
     const r = rng(9);
-    ctx.fillStyle = '#4b4e51';
+    ctx.fillStyle = '#4a4d50';
     ctx.fillRect(0, 0, 512, 128);
-    for (let i = 0; i < 3000; i++) {
-      ctx.fillStyle = r() < 0.5 ? '#45484b' : '#53575a';
+    for (let i = 0; i < 3600; i++) {
+      ctx.fillStyle = r() < 0.5 ? '#43464a' : '#54585c';
       ctx.fillRect(r() * 512, r() * 128, 2, 1);
     }
-    ctx.fillStyle = '#3d3f41';
-    ctx.fillRect(0, 50, 512, 28);
+    ctx.fillStyle = '#3a3d40';
+    ctx.fillRect(0, 0, 512, 7);
+    ctx.fillRect(0, 121, 512, 7);
+    ctx.fillStyle = 'rgba(0,0,0,0.07)';
+    for (let y = 10; y < 118; y += 3) ctx.fillRect(0, y, 512, 1);
+    ctx.fillStyle = '#3d4043';
+    ctx.fillRect(0, 49, 512, 30);
     ctx.fillStyle = '#eceee8';
-    ctx.fillRect(0, 4, 512, 2);
-    ctx.fillRect(0, 122, 512, 2);
-    ctx.fillRect(0, 62, 307, 4);
+    ctx.fillRect(0, 4, 512, 2.4);
+    ctx.fillRect(0, 121.6, 512, 2.4);
+    ctx.fillRect(18, 61, 250, 5);
     const tex = makeCanvasTexture(base, anisotropy, true);
     tex.premultiplyAlpha = false;
     tex.repeat.set(length / 50, 1);

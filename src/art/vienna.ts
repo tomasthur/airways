@@ -457,9 +457,12 @@ function drawCanalBridge(ctx: Ctx): void {
 function drawVieTower(ctx: Ctx): void {
   const cx = 13;
   poly(ctx, [cx - 3.6, 0, cx + 3.6, 0, cx + 3, 80, cx - 3, 80], hgrad(ctx, cx - 4, cx + 4, [[0, '#bfc6ca'], [0.6, '#f2f4f5'], [1, '#d3d8db']]));
-  for (let y = 6; y < 80; y += 6) rect(ctx, cx - 3.4, y, 6.8, 0.35, 'rgba(120,135,145,0.5)');
+  for (let y = 6; y < 80; y += 6) {
+    rect(ctx, cx - 3.4, y, 6.8, 0.35, 'rgba(120,135,145,0.5)');
+    rect(ctx, cx - 2.2, y + 1.2, 4.4, 2.4, 'rgba(90,120,135,0.28)');
+  }
   poly(ctx, [cx - 3, 80, cx + 3, 80, cx + 9, 90, cx - 9, 90], hgrad(ctx, cx - 9, cx + 9, [[0, '#c9cfd2'], [1, '#f1f3f4']]));
-  poly(ctx, [cx - 9, 90, cx + 9, 90, cx + 10.5, 99, cx - 10.5, 99], vgrad(ctx, 99, 90, [[0, '#2d4a52'], [1, '#5d8590']]));
+  poly(ctx, [cx - 9, 90, cx + 9, 90, cx + 10.5, 99, cx - 10.5, 99], vgrad(ctx, 99, 90, [[0, '#3a6270'], [1, '#7aa3b0']]));
   for (let x = -9; x <= 9; x += 2.2) rect(ctx, cx + x, 90, 0.3, 9, '#cfd8dc');
   poly(ctx, [cx - 11.5, 99, cx + 11.5, 99, cx + 9, 102, cx - 9, 102], '#f3f5f6');
   line(ctx, cx, 102, cx, 109.5, 0.4, '#9aa3a8');

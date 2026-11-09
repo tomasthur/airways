@@ -306,7 +306,8 @@ function drawPanelak(ctx: Ctx, r: Rand, W: number, floors: number, color: string
 
 function drawBtsTower(ctx: Ctx): void {
   rect(ctx, 5.5, 0, 3, 30, hgrad(ctx, 5.5, 8.5, [[0, '#c9cfd2'], [1, '#f1f3f4']]));
-  poly(ctx, [2.5, 30, 11.5, 30, 12.5, 35, 1.5, 35], vgrad(ctx, 35, 30, [[0, '#5c7d92'], [1, '#2c4152']]));
+  for (let y = 3; y < 28; y += 4.2) rect(ctx, 5.75, y, 2.5, 1.5, '#6d8594');
+  poly(ctx, [2.5, 30, 11.5, 30, 12.5, 35, 1.5, 35], vgrad(ctx, 35, 30, [[0, '#6a90a6'], [1, '#2c4152']]));
   for (let x = 2.5; x < 12.5; x += 1.8) rect(ctx, x, 30, 0.25, 5, '#d8dee2');
   rect(ctx, 1, 35, 12, 1.2, '#f2f4f5');
   line(ctx, 7, 36, 7, 39.5, 0.25, '#9aa3a8');
@@ -319,8 +320,16 @@ function drawHangar(ctx: Ctx): void {
   ctx.moveTo(1, 14);
   ctx.quadraticCurveTo(35, 26, 69, 14);
   ctx.closePath();
-  ctx.fillStyle = '#8f979c';
+  ctx.fillStyle = vgrad(ctx, 26, 14, [
+    [0, '#d4d9dc'],
+    [1, '#8a9297'],
+  ]);
   ctx.fill();
+  for (let x = 8; x < 64; x += 14) {
+    rect(ctx, x, 1.2, 10, 11.4, '#5c6368');
+    rect(ctx, x + 0.6, 1.8, 4, 10.2, '#4a5055');
+    rect(ctx, x + 5.4, 1.8, 4, 10.2, '#6a7176');
+  }
   for (let x = 6; x < 66; x += 4) rect(ctx, x, 0, 0.3, 13, '#8e959a');
   rect(ctx, 2, 13.6, 66, 0.6, '#7b8287');
 }
