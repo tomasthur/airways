@@ -77,6 +77,7 @@ export class Game {
   private readonly tmpV = new THREE.Vector3();
   private readonly baseFog = { near: 450, far: 3200 };
   private readonly stormHaze = new THREE.Color(0x5d6670);
+  private readonly seamHaze = new THREE.Color(0xd8e4ee);
   private readonly sunOffset = new THREE.Vector3(26, 52, 34).normalize().multiplyScalar(60);
 
   private state: State = 'menu';
@@ -556,6 +557,7 @@ export class Game {
     this.world.setCorridor(route.layout);
     this.world.setRouteScenery(route.scenery);
     this.world.setRouteAirports(route.from, route.to);
+    this.world.setRouteGeography(route.from, route.to);
     this.reset();
     this.hub.show(false);
     this.hud.show('menu', false);
@@ -765,11 +767,7 @@ export class Game {
     }
     const waterSpans = this.world.waterHazards(this.route.scenery);
     const inWater = waterSpans.some(([a, b]) => td.x > a && td.x < b);
-    const seaish =
-      this.route.scenery === 'channelSea' ||
-      this.route.scenery === 'atlanticOcean' ||
-      this.route.scenery === 'mediterranean' ||
-      this.route.scenery === 'pacificRim';
+    const seaish = waterSpans.some(([a, b]) => b - a > 1500);
     const waterMsg = seaish
       ? 'You ditched in open water. Oceans and channels are not runways.'
       : 'You ditched in the river. Beautiful from above — fatal on touchdown.';
@@ -965,15 +963,20 @@ export class Game {
       p.horizon.lerp(this.stormHaze, skyDim);
       p.sun.lerp(p.skyMid, Math.min(1, skyDim * 1.3));
     }
+    const fog = this.scene.fog as THREE.Fog;
+    const night = this.nightFlight ? 1 : 0;
+    const bank = this.state === 'flying' ? this.world.seamFog(fm.x) : 0;
+    p.haze.lerp(this.seamHaze, bank * 0.72);
+    p.horizon.lerp(this.seamHaze, bank * 0.55);
+    p.skyMid.lerp(this.seamHaze, bank * 0.28);
     atmosphere.tint.value.copy(p.tint);
     atmosphere.haze.value.copy(p.haze);
-    const fog = this.scene.fog as THREE.Fog;
+    atmosphere.seam.value = bank;
     fog.color.copy(p.haze);
-    const night = this.nightFlight ? 1 : 0;
     // Bigger aircraft pull the camera back; push the fog back with it so the scenery stays crisp.
     const fogPush = this.camDist - 29;
-    fog.near = (this.baseFog.near + fogPush) * (1 - 0.92 * inCloud) * (1 - 0.35 * night);
-    fog.far = (this.baseFog.far + fogPush * 2) * (1 - 0.88 * inCloud) * (1 - 0.3 * gloom) * (1 - 0.45 * night);
+    fog.near = (this.baseFog.near + fogPush) * (1 - 0.92 * inCloud) * (1 - 0.35 * night) * (1 - 0.88 * bank);
+    fog.far = (this.baseFog.far + fogPush * 2) * (1 - 0.88 * inCloud) * (1 - 0.3 * gloom) * (1 - 0.45 * night) * (1 - 0.7 * bank);
     this.hemi.color.copy(p.hemiSky);
     this.hemi.groundColor.copy(p.hemiGround);
     this.hemi.intensity = (this.nightFlight ? 0.55 : 1.25) * (1 - 0.3 * gloom) + flash * 1.2;

@@ -121,7 +121,8 @@ button {
   --rail-r: 216px; /* cfg-w + 8 + yoke-w */
   --bar-b: 80px;
   --gap: 10px;
-  --top-h: 64px;
+  /* Mission strip height (route + track + meta). Warnings/checklist clear this. */
+  --top-h: 88px;
   --cfg-w: 78px;
   --yoke-w: 118px;
   /* Clearance above bottom controls (config + readouts + buttons). */
@@ -137,16 +138,30 @@ button {
   pointer-events: auto;
 }
 
-.mission {
+/* Mission + ATC share one top-left column so radio never covers the route strip. */
+.hud-top-left {
   position: absolute;
   top: var(--pad-t);
   left: calc(var(--pad-l) + var(--rail-l) + var(--gap));
-  right: calc(var(--pad-r) + 168px);
+  right: calc(var(--pad-r) + var(--rail-r) + var(--gap));
   width: auto;
   max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.mission {
+  position: relative;
+  width: 100%;
+  max-width: none;
   padding: 8px 12px 7px;
   min-width: 0;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .route {
@@ -591,12 +606,9 @@ button {
 
 /* ---------- ATC radio ---------- */
 .atc {
-  position: absolute;
-  top: calc(var(--pad-t) + var(--top-h));
-  left: calc(var(--pad-l) + var(--rail-l) + var(--gap));
-  right: calc(var(--pad-r) + min(280px, 42vw) + var(--gap));
-  width: auto;
-  max-width: 420px;
+  position: relative;
+  width: 100%;
+  max-width: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2183,8 +2195,17 @@ kbd {
     --rail-r: 200px; /* cfg + gap + yoke */
     --bar-b: 72px;
     --ctl-stack: 156px;
-    --top-h: 52px;
+    --top-h: 72px;
     --gap: 6px;
+  }
+  .hud-top-left {
+    gap: 6px;
+  }
+  .mission {
+    padding: 6px 10px 5px;
+  }
+  .track {
+    margin: 7px 4px 6px;
   }
   .throttle > .ctl-label {
     display: none;

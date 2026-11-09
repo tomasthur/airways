@@ -3,7 +3,7 @@ import { Atlas, makeCanvasTexture, type SpriteFrame } from '../art/Atlas';
 import { airportTerminalSprites, terminalSpriteName } from '../art/airportShells';
 import { bratislavaSprites, RIVER_WATER, SNP_RIVER_OFFSET } from '../art/bratislava';
 import { countrySprites } from '../art/countryside';
-import { paintCountryTile, paintHillsTile, paintMountainTile, type TileSpec } from '../art/tiles';
+import { paintCountryTile, paintDesertTile, paintHillsTile, paintMountainTile, type TileSpec } from '../art/tiles';
 import { rng, range, pick, type Rand } from '../art/paint';
 import { londonSprites } from '../art/london';
 import { newyorkSprites } from '../art/newyork';
@@ -11,9 +11,19 @@ import { parisSprites } from '../art/paris';
 import { romeSprites } from '../art/rome';
 import { seaSprites } from '../art/seas';
 import { viennaSprites } from '../art/vienna';
+import { worldCitySprites } from '../art/worldCities';
 import { BTS_RUNWAY, DANUBE, DANUBE_CANAL, RUNWAY_WIDTH, RUNWAY_Z, VIE_RUNWAY, ZONES, type Runway } from '../config';
 import { FLYABLE_IATAS, airportByIata } from '../meta/airports';
-import { REFERENCE_LAYOUT, remapCorridorSpan, remapCorridorX, type CorridorLayout } from '../meta/flightLength';
+import { biomeFamily, corridorFlyovers, corridorGeoSegments, type GeoSegment } from '../meta/corridorGeo';
+import {
+  BASE_DEST_X0,
+  geoCorridorX,
+  ORIGIN_PAD_END,
+  REFERENCE_LAYOUT,
+  remapCorridorSpan,
+  remapCorridorX,
+  type CorridorLayout,
+} from '../meta/flightLength';
 import { type SceneryTheme } from '../meta/routes';
 import { buildSpriteBatches, buildTileStrip, type Placement } from './Billboards';
 
@@ -32,6 +42,17 @@ const SCENERY_THEMES: SceneryTheme[] = [
   'desertApproaches',
   'pacificRim',
 ];
+
+/** Hand-painted Central European hops whose packs match their real ground. */
+const AUTHORED_THEMES = new Set<SceneryTheme>(['danubeWest', 'danubeEast', 'pannonian', 'bohemian', 'carpathian', 'vistula']);
+
+const SEA_WATER = '#4f7f9c';
+
+/** Rivers sit inside their valley, so only a change of country type earns a fog veil. */
+function scenicCut(a: GeoSegment, b: GeoSegment): boolean {
+  const fam = (s: GeoSegment) => (s.biome === 'river' ? 'land' : biomeFamily(s.biome));
+  return fam(a) !== fam(b);
+}
 
 /** Wide mid-corridor water used for ditch checks on over-sea themes. */
 export const THEME_SEA_SPANS: Partial<Record<SceneryTheme, [number, number][]>> = {
@@ -88,6 +109,40 @@ export class World {
   private readonly sceneryGroups: { theme: SceneryTheme; group: THREE.Group }[] = [];
   /** Landmark city packs toggled by departure / arrival IATA. */
   private readonly cityLandmarkGroups: { iata: string; dep: THREE.Group; arr: THREE.Group }[] = [];
+  /** Live hop geography (sea, ridges, desert) rebuilt each flight. */
+  private readonly geoObjects: THREE.Object3D[] = [];
+  private geoSeaSpans: [number, number][] = [];
+  private mountainsLayer!: THREE.Group;
+  private hillsLayer!: THREE.Group;
+  private midLayer!: THREE.Group;
+  private nearLayer!: THREE.Group;
+  private fieldsLayer!: THREE.Group;
+  private foreLayer!: THREE.Group;
+  private stockFarMountains!: THREE.Object3D;
+  private stockFarHills!: THREE.Object3D;
+  private stockForeFields!: THREE.Object3D;
+  private stockForeNear!: THREE.Object3D;
+  private mtTex!: THREE.Texture;
+  private htTex!: THREE.Texture;
+  private ctTex!: THREE.Texture;
+  private desertTex!: THREE.Texture;
+  private fogTex!: THREE.CanvasTexture;
+  private seaEdgeTex!: THREE.CanvasTexture;
+  private mtSpec!: TileSpec;
+  private htSpec!: TileSpec;
+  private ctSpec!: TileSpec;
+  private desertSpec!: TileSpec;
+  /** Live X of biome-family cuts — Game pulls scene fog in around these. */
+  private geoSeams: number[] = [];
+  /** Width of the narrower neighbour at each seam (caps how wide its veil may get). */
+  private geoSeamRoom: number[] = [];
+  private waterTex!: THREE.CanvasTexture;
+  private activeTheme: SceneryTheme = 'danubeWest';
+  /** Iconic skyline behind each runway, per IATA (mid parallax layer so it reads from the ground). */
+  private readonly airportSkylines: { iata: string; dep: THREE.Group; arr: THREE.Group }[] = [];
+  private readonly cityIcons = new Map<string, Placement[]>();
+  private originIata = 'BTS';
+  private arrivalIata = 'VIE';
   private readonly tmpMatrix = new THREE.Matrix4();
   private readonly tmpQuat = new THREE.Quaternion();
   private readonly tmpPos = new THREE.Vector3();
@@ -117,11 +172,14 @@ export class World {
       ...romeSprites(),
       ...parisSprites(),
       ...seaSprites(),
+      ...worldCitySprites(),
       ...airportTerminalSprites(),
     );
     const { pages, frames } = atlas.build(anisotropy);
     this.pages = pages;
     this.frames = frames;
+    this.fogTex = this.makeFogTexture();
+    this.seaEdgeTex = this.makeSeaEdgeTexture();
 
     this.buildGround(anisotropy);
     this.buildRunway(BTS_RUNWAY, '13', anisotropy);
@@ -135,6 +193,7 @@ export class World {
     this.setRouteScenery('danubeWest');
     this.setRouteAirports('BTS', 'VIE');
     this.setCorridor(REFERENCE_LAYOUT);
+    this.setRouteGeography('BTS', 'VIE');
   }
 
   /**
@@ -203,6 +262,7 @@ export class World {
 
   /** Water hazard spans for the active corridor (ditch checks). */
   waterHazards(theme: SceneryTheme): [number, number][] {
+    if (this.geoSeaSpans.length) return this.geoSeaSpans.map(([a, b]) => [a, b] as [number, number]);
     const authored =
       this.themeWaterAuth.find((t) => t.theme === theme)?.spans ??
       THEME_SEA_SPANS[theme] ??
@@ -261,19 +321,502 @@ export class World {
   setRouteAirports(from: string, to: string): void {
     const flyable = new Set<string>(FLYABLE_IATAS);
     const norm = (c: string) => (flyable.has(c) ? c : 'BTS');
-    const origin = norm(from);
-    const arrival = norm(to);
-    for (const m of this.originTerminals) m.visible = m.userData.airport === origin;
-    for (const m of this.arrivalTerminals) m.visible = m.userData.airport === arrival;
-    for (const c of this.cityLandmarkGroups) {
-      c.dep.visible = c.iata === origin;
-      c.arr.visible = c.iata === arrival;
-    }
+    this.originIata = norm(from);
+    this.arrivalIata = norm(to);
+    for (const m of this.originTerminals) m.visible = m.userData.airport === this.originIata;
+    for (const m of this.arrivalTerminals) m.visible = m.userData.airport === this.arrivalIata;
+    this.applyCityPacks();
   }
 
   /** Swap mid-corridor set dressing (cities, water, hills) for this undirected hop. */
   setRouteScenery(theme: SceneryTheme): void {
-    for (const { theme: t, group } of this.sceneryGroups) group.visible = t === theme;
+    this.activeTheme = theme;
+    // Hand-painted CE hops keep their packs; generic world themes put the wrong skylines
+    // at the wrong airport, so live geography + airport skylines replace them.
+    const authored = AUTHORED_THEMES.has(theme);
+    for (const { theme: t, group } of this.sceneryGroups) group.visible = authored && t === theme;
+    this.applyCityPacks();
+  }
+
+  /** 0 = clear air, 1 = inside a biome-seam fog bank. */
+  seamFog(x: number): number {
+    if (!this.geoSeams.length) return 0;
+    const mid = Math.max(1800, this.layout.destX0 - this.layout.originEnd);
+    // ~20–40 s of veil per seam at cruise — long hops must not spend minutes in cloud.
+    const base = Math.min(1700, Math.max(700, mid * 0.035));
+    let m = 0;
+    for (let i = 0; i < this.geoSeams.length; i++) {
+      // A narrow strait or ridge must stay visible between its two veils.
+      const half = Math.min(base, Math.max(350, this.geoSeamRoom[i] * 0.28));
+      const d = Math.abs(x - this.geoSeams[i]);
+      if (d >= half) continue;
+      const t = 1 - d / half;
+      m = Math.max(m, t * t * (3 - 2 * t));
+    }
+    return m;
+  }
+
+  /**
+   * Stamp real hop geography onto the live corridor: sea where the great-circle
+   * crosses water, ridges only over actual ranges, desert over the Gulf, etc.
+   */
+  setRouteGeography(from: string, to: string): void {
+    this.clearGeo();
+    const segs = corridorGeoSegments(from, to, this.layout);
+    const authored = AUTHORED_THEMES.has(this.activeTheme);
+    // Hand-painted regional hops keep their continuous ridge band: their hill sprites
+    // (Kamzík, Kahlenberg…) end in hard edges that only read right in front of it.
+    this.stockFarMountains.visible = authored;
+    this.stockFarHills.visible = authored;
+    this.stockForeFields.visible = authored;
+    this.stockForeNear.visible = authored;
+
+    // Transitions scale with the corridor so an A380 hop does not get 50 km cliffs.
+    const midLen = Math.max(4000, this.layout.destX0 - this.layout.originEnd);
+    const taper = Math.min(2200, Math.max(700, midLen * 0.045));
+    const fade = taper * 1.2;
+    const pad = (spans: [number, number][], extra = 0) =>
+      spans.map(([a, b]) => [a - taper * 0.7 - extra, b + taper * 0.7 + extra] as [number, number]);
+    const merge = (spans: [number, number][]): [number, number][] => {
+      const s = [...spans].sort((p, q) => p[0] - q[0]);
+      const out: [number, number][] = [];
+      for (const [a, b] of s) {
+        const last = out[out.length - 1];
+        if (last && a <= last[1] + 1) last[1] = Math.max(last[1], b);
+        else out.push([a, b]);
+      }
+      return out;
+    };
+
+    const sea: [number, number][] = [];
+    const mountains: [number, number][] = [];
+    const hills: [number, number][] = [];
+    const farmland: [number, number][] = [];
+    const desert: [number, number][] = [];
+    const rivers: GeoSegment[] = [];
+
+    for (const s of segs) {
+      const span: [number, number] = [s.x0, s.x1];
+      if (s.biome === 'sea' || s.biome === 'ice') sea.push(span);
+      else if (s.biome === 'river') {
+        // A river is a crossing in its valley, however long the track follows it.
+        const c = (s.x0 + s.x1) / 2;
+        const hw = Math.min((s.x1 - s.x0) / 2, 160 + taper * 0.12);
+        rivers.push({ ...s, x0: c - hw, x1: c + hw });
+        if (c - hw > s.x0 + 1) farmland.push([s.x0, c - hw]);
+        if (s.x1 > c + hw + 1) farmland.push([c + hw, s.x1]);
+      }
+      else if (s.biome === 'mountains') mountains.push(span);
+      else if (s.biome === 'hills' || s.biome === 'forest' || s.biome === 'taiga') hills.push(span);
+      else if (s.biome === 'desert') desert.push(span);
+      else farmland.push(span);
+    }
+    // Airports always sit in their own countryside: rolling hills behind, fields in front.
+    const first = segs[0]?.x0 ?? this.layout.originEnd + 500;
+    const last = segs[segs.length - 1]?.x1 ?? this.layout.destX0 - 500;
+    const airportZones: [number, number][] = [
+      [WORLD_X0, first],
+      [last, this.layout.destX1 + 8000],
+    ];
+    hills.push(...airportZones);
+    if (!authored) farmland.push(...airportZones);
+
+    this.geoSeaSpans = [...sea, ...rivers.map((r) => [r.x0, r.x1] as [number, number])];
+    this.geoSeams = [];
+    this.geoSeamRoom = [];
+    for (let i = 1; i < segs.length; i++) {
+      if (!scenicCut(segs[i - 1], segs[i])) continue;
+      this.geoSeams.push(segs[i].x0);
+      this.geoSeamRoom.push(Math.min(segs[i - 1].x1 - segs[i - 1].x0, segs[i].x1 - segs[i].x0));
+    }
+
+    // Far: real ranges as tall peaks; uplands as a low blue ridge so hilly country reads
+    // as hilly from cruise height too.
+    if (mountains.length && !authored) {
+      this.adoptGeo(
+        this.mountainsLayer,
+        buildTileStrip(this.mtTex, this.mtSpec.w * 1.1, this.mtSpec.h * 1.35, merge(pad(mountains, taper * 0.4)), {
+          hazeAmount: 0.42,
+          skirt: 8,
+          renderOrder: 10,
+          taper: taper * 1.3,
+        }),
+      );
+    }
+    const uplands = hills.filter(([a, b]) => a > WORLD_X0 && b < this.layout.destX1 + 7000);
+    if (uplands.length && !authored) {
+      this.adoptGeo(
+        this.mountainsLayer,
+        buildTileStrip(this.mtTex, this.mtSpec.w * 0.9, this.mtSpec.h * 0.62, merge(pad(uplands, taper * 0.3)), {
+          hazeAmount: 0.55,
+          skirt: 8,
+          renderOrder: 9,
+          taper: taper * 1.4,
+        }),
+      );
+    }
+    // Hill band: under ranges (foothills) and uplands; plains get gentle low country instead.
+    const hillBand = merge(pad([...hills, ...mountains]));
+    if (hillBand.length && !authored) {
+      this.adoptGeo(
+        this.hillsLayer,
+        buildTileStrip(this.htTex, this.htSpec.w, this.htSpec.h, hillBand, {
+          hazeAmount: 0.3,
+          skirt: 8,
+          renderOrder: 20,
+          fields: true,
+          taper,
+        }),
+      );
+    }
+    if (farmland.length && !authored) {
+      this.adoptGeo(
+        this.hillsLayer,
+        buildTileStrip(this.ctTex, this.ctSpec.w * 1.15, this.ctSpec.h * 1.05, merge(pad(farmland)), {
+          hazeAmount: 0.22,
+          skirt: 8,
+          renderOrder: 21,
+          fields: true,
+          taper,
+        }),
+      );
+    }
+    if (desert.length) {
+      this.adoptGeo(
+        this.hillsLayer,
+        buildTileStrip(this.desertTex, this.desertSpec.w, this.desertSpec.h, merge(pad(desert)), {
+          hazeAmount: 0.3,
+          skirt: 8,
+          renderOrder: 20,
+          taper,
+        }),
+      );
+    }
+    // Near ground is continuous over all land and only breaks for open water.
+    if (!authored) {
+      const land = merge([...farmland, ...hills, ...mountains]);
+      const coast = merge(pad(land, -taper * 0.4));
+      this.adoptGeo(
+        this.fieldsLayer,
+        buildTileStrip(this.ctTex, this.ctSpec.w * 0.85, this.ctSpec.h * 0.85, coast, {
+          hazeAmount: 0.1,
+          skirt: 8,
+          renderOrder: 34,
+          fields: true,
+          taper: taper * 0.6,
+        }),
+      );
+      this.adoptGeo(
+        this.foreLayer,
+        buildTileStrip(this.ctTex, this.ctSpec.w * 0.62, this.ctSpec.h * 0.62, coast, {
+          hazeAmount: 0.06,
+          skirt: 8,
+          renderOrder: 35,
+          fields: true,
+          taper: taper * 0.5,
+        }),
+      );
+    }
+
+    for (const [x0, x1] of sea) this.addGeoWater(x0 - fade * 0.35, x1 + fade * 0.35, 0);
+    for (const riv of rivers) this.addGeoWater(riv.x0, riv.x1, 0.6);
+    this.dressGeoSea(sea);
+    if (!authored) this.dressGeoLand(farmland.filter(([a, b]) => a >= first - 1 && b <= last + 1), hills);
+    this.dressFlyovers(from, to, sea);
+    this.veilGeoSeams(segs, fade);
+  }
+
+  /** Skylines of real hubs the great-circle passes near (Munich on VIE–LON, Frankfurt-side uplands…). */
+  private dressFlyovers(from: string, to: string, sea: [number, number][]): void {
+    const k = (this.layout.destX0 - this.layout.originEnd) / (BASE_DEST_X0 - ORIGIN_PAD_END);
+    const placements: Placement[] = [];
+    for (const f of corridorFlyovers(from, to)) {
+      const icons = this.cityIcons.get(f.iata);
+      if (!icons?.length) continue;
+      const cx = geoCorridorX(f.t, this.layout);
+      if (sea.some(([a, b]) => cx > a && cx < b)) continue;
+      const xs = icons.map((p) => p.x);
+      const x0 = Math.min(...xs);
+      const span = Math.max(1, Math.max(...xs) - x0);
+      // Off-track cities sit further back and hazier than ones right under the wing.
+      const near = 1 - Math.min(1, f.km / 90);
+      // Far layer sits deep, so a long hop needs a bigger city to read — but as one tight skyline.
+      const boost = Math.min(2.2, Math.max(1, k * 0.4));
+      const c0 = x0 + span / 2;
+      const squeeze = Math.min(1, 900 / span) * boost;
+      for (const p of icons) {
+        placements.push({
+          ...p,
+          x: cx + (p.x - c0) * squeeze,
+          z: (p.z ?? 2) + 3,
+          scale: (p.scale ?? 1) * (0.6 + 0.4 * near) * boost,
+        });
+      }
+    }
+    if (placements.length) {
+      buildSpriteBatches(this.pages, placements, { hazeAmount: 0.34, skirt: 0, renderOrder: 22 }).forEach((m) =>
+        this.adoptGeo(this.hillsLayer, m),
+      );
+    }
+  }
+
+  /** Hide hard biome cuts behind a bank of fog and cloud. */
+  private veilGeoSeams(segs: GeoSegment[], fade: number): void {
+    if (segs.length < 2) return;
+    const r = rng((segs[0].x0 * 13 + segs[segs.length - 1].x1 * 7) | 0);
+    const far: Placement[] = [];
+    const mid: Placement[] = [];
+    const near: Placement[] = [];
+    const put = (list: Placement[], x: number, y: number, z: number, scale: number) => {
+      list.push({
+        frame: this.frame(`cloud_${Math.floor(r() * 5)}`),
+        x,
+        y,
+        z,
+        scale,
+        flip: r() < 0.5,
+      });
+    };
+    for (let i = 1; i < segs.length; i++) {
+      if (!scenicCut(segs[i - 1], segs[i])) continue;
+      const x = segs[i].x0;
+      const room = Math.min(segs[i - 1].x1 - segs[i - 1].x0, segs[i].x1 - segs[i].x0);
+      const half = Math.min(fade * 1.35, Math.max(300, room * 0.3));
+      this.addFogBank(x, half * 2.1, 220, -900, 0.72);
+      this.addFogBank(x + range(r, -80, 80), half * 1.6, 140, -420, 0.58);
+      this.addFogBank(x, half * 1.8, 70, 8, 0.5, true);
+      this.addFogBank(x + range(r, -40, 40), half * 1.2, 110, -180, 0.45);
+      for (let k = 0; k < 14; k++) {
+        put(far, x + (r() - 0.5) * half * 2.4, range(r, 40, 380), range(r, -14, 16), range(r, 2.0, 3.6));
+      }
+      for (let k = 0; k < 12; k++) {
+        put(mid, x + (r() - 0.5) * half * 2.0, range(r, 18, 220), range(r, -10, 10), range(r, 1.3, 2.6));
+      }
+      for (let k = 0; k < 8; k++) {
+        put(near, x + (r() - 0.5) * half * 1.5, range(r, 12, 160), range(r, -200, -30), range(r, 0.85, 1.7));
+      }
+      for (let k = 0; k < 6; k++) {
+        put(mid, x + (k - 2.5) * (half * 0.38), range(r, 4, 28), range(r, -6, 6), range(r, 1.8, 2.8));
+      }
+    }
+    if (far.length) {
+      buildSpriteBatches(this.pages, far, { hazeAmount: 0.52, skirt: 0, renderOrder: 16, opacity: 0.86 }).forEach((m) =>
+        this.adoptGeo(this.mountainsLayer, m),
+      );
+    }
+    if (mid.length) {
+      buildSpriteBatches(this.pages, mid, { hazeAmount: 0.34, skirt: 0, renderOrder: 28, opacity: 0.9 }).forEach((m) =>
+        this.adoptGeo(this.hillsLayer, m),
+      );
+    }
+    if (near.length) {
+      buildSpriteBatches(this.pages, near, { hazeAmount: 0.16, skirt: 0, renderOrder: 48, opacity: 0.8 }).forEach((m) =>
+        this.adoptGeo(this.nearLayer, m),
+      );
+    }
+  }
+
+  private addFogBank(x: number, width: number, height: number, z: number, opacity: number, ground = false): void {
+    const mat = new THREE.MeshBasicMaterial({
+      map: this.fogTex,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      fog: true,
+      side: THREE.DoubleSide,
+      color: 0xe8eef4,
+    });
+    if (ground) {
+      const g = new THREE.PlaneGeometry(width, 260);
+      g.rotateX(-Math.PI / 2);
+      const m = new THREE.Mesh(g, mat);
+      m.position.set(x, 6, z);
+      m.renderOrder = 44;
+      this.adoptGeo(this.root, m);
+      return;
+    }
+    const g = new THREE.PlaneGeometry(width, height);
+    const m = new THREE.Mesh(g, mat);
+    m.position.set(x, height * 0.28, z);
+    m.renderOrder = 46;
+    this.adoptGeo(this.root, m);
+  }
+
+  private dressGeoLand(farmland: [number, number][], hills: [number, number][]): void {
+    const sprites: Placement[] = [];
+    const put = (name: string, x: number, z: number, scale: number, flip: boolean) => {
+      const f = this.frames.get(name);
+      if (!f) return;
+      sprites.push({ frame: f, x, z, scale, flip });
+    };
+    const r = rng(farmland.length * 97 + hills.length * 13 + 4);
+    for (const [x0, x1] of farmland) {
+      const w = x1 - x0;
+      if (w < 500) continue;
+      for (let x = x0 + 180; x < x1 - 180; x += range(r, 380, 720)) {
+        put('village', x, 2, range(r, 0.75, 1.05), r() < 0.5);
+        if (r() < 0.4) put('windmill', x + range(r, 40, 90), 2.4, range(r, 0.7, 1), r() < 0.5);
+      }
+    }
+    if (sprites.length) {
+      buildSpriteBatches(this.pages, sprites, { hazeAmount: 0.12, skirt: 0, renderOrder: 32 }).forEach((m) =>
+        this.adoptGeo(this.midLayer, m),
+      );
+    }
+  }
+
+  /** Alpha ramp (green channel) that feathers the ends of the far sea plane into the coast. */
+  private makeSeaEdgeTexture(): THREE.CanvasTexture {
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 4;
+    const ctx = c.getContext('2d')!;
+    const g = ctx.createLinearGradient(0, 0, 256, 0);
+    g.addColorStop(0, '#000');
+    g.addColorStop(0.12, '#fff');
+    g.addColorStop(0.88, '#fff');
+    g.addColorStop(1, '#000');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 4);
+    return new THREE.CanvasTexture(c);
+  }
+
+  private makeFogTexture(): THREE.CanvasTexture {
+    const c = document.createElement('canvas');
+    c.width = 512;
+    c.height = 256;
+    const ctx = c.getContext('2d')!;
+    const img = ctx.createImageData(512, 256);
+    for (let y = 0; y < 256; y++) {
+      const vy = 1 - y / 255;
+      const rise = Math.min(1, vy * 1.35);
+      for (let x = 0; x < 512; x++) {
+        const u = x / 511;
+        const hx = 1 - Math.abs(u * 2 - 1);
+        const a = Math.pow(Math.max(0, hx), 1.15) * (0.35 + 0.65 * rise);
+        const i = (y * 512 + x) * 4;
+        img.data[i] = 232;
+        img.data[i + 1] = 238;
+        img.data[i + 2] = 244;
+        img.data[i + 3] = Math.round(a * 255);
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    const t = new THREE.CanvasTexture(c);
+    t.needsUpdate = true;
+    return t;
+  }
+
+  private adoptGeo(parent: THREE.Object3D, obj: THREE.Object3D): void {
+    parent.add(obj);
+    this.geoObjects.push(obj);
+  }
+
+  private applyCityPacks(): void {
+    // Near-plane city packs sit next to the aircraft and flash as giant towers — keep them off.
+    for (const c of this.cityLandmarkGroups) {
+      c.dep.visible = false;
+      c.arr.visible = false;
+    }
+    // danubeWest already paints Bratislava (SNP, castle) and Vienna by hand.
+    const local = this.activeTheme === 'danubeWest';
+    for (const s of this.airportSkylines) {
+      const skip = local && (s.iata === 'BTS' || s.iata === 'VIE');
+      s.dep.visible = !skip && s.iata === this.originIata;
+      s.arr.visible = !skip && s.iata === this.arrivalIata;
+    }
+  }
+
+  private clearGeo(): void {
+    for (const obj of this.geoObjects) obj.parent?.remove(obj);
+    this.geoObjects.length = 0;
+    this.geoSeaSpans = [];
+    this.geoSeams = [];
+    this.geoSeamRoom = [];
+  }
+
+  private addGeoWater(x0: number, x1: number, wallH: number): void {
+    const depth = GROUND_Z1 - GROUND_Z0;
+    const w = Math.max(40, x1 - x0);
+    const t = this.waterTex.clone();
+    t.repeat.set(w / 20, depth / 20);
+    t.needsUpdate = true;
+    const mat = new THREE.MeshLambertMaterial({
+      color: RIVER_WATER,
+      emissive: new THREE.Color(RIVER_WATER).multiplyScalar(0.45),
+      map: t,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+    const g = new THREE.PlaneGeometry(w, depth);
+    g.rotateX(-Math.PI / 2);
+    const m = new THREE.Mesh(g, mat);
+    m.position.set((x0 + x1) / 2, 0.06, (GROUND_Z0 + GROUND_Z1) / 2);
+    this.adoptGeo(this.root, m);
+    if (wallH === 0) {
+      // Open sea runs out to the horizon behind the coast layers; soft ends blend into the shore.
+      const farDepth = 5200;
+      const fw = w + 600;
+      const ft = this.waterTex.clone();
+      ft.repeat.set(fw / 60, farDepth / 60);
+      ft.needsUpdate = true;
+      const far = new THREE.Mesh(
+        new THREE.PlaneGeometry(fw, farDepth).rotateX(-Math.PI / 2),
+        new THREE.MeshLambertMaterial({
+          color: SEA_WATER,
+          emissive: new THREE.Color(SEA_WATER).multiplyScalar(0.5),
+          map: ft,
+          alphaMap: this.seaEdgeTex,
+          transparent: true,
+          depthWrite: false,
+        }),
+      );
+      far.position.set((x0 + x1) / 2, 0.04, GROUND_Z0 - farDepth / 2 + 2);
+      far.renderOrder = -1;
+      this.adoptGeo(this.root, far);
+    }
+    if (wallH > 0.2) {
+      const stone = new THREE.MeshLambertMaterial({ color: '#9a958b' });
+      for (const x of [x0, x1]) {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(3, wallH, depth), stone);
+        wall.position.set(x, wallH / 2 - 0.3, (GROUND_Z0 + GROUND_Z1) / 2);
+        this.adoptGeo(this.root, wall);
+      }
+    }
+  }
+
+  private dressGeoSea(spans: [number, number][]): void {
+    const P = this.pages;
+    const sprites: Placement[] = [];
+    const put = (name: string, x: number, z = 2, scale = 1, flip = false) => {
+      const f = this.frames.get(name);
+      if (!f) return;
+      sprites.push({ frame: f, x, z, scale, flip });
+    };
+    for (const [x0, x1] of spans) {
+      const w = x1 - x0;
+      if (w < 400) continue;
+      const mid = (x0 + x1) / 2;
+      if (w > 2500) {
+        put('atlantic_swell', x0 + w * 0.25, 0.4, 1);
+        put('atlantic_swell', x0 + w * 0.6, 0.3, 1, true);
+        put('cargo_ship', x0 + w * 0.35, 2, 1.1);
+        put('cargo_ship', x0 + w * 0.7, 2, 0.9, true);
+      } else {
+        put('channel_cliffs', x0 + 80, 1.5, 1);
+        put('channel_cliffs', x1 - 80, 1.5, 1, true);
+        put('ferry', mid - w * 0.15, 2.5);
+        put('cargo_ship', mid + w * 0.18, 2);
+      }
+      if (w > 1200 && w < 5000) {
+        put('med_isle', mid, 1.4, 0.9);
+        put('sea_stack', x0 + w * 0.22, 2);
+      }
+    }
+    if (sprites.length) {
+      buildSpriteBatches(P, sprites, { hazeAmount: 0.08, skirt: 0, renderOrder: 31 }).forEach((m) => this.adoptGeo(this.midLayer, m));
+    }
   }
 
   private sceneryGroup(parent: THREE.Object3D, theme: SceneryTheme): THREE.Group {
@@ -324,10 +867,14 @@ export class World {
     }
     buildSpriteBatches(P, farClouds, { hazeAmount: 0.3, skirt: 0, renderOrder: 0, opacity: 0.9 }).forEach((m) => cloudsFar.add(fixed(m)));
 
-    // Mountains (shared base silhouette)
+    // Mountains (shared base silhouette — hidden on hops whose geography we stamp live)
     const mountains = this.addLayer(-1500, 0.86);
+    this.mountainsLayer = mountains;
     const mt = paintMountainTile();
-    mountains.add(fixed(buildTileStrip(this.tile(mt, anisotropy), mt.w, mt.h, [[WORLD_X0, WORLD_X1]], { hazeAmount: 0.42, skirt: 8, renderOrder: 10 })));
+    this.mtSpec = mt;
+    this.mtTex = this.tile(mt, anisotropy);
+    this.stockFarMountains = fixed(buildTileStrip(this.mtTex, mt.w, mt.h, [[WORLD_X0, WORLD_X1]], { hazeAmount: 0.42, skirt: 8, renderOrder: 10 }));
+    mountains.add(this.stockFarMountains);
 
     // Mid-distance clouds (shared)
     const cloudsMid = this.addLayer(-1100, 0.75);
@@ -339,17 +886,26 @@ export class World {
 
     // Hills base tile (shared) + theme hill accents / far skylines
     const hills = this.addLayer(-800, 0.74);
+    this.hillsLayer = hills;
     const ht = paintHillsTile();
-    hills.add(fixed(buildTileStrip(this.tile(ht, anisotropy), ht.w, ht.h, [[WORLD_X0, WORLD_X1]], { hazeAmount: 0.28, skirt: 8, renderOrder: 20, fields: true })));
+    this.htSpec = ht;
+    this.htTex = this.tile(ht, anisotropy);
+    this.stockFarHills = fixed(buildTileStrip(this.htTex, ht.w, ht.h, [[WORLD_X0, WORLD_X1]], { hazeAmount: 0.28, skirt: 8, renderOrder: 20, fields: true }));
+    hills.add(this.stockFarHills);
     this.buildHillScenery(hills, P);
+    const desert = paintDesertTile();
+    this.desertSpec = desert;
+    this.desertTex = this.tile(desert, anisotropy);
 
     // Mid countryside + theme cities / landmarks / turbines
     const mid = this.addLayer(-380, 0.55);
+    this.midLayer = mid;
     const ct = paintCountryTile();
-    const ctTex = this.tile(ct, anisotropy);
-    this.buildMidScenery(mid, P, ctTex, ct.w, ct.h, r);
+    this.ctSpec = ct;
+    this.ctTex = this.tile(ct, anisotropy);
+    this.buildMidScenery(mid, P, this.ctTex, ct.w, ct.h, r);
 
-    // Foreground fields (shared strip with Danube gap; theme city fill)
+    // Foreground fields (shared strip with Danube gap; swapped for live hop geography)
     const gaps: [number, number][] = [[DANUBE.x0 - 10, DANUBE.x1 + 10]];
     const foreSegments: [number, number][] = [];
     let segStart = WORLD_X0;
@@ -359,13 +915,18 @@ export class World {
     }
     foreSegments.push([segStart, REF_X1]);
     const fields = this.addLayer(-290, 0.44);
-    fields.add(buildTileStrip(ctTex, ct.w * 0.8, ct.h * 0.8, foreSegments, { hazeAmount: 0.08, skirt: 8, renderOrder: 34, fields: true }));
+    this.fieldsLayer = fields;
+    this.stockForeFields = buildTileStrip(this.ctTex, ct.w * 0.8, ct.h * 0.8, foreSegments, { hazeAmount: 0.08, skirt: 8, renderOrder: 34, fields: true });
+    fields.add(this.stockForeFields);
     const fore = this.addLayer(-200, 0.3);
-    fore.add(buildTileStrip(ctTex, ct.w * 0.62, ct.h * 0.62, foreSegments, { hazeAmount: 0.05, skirt: 8, renderOrder: 35, fields: true }));
+    this.foreLayer = fore;
+    this.stockForeNear = buildTileStrip(this.ctTex, ct.w * 0.62, ct.h * 0.62, foreSegments, { hazeAmount: 0.05, skirt: 8, renderOrder: 35, fields: true });
+    fore.add(this.stockForeNear);
     this.buildForeScenery(fields, fore, P, gaps, r);
 
     // Near layer: shared airport pads + theme clutter + clouds
     const near = this.addLayer(0, 0);
+    this.nearLayer = near;
     near.add(...buildSpriteBatches(P, this.nearAirportPlacements(), { hazeAmount: 0.03, skirt: 0, renderOrder: 40 }));
     this.buildNearScenery(near, P);
     const nearClouds: Placement[] = [];
@@ -603,7 +1164,7 @@ export class World {
       [6780, 7080],
       [8380, 8680],
     ];
-    east.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(eastGaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true }));
+    east.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(eastGaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true, taper: 160 }));
     const eastSprites: Placement[] = [];
     const atEast = (name: string, left: number, z = 2, flip = false, scale = 1) => {
       const f = this.frame(name);
@@ -624,7 +1185,7 @@ export class World {
     // --- pannonian: open plain, light turbines, both city cues at ends
     const pan = this.sceneryGroup(mid, 'pannonian');
     const panGaps: [number, number][] = [[4880, 5380]];
-    pan.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(panGaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true }));
+    pan.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(panGaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true, taper: 160 }));
     const panSprites: Placement[] = [];
     const atPan = (name: string, left: number, z = 2, flip = false) => {
       const f = this.frame(name);
@@ -645,7 +1206,7 @@ export class World {
     // --- bohemian: villages, light turbines, no SNP
     const boh = this.sceneryGroup(mid, 'bohemian');
     const bohGaps: [number, number][] = [[5200, 5550], [7800, 8100]];
-    boh.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(bohGaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true }));
+    boh.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(bohGaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true, taper: 160 }));
     const bohSprites: Placement[] = [];
     for (const [name, x, flip] of [
       ['village', 3400, false],
@@ -674,7 +1235,7 @@ export class World {
     // --- vistula: river gaps + villages
     const vis = this.sceneryGroup(mid, 'vistula');
     const visGaps: [number, number][] = [[4000, 4450], [6200, 6600], [8800, 9200]];
-    vis.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(visGaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true }));
+    vis.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(visGaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true, taper: 160 }));
     const visSprites: Placement[] = [];
     for (const x of [3000, 5000, 7200, 8200, 9800]) {
       const f = this.frame('village');
@@ -699,7 +1260,7 @@ export class World {
       const g = this.sceneryGroup(mid, theme);
       const gaps: [number, number][] =
         theme === 'alpine' ? [[5600, 6000], [7400, 7700]] : theme === 'desertApproaches' ? [[5200, 5800]] : [[6000, 6400]];
-      g.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(gaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true }));
+      g.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(gaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true, taper: 160 }));
       const sprites: Placement[] = [];
       for (const x of [3200, 4400, 6800, 8600, 9800]) {
         sprites.push({ frame: this.frame('village'), x: x + this.frame('village').w / 2, z: 2 });
@@ -720,7 +1281,7 @@ export class World {
     withCliffs: boolean,
   ): void {
     const g = this.sceneryGroup(mid, theme);
-    g.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(gaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true }));
+    g.add(buildTileStrip(ctTex, ctW, ctH, this.segmentsMinusGaps(gaps), { hazeAmount: 0.1, skirt: 8, renderOrder: 30, fields: true, taper: 160 }));
     const sprites: Placement[] = [];
     const put = (name: string, left: number, z = 2, scale = 1, flip = false) => {
       const f = this.frame(name);
@@ -753,6 +1314,38 @@ export class World {
   }
 
   /** Iconic city packs at departure (west) and arrival (east) corridor thirds. */
+  /**
+   * The city's icons spread behind the departure and arrival runways on the mid layer,
+   * so the skyline is on screen while you taxi, take off and flare.
+   */
+  private buildAirportSkyline(iata: string, icons: Placement[]): void {
+    if (!icons.length) return;
+    this.cityIcons.set(iata, icons);
+    const xs = icons.map((p) => p.x);
+    const x0 = Math.min(...xs);
+    const span = Math.max(1, Math.max(...xs) - x0);
+    const place = (from: number, width: number): Placement[] =>
+      icons.map((p) => ({
+        ...p,
+        x: from + ((p.x - x0) / span) * width,
+        z: (p.z ?? 2) + 1,
+        scale: (p.scale ?? 1) * 1.05,
+      }));
+    const depG = new THREE.Group();
+    const arrG = new THREE.Group();
+    depG.visible = false;
+    arrG.visible = false;
+    depG.name = `skyline_dep_${iata}`;
+    arrG.name = `skyline_arr_${iata}`;
+    this.midLayer.add(depG);
+    this.midLayer.add(arrG);
+    const opts = { hazeAmount: 0.14, skirt: 0, renderOrder: 31.8 };
+    buildSpriteBatches(this.pages, place(-500, 2300), opts).forEach((m) => depG.add(m));
+    const d0 = REFERENCE_LAYOUT.destX0;
+    buildSpriteBatches(this.pages, place(d0 - 900, 2600), opts).forEach((m) => arrG.add(m));
+    this.airportSkylines.push({ iata, dep: depG, arr: arrG });
+  }
+
   private buildCityLandmarkPacks(): void {
     const mid = this.root; // sit with world so parallax matches mid layer roughly
     const P = this.pages;
@@ -772,6 +1365,7 @@ export class World {
       buildSpriteBatches(P, dep, { hazeAmount: 0.1, skirt: 0, renderOrder: 31.5 }).forEach((m) => depG.add(m));
       buildSpriteBatches(P, arr, { hazeAmount: 0.1, skirt: 0, renderOrder: 31.5 }).forEach((m) => arrG.add(m));
       this.cityLandmarkGroups.push({ iata, dep: depG, arr: arrG });
+      this.buildAirportSkyline(iata, arr.length >= dep.length ? arr : dep);
     };
     const f = (name: string) => this.frame(name);
     const at = (name: string, x: number, z = 3, scale = 1) => ({
@@ -858,6 +1452,140 @@ export class World {
         at('arc_triomphe', 9900, 3),
         at('eiffel', 10400, 4),
       ],
+    );
+
+    pack(
+      'BTS',
+      [
+        at('petrzalka_far', 2600, 1, 0.85),
+        at('petrzalka_far', 3100, 1.2, 0.8),
+        at('snp_bridge', 3600, 3, 0.75),
+        at('bratislava_castle', 4000, 2, 0.7),
+      ],
+      [
+        at('petrzalka_far', 8800, 1),
+        at('petrzalka_far', 9300, 1.2),
+        at('snp_bridge', 9800, 3),
+        at('bratislava_castle', 10400, 2),
+        at('bratislava_oldtown', 10800, 1.5),
+      ],
+    );
+
+    pack(
+      'VIE',
+      [
+        at('vienna_far', 2800, 2, 0.75),
+        at('stephansdom', 3400, 3.5, 0.7),
+        at('riesenrad', 3900, 3, 0.7),
+      ],
+      [
+        at('vienna_far', 8800, 2),
+        at('vienna_far', 9500, 2),
+        at('vienna_block_a', 9000, 2),
+        at('vienna_block_b', 9400, 2),
+        at('votivkirche', 9100, 3),
+        at('stephansdom', 9700, 3.5),
+        at('karlskirche', 10100, 3),
+        at('riesenrad', 10550, 3),
+        at('dc_tower', 10800, 4, 0.75),
+      ],
+    );
+
+    pack(
+      'BUD',
+      [
+        at('budapest_far', 2900, 2, 0.75),
+        at('chain_bridge', 3400, 3, 0.7),
+        at('budapest_parliament', 3900, 3.5, 0.7),
+      ],
+      [
+        at('budapest_far', 8800, 2),
+        at('budapest_far', 9600, 2),
+        at('chain_bridge', 9200, 3),
+        at('budapest_parliament', 10000, 3.5),
+        at('millennium_tower', 10500, 4, 0.75),
+      ],
+    );
+
+    pack(
+      'PRG',
+      [
+        at('prague_far', 2900, 2, 0.8),
+        at('charles_bridge', 3400, 3, 0.7),
+        at('prague_castle', 3900, 3.5, 0.7),
+      ],
+      [
+        at('prague_far', 8800, 2),
+        at('prague_far', 9500, 2),
+        at('charles_bridge', 9200, 3),
+        at('prague_castle', 10100, 3.5),
+      ],
+    );
+
+    pack('KRK', [at('krakow_far', 3000, 2, 0.8), at('wawel', 3600, 3.5, 0.75)], [at('krakow_far', 9000, 2), at('krakow_far', 9700, 2), at('wawel', 10200, 3.5)]);
+    pack('WAW', [at('warsaw_far', 3000, 2, 0.8), at('pkin', 3600, 4, 0.6)], [at('warsaw_far', 8900, 2), at('warsaw_far', 9600, 2), at('pkin', 10300, 4)]);
+    pack('MUC', [at('munich_far', 3000, 2, 0.8), at('frauenkirche', 3600, 3.5, 0.75)], [at('munich_far', 9000, 2), at('frauenkirche', 10000, 3.5)]);
+    pack(
+      'BER',
+      [at('berlin_far', 2900, 2, 0.8), at('brandenburg', 3500, 3, 0.75), at('tv_tower', 4000, 4, 0.6)],
+      [at('berlin_far', 8800, 2), at('berlin_far', 9600, 2), at('brandenburg', 9400, 3), at('tv_tower', 10400, 4)],
+    );
+    pack(
+      'AMS',
+      [at('ams_far', 3000, 2, 0.8), at('canal_house', 3500, 3, 0.75), at('windmill', 4000, 3, 0.7)],
+      [at('ams_far', 8900, 2), at('canal_house', 9400, 3), at('windmill', 10200, 3)],
+    );
+    pack('MAD', [at('madrid_far', 3000, 2, 0.8), at('palacio_real', 3600, 3.5, 0.75)], [at('madrid_far', 9000, 2), at('palacio_real', 10100, 3.5)]);
+    pack('MIL', [at('milan_far', 3000, 2, 0.8), at('duomo_milan', 3600, 3.5, 0.75)], [at('milan_far', 9000, 2), at('duomo_milan', 10100, 3.5)]);
+    pack('ZRH', [at('zurich_far', 3000, 2, 0.8), at('grossmunster', 3600, 3.5, 0.75)], [at('zurich_far', 9000, 2), at('grossmunster', 10100, 3.5)]);
+    pack(
+      'IST',
+      [at('istanbul_far', 2900, 2, 0.8), at('hagia_sophia', 3500, 3.5, 0.7), at('blue_mosque', 4000, 3.5, 0.65)],
+      [at('istanbul_far', 8800, 2), at('hagia_sophia', 9600, 3.5), at('blue_mosque', 10400, 3.5)],
+    );
+    pack('ATH', [at('athens_far', 3000, 2, 0.8), at('parthenon', 3600, 3.5, 0.8)], [at('athens_far', 9000, 2), at('parthenon', 10100, 3.5)]);
+    pack(
+      'LIS',
+      [at('lisbon_far', 2900, 2, 0.8), at('abril_bridge', 3400, 3, 0.7), at('belem_tower', 4000, 3, 0.75)],
+      [at('lisbon_far', 8800, 2), at('abril_bridge', 9400, 3), at('belem_tower', 10400, 3)],
+    );
+    pack('DUB', [at('dublin_far', 3000, 2, 0.8), at('dublin_spire', 3700, 4, 0.7)], [at('dublin_far', 9000, 2), at('dublin_spire', 10200, 4)]);
+    pack('MIA', [at('miami_far', 3000, 2, 0.8), at('art_deco', 3600, 3, 0.8)], [at('miami_far', 8900, 2), at('miami_far', 9600, 2), at('art_deco', 10100, 3)]);
+    pack(
+      'DXB',
+      [at('dubai_far', 2900, 2, 0.75), at('burj_khalifa', 3600, 4, 0.55)],
+      [at('dubai_far', 8600, 2), at('dubai_far', 9400, 2), at('burj_khalifa', 10200, 4)],
+    );
+    pack('CAI', [at('cairo_far', 3000, 2, 0.8), at('pyramids', 3600, 3.5, 0.8)], [at('cairo_far', 9000, 2), at('pyramids', 10100, 3.5)]);
+    pack(
+      'LAX',
+      [at('lax_far', 2900, 2, 0.8), at('hollywood', 3600, 3, 0.8)],
+      [at('lax_far', 8800, 2), at('lax_far', 9600, 2), at('hollywood', 10300, 3)],
+    );
+    pack(
+      'SFO',
+      [at('sfo_far', 2900, 2, 0.8), at('golden_gate', 3400, 3, 0.7)],
+      [at('sfo_far', 8800, 2), at('golden_gate', 9600, 3), at('sfo_far', 10400, 2)],
+    );
+    pack(
+      'TYO',
+      [at('tokyo_far', 2800, 2, 0.75), at('tokyo_tower', 3400, 4, 0.6), at('skytree', 3900, 4, 0.55)],
+      [at('tokyo_far', 8600, 2), at('tokyo_far', 9400, 2), at('tokyo_tower', 9800, 4), at('skytree', 10500, 4)],
+    );
+    pack(
+      'SIN',
+      [at('singapore_far', 2900, 2, 0.8), at('marina_bay', 3600, 3.5, 0.75)],
+      [at('singapore_far', 8800, 2), at('marina_bay', 10000, 3.5)],
+    );
+    pack(
+      'SYD',
+      [at('sydney_far', 2900, 2, 0.8), at('harbour_bridge', 3400, 3, 0.7), at('opera_house', 4000, 3.5, 0.7)],
+      [at('sydney_far', 8700, 2), at('harbour_bridge', 9400, 3), at('opera_house', 10400, 3.5)],
+    );
+    pack(
+      'HKG',
+      [at('hongkong_far', 2800, 2, 0.75), at('ifc_tower', 3600, 4, 0.6)],
+      [at('hongkong_far', 8600, 2), at('hongkong_far', 9400, 2), at('ifc_tower', 10300, 4)],
     );
   }
 
@@ -1284,6 +2012,7 @@ export class World {
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    this.waterTex = tex;
     const waterMat = (w: number) => {
       const t = tex.clone();
       t.repeat.set(w / 20, (GROUND_Z1 - GROUND_Z0) / 20);

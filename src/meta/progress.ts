@@ -1,4 +1,4 @@
-import { AIRPORTS, STARTER_IATAS, airportByIata } from './airports';
+import { AIRPORTS, STARTER_IATAS } from './airports';
 import { getRoute } from './routes';
 
 const STORAGE_KEY = 'airways.progress.v3';
@@ -103,16 +103,7 @@ export function isRouteUnlocked(p: Progress, from: string, to: string): boolean 
 
 export function airportStatus(p: Progress, iata: string): 'home' | 'open' | 'locked' {
   if (iata === p.homeAirport) return 'home';
-  if (!isAirportUnlocked(p, iata)) return 'locked';
-  if (getRoute(p.homeAirport, iata)) return 'open';
-  return 'locked';
-}
-
-/** Hint when a cleared airport has no hop from the current base. */
-export function noRouteHint(homeIata: string, destIata: string): string {
-  const home = airportByIata(homeIata)?.city ?? homeIata;
-  const dest = airportByIata(destIata)?.city ?? destIata;
-  return `No direct service ${home} → ${dest}. Unlock a connecting hub or relocate.`;
+  return isAirportUnlocked(p, iata) ? 'open' : 'locked';
 }
 
 /** After a safe arrival the fleet relocates to the destination (credits applied separately). */

@@ -42,6 +42,8 @@ export interface Landmark {
   x1: number;
   title: string;
   subtitle: string;
+  /** x0/x1 are route fractions (0–1) on the en-route geography span, not reference metres. */
+  geo?: boolean;
 }
 
 /** Captions shown while passing landmarks (camera x ranges). */

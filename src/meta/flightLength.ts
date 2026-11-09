@@ -95,6 +95,21 @@ export function remapCorridorX(x: number, L: CorridorLayout): number {
   return L.destX1 + (x - BASE_DEST_X1);
 }
 
+/** Reference span (after the departure city, before the arrival city) that carries real geography. */
+const GEO_REF_X0 = 4000;
+const GEO_REF_X1 = 9800;
+
+/**
+ * Route fraction → live x, linear in distance flown. Geography must not go through
+ * {@link remapCorridorX}: its rigid climb/descent zones would squash the first and last
+ * third of the real route into a few hundred metres.
+ */
+export function geoCorridorX(t: number, L: CorridorLayout): number {
+  const a = remapCorridorX(GEO_REF_X0, L);
+  const b = remapCorridorX(GEO_REF_X1, L);
+  return a + t * (b - a);
+}
+
 export function remapCorridorSpan(x0: number, x1: number, L: CorridorLayout): [number, number] {
   return [remapCorridorX(x0, L), remapCorridorX(x1, L)];
 }

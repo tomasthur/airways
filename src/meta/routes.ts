@@ -1,10 +1,12 @@
 import { type Landmark, type Runway } from '../config';
 import { airportByIata, routeKey } from './airports';
+import { biomeCaption, corridorFlyovers, corridorGeoFractions } from './corridorGeo';
 import { distanceKm } from './economy';
 import {
   BASE_DEST_X0,
   BASE_DEST_X1,
   corridorLayout,
+  geoCorridorX,
   ORIGIN_PAD_END,
   REFERENCE_LAYOUT,
   remapCorridorX,
@@ -63,7 +65,11 @@ export function layoutRoute(route: FlightRoute, perf: CorridorPerformance): Flig
     layout,
     origin: { ...route.origin, x0: 0, x1: layout.originEnd },
     dest: { ...route.dest, x0: layout.destX0, x1: layout.destX1 },
-    landmarks: route.landmarks.map((l) => ({ ...l, x0: remapCorridorX(l.x0, layout), x1: remapCorridorX(l.x1, layout) })),
+    landmarks: route.landmarks.map((l) =>
+      l.geo
+        ? { ...l, geo: false, x0: geoCorridorX(l.x0, layout), x1: geoCorridorX(l.x1, layout) }
+        : { ...l, x0: remapCorridorX(l.x0, layout), x1: remapCorridorX(l.x1, layout) },
+    ),
   };
 }
 
@@ -352,27 +358,22 @@ export function sceneryThemeFor(from: string, to: string): SceneryTheme {
   const pair = new Set([from, to]);
   const regions = new Set([a?.region, b?.region]);
 
-  // English Channel / North Sea hops into Britain & Low Countries
-  if (
-    (pair.has('LON') || pair.has('DUB')) &&
-    (pair.has('VIE') ||
-      pair.has('PRG') ||
-      pair.has('PAR') ||
-      pair.has('AMS') ||
-      pair.has('BER') ||
-      pair.has('MUC') ||
-      pair.has('MAD') ||
-      pair.has('LIS'))
-  ) {
-    return 'channelSea';
-  }
-  if (pair.has('LON') && pair.has('AMS')) return 'channelSea';
-
-  // Transatlantic
+  // Transatlantic first so LON–NYC is not classified as Channel
   if (regions.has('americas') && (regions.has('europe') || regions.has('ce') || pair.has('LIS') || pair.has('LON') || pair.has('PAR') || pair.has('MAD') || pair.has('AMS'))) {
     return 'atlanticOcean';
   }
   if (pair.has('NYC') || (pair.has('MIA') && regions.has('europe'))) return 'atlanticOcean';
+
+  // English Channel / North Sea hops into Britain & Ireland from the continent
+  if (
+    (pair.has('LON') || pair.has('DUB')) &&
+    !regions.has('americas') &&
+    !regions.has('asia') &&
+    !regions.has('oceania') &&
+    !regions.has('mena')
+  ) {
+    return 'channelSea';
+  }
 
   // Med
   if (pair.has('ROM') || pair.has('ATH') || (pair.has('CAI') && (pair.has('ROM') || pair.has('ATH') || pair.has('IST')))) {
@@ -395,62 +396,117 @@ export function sceneryThemeFor(from: string, to: string): SceneryTheme {
   return 'continental';
 }
 
-/** HUD captions for procedurally added world hops. */
-function corridorLandmarks(from: string, to: string, theme: SceneryTheme): Landmark[] {
+/** HUD captions for procedurally added world hops — follow the sampled geography. */
+function corridorLandmarks(from: string, to: string, _theme: SceneryTheme): Landmark[] {
   const A = airportByIata(from)!;
   const B = airportByIata(to)!;
-  const midTitle =
-    theme === 'channelSea'
-      ? 'English Channel'
-      : theme === 'atlanticOcean'
-        ? 'North Atlantic'
-        : theme === 'mediterranean'
-          ? 'Mediterranean'
-          : theme === 'alpine'
-            ? 'Alpine ridges'
-            : theme === 'desertApproaches'
-              ? 'Desert corridor'
-              : theme === 'pacificRim'
-                ? 'Long over-water leg'
-                : 'En route';
-  const midSub =
-    theme === 'channelSea'
-      ? 'whitecaps below'
-      : theme === 'atlanticOcean'
-        ? 'nothing but ocean'
-        : theme === 'mediterranean'
-          ? 'blue water & haze'
-          : theme === 'alpine'
-            ? 'peaks off the wing'
-            : 'cruise altitude';
-  return [
+  const geo = corridorGeoFractions(from, to).filter((s) => s.t1 - s.t0 > 0.04);
+  const marks: Landmark[] = [
     { x0: 200, x1: 1500, title: A.name, subtitle: `${A.city} · ${A.iata}` },
-    { x0: 2500, x1: 4200, title: `Leaving ${A.city}`, subtitle: A.region === 'ce' ? 'Central Europe' : A.city },
-    { x0: 4800, x1: 7200, title: midTitle, subtitle: midSub },
-    { x0: 7800, x1: 9800, title: `${B.city} approaches`, subtitle: 'skyline ahead' },
-    { x0: 10000, x1: 11000, title: cityArrivalCaption(B.iata), subtitle: B.city },
-    { x0: 11100, x1: 13700, title: B.name, subtitle: `${B.city} · ${B.iata}` },
+    { x0: 2200, x1: 3800, title: cityDepartureCaption(A.iata), subtitle: A.city },
   ];
+  const enRoute: Landmark[] = geo.map((s) => ({
+    x0: s.t0,
+    x1: s.t1,
+    title: s.name,
+    subtitle: biomeCaption(s.biome),
+    geo: true,
+  }));
+  for (const f of corridorFlyovers(from, to)) {
+    const city = airportByIata(f.iata);
+    if (!city) continue;
+    const w = 0.035;
+    // A city callout takes over the generic region caption for its stretch.
+    for (const m of enRoute) {
+      if (m.x0 < f.t - w && m.x1 > f.t + w) {
+        enRoute.push({ ...m, x0: f.t + w });
+        m.x1 = f.t - w;
+      } else if (m.x0 < f.t + w && m.x1 > f.t - w) {
+        if (m.x0 < f.t - w) m.x1 = f.t - w;
+        else m.x0 = f.t + w;
+      }
+    }
+    enRoute.push({
+      x0: f.t - w,
+      x1: f.t + w,
+      title: `${f.km < 35 ? 'Over' : 'Passing'} ${city.city}`,
+      subtitle: f.km < 35 ? cityArrivalCaption(f.iata) : `${Math.round(f.km)} km off the wing`,
+      geo: true,
+    });
+  }
+  marks.push(...enRoute.filter((m) => m.x1 - m.x0 > 0.02).sort((a, b) => a.x0 - b.x0));
+  if (marks.length < 3) {
+    marks.push({ x0: 0.1, x1: 0.9, title: 'En route', subtitle: 'cruise altitude', geo: true });
+  }
+  marks.push({ x0: 9800, x1: 11000, title: cityArrivalCaption(B.iata), subtitle: B.city });
+  marks.push({ x0: 11100, x1: 13700, title: B.name, subtitle: `${B.city} · ${B.iata}` });
+  return marks;
+}
+
+function cityDepartureCaption(iata: string): string {
+  return `Leaving ${airportByIata(iata)?.city ?? iata}`;
 }
 
 function cityArrivalCaption(iata: string): string {
   switch (iata) {
+    case 'BTS':
+      return 'SNP Bridge & Castle';
+    case 'VIE':
+      return 'Stephansdom & Prater';
+    case 'BUD':
+      return 'Parliament & Chain Bridge';
+    case 'PRG':
+      return 'Castle & Charles Bridge';
+    case 'KRK':
+      return 'Wawel on the hill';
+    case 'WAW':
+      return 'Palace of Culture';
+    case 'MUC':
+      return 'Frauenkirche towers';
+    case 'BER':
+      return 'Brandenburg & TV tower';
+    case 'AMS':
+      return 'Canals & gables';
+    case 'MAD':
+      return 'Palacio skyline';
+    case 'MIL':
+      return 'Duomo spires';
+    case 'ZRH':
+      return 'Grossmünster & the lake';
+    case 'IST':
+      return 'Hagia Sophia & minarets';
+    case 'ATH':
+      return 'Acropolis on the hill';
+    case 'LIS':
+      return '25 de Abril Bridge';
+    case 'DUB':
+      return 'The Spire';
     case 'LON':
       return 'Thames & City skyline';
     case 'NYC':
       return 'Manhattan & Lady Liberty';
     case 'ROM':
-      return 'Eternal City';
+      return 'Colosseum & St Peter’s';
     case 'PAR':
       return 'Tour Eiffel district';
+    case 'MIA':
+      return 'Art-deco waterfront';
     case 'SYD':
-      return 'Harbour skyline';
+      return 'Opera House & Harbour Bridge';
     case 'SFO':
-      return 'Bay Bridge approaches';
+      return 'Golden Gate';
+    case 'LAX':
+      return 'Hollywood hills';
     case 'DXB':
-      return 'Burj district haze';
+      return 'Burj Khalifa';
+    case 'CAI':
+      return 'Pyramids of Giza';
     case 'TYO':
-      return 'Tokyo Bay skyline';
+      return 'Skytree & Tokyo Tower';
+    case 'SIN':
+      return 'Marina Bay Sands';
+    case 'HKG':
+      return 'Victoria Harbour towers';
     default:
       return 'City skyline';
   }
@@ -491,6 +547,10 @@ const WORLD_LINKS: [string, string][] = [
   ['VIE', 'LON'],
   ['PRG', 'LON'],
   ['MUC', 'LON'],
+  ['BUD', 'LON'],
+  ['BTS', 'LON'],
+  ['KRK', 'LON'],
+  ['WAW', 'LON'],
   ['VIE', 'PAR'],
   ['MUC', 'PAR'],
   ['VIE', 'ROM'],
@@ -607,8 +667,21 @@ export const ROUTES: FlightRoute[] = [
 export const TRIANGLE_ROUTE_IDS = ROUTES.map((r) => r.id);
 export const NETWORK_ROUTE_IDS = ROUTES.map((r) => r.id);
 
+const AUTO_HOPS = new Map<string, FlightRoute>();
+
+/** Authored hop if one exists, otherwise a generated charter between any two airports. */
 export function getRoute(from: string, to: string): FlightRoute | undefined {
-  return ROUTES.find((r) => r.from === from && r.to === to);
+  if (from === to) return undefined;
+  const authored = ROUTES.find((r) => r.from === from && r.to === to);
+  if (authored) return authored;
+  if (!airportByIata(from) || !airportByIata(to)) return undefined;
+  const id = routeKey(from, to);
+  let hop = AUTO_HOPS.get(id);
+  if (!hop) {
+    hop = autoHop(from, to);
+    AUTO_HOPS.set(id, hop);
+  }
+  return hop;
 }
 
 export function routesFrom(from: string): FlightRoute[] {

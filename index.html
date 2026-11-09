@@ -17,13 +17,23 @@
       <div id="loading" class="loading"><div class="spinner"></div><span>Painting the Danube…</span></div>
 
       <div id="hud" class="hud is-hidden">
-        <section class="panel mission">
-          <div class="route">
-            <span class="code" data-ref="routeFromCode">BTS</span><span class="city" data-ref="routeFromCity">BRATISLAVA</span><span class="arrow">→</span><span class="city" data-ref="routeToCity">VIENNA</span><span class="code" data-ref="routeToCode">VIE</span>
+        <div class="hud-top-left">
+          <section class="panel mission">
+            <div class="route">
+              <span class="code" data-ref="routeFromCode">BTS</span><span class="city" data-ref="routeFromCity">BRATISLAVA</span><span class="arrow">→</span><span class="city" data-ref="routeToCity">VIENNA</span><span class="code" data-ref="routeToCode">VIE</span>
+            </div>
+            <div class="track"><div class="track-storms" data-ref="trackStorms"></div><div class="track-fill" data-ref="trackFill"></div><div class="track-plane" data-ref="trackPlane">✈</div></div>
+            <div class="mission-meta"><span data-ref="distance">VIE 11.4 km</span><span data-ref="phase">Ready for departure</span></div>
+          </section>
+          <div class="atc is-hidden" data-ref="atc">
+            <span class="atc-station" data-ref="atcStation"></span>
+            <span class="atc-text" data-ref="atcText"></span>
+            <span class="atc-replies">
+              <button type="button" data-action="reply1" data-ref="atcReply1">Wilco</button>
+              <button type="button" data-action="reply2" data-ref="atcReply2">Unable</button>
+            </span>
           </div>
-          <div class="track"><div class="track-storms" data-ref="trackStorms"></div><div class="track-fill" data-ref="trackFill"></div><div class="track-plane" data-ref="trackPlane">✈</div></div>
-          <div class="mission-meta"><span data-ref="distance">VIE 11.4 km</span><span data-ref="phase">Ready for departure</span></div>
-        </section>
+        </div>
 
         <section class="toolbar">
           <button type="button" data-action="quality" data-ref="quality">High</button>
@@ -44,15 +54,6 @@
         </div>
 
         <div class="hint" data-ref="hint"></div>
-
-        <div class="atc is-hidden" data-ref="atc">
-          <span class="atc-station" data-ref="atcStation"></span>
-          <span class="atc-text" data-ref="atcText"></span>
-          <span class="atc-replies">
-            <button type="button" data-action="reply1" data-ref="atcReply1">Wilco</button>
-            <button type="button" data-action="reply2" data-ref="atcReply2">Unable</button>
-          </span>
-        </div>
 
         <section class="panel checklist is-hidden" data-ref="checklist" aria-label="Pre-flight checklist">
           <div class="cl-head"><span>Pre-flight</span><span class="cl-load" data-ref="clLoad"></span></div>

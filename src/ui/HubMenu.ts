@@ -17,7 +17,6 @@ import {
   airportStatus,
   isAirportUnlocked,
   loadProgress,
-  noRouteHint,
   type Progress,
 } from '../meta/progress';
 import { getRoute } from '../meta/routes';
@@ -188,11 +187,6 @@ export class HubMenu {
       this.showUnlockOffer(ap);
       return;
     }
-    if (status === 'locked') {
-      // Cleared, but no direct hop from the current base.
-      this.toast(noRouteHint(this.progress.homeAirport, iata));
-      return;
-    }
     this.selectDestination(iata);
     if (!this.inRange(iata)) {
       this.toast(rangeBlockedMessage(this.progress.homeAirport, iata, this.progress.activeAircraft));
@@ -245,12 +239,7 @@ export class HubMenu {
     this.renderStats();
     this.renderPins();
     this.toast(`Cleared · ${airportByIata(iata)?.city ?? iata}`);
-    const status = airportStatus(this.progress, iata);
-    if (status === 'open') this.selectDestination(iata);
-    else {
-      this.clearSelection();
-      this.toast(noRouteHint(this.progress.homeAirport, iata));
-    }
+    this.selectDestination(iata);
   }
 
   private selectDestination(iata: string): void {

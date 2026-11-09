@@ -5,6 +5,8 @@ import type { SpriteFrame } from '../art/Atlas';
 export const atmosphere = {
   tint: { value: new THREE.Color(1, 1, 1) },
   haze: { value: new THREE.Color(0.75, 0.8, 0.85) },
+  /** 0..1 — biome-seam fog bank washing the painted layers toward haze. */
+  seam: { value: 0 },
 };
 
 const vertexShader = /* glsl */ `
@@ -14,6 +16,10 @@ const vertexShader = /* glsl */ `
     varying float vWorldX;
     varying float vBelow;
   #endif
+  #ifdef TAPER
+    uniform float taper;
+    varying float vTaper;
+  #endif
   void main() {
     #ifdef CENTER_ANCHOR
       float ty = position.y + 0.5;
@@ -21,13 +27,23 @@ const vertexShader = /* glsl */ `
       float ty = max(position.y, 0.0);
     #endif
     vUv = vec2(mix(uvRect.x, uvRect.z, position.x + 0.5), mix(uvRect.y, uvRect.w, ty));
+    vec3 pos = position;
+    #ifdef TAPER
+      // Ranges sink into the plain at both ends of a stretch instead of ending in a cliff.
+      float width = length(instanceMatrix[0].xyz);
+      float u = position.x + 0.5;
+      float edge = min(u, 1.0 - u) * width;
+      float k = smoothstep(0.0, taper, edge);
+      vTaper = k;
+      if (pos.y > 0.0) pos.y *= mix(0.08, 1.0, k);
+    #endif
     #ifdef FIELDS
-      vec4 world = modelMatrix * instanceMatrix * vec4(position, 1.0);
-      vec4 base = modelMatrix * instanceMatrix * vec4(position.x, 0.0, 0.0, 1.0);
+      vec4 world = modelMatrix * instanceMatrix * vec4(pos, 1.0);
+      vec4 base = modelMatrix * instanceMatrix * vec4(pos.x, 0.0, 0.0, 1.0);
       vWorldX = world.x;
       vBelow = base.y - world.y;
     #endif
-    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
   }
 `;
 
@@ -37,7 +53,11 @@ const fragmentShader = /* glsl */ `
   uniform vec3 haze;
   uniform float hazeAmount;
   uniform float opacity;
+  uniform float seam;
   varying vec2 vUv;
+  #ifdef TAPER
+    varying float vTaper;
+  #endif
   #ifdef FIELDS
     varying float vWorldX;
     varying float vBelow;
@@ -66,17 +86,31 @@ const fragmentShader = /* glsl */ `
         c *= 1.0 - 0.14 * (1.0 - smoothstep(0.0, 0.02, fract(fx)));
       }
     #endif
-    c = mix(c * tint, haze, hazeAmount);
-    gl_FragColor = vec4(c, t.a * opacity);
+    float h = hazeAmount + (1.0 - hazeAmount) * seam * mix(0.55, 0.9, hazeAmount);
+    float a = t.a * opacity;
+    #ifdef TAPER
+      h = mix(min(1.0, h + 0.35), h, vTaper);
+      a *= smoothstep(0.0, 0.55, vTaper);
+    #endif
+    c = mix(c * tint, haze, h);
+    gl_FragColor = vec4(c, a);
     #include <colorspace_fragment>
     gl_FragColor.rgb *= gl_FragColor.a;
   }
 `;
 
-export function createBillboardMaterial(map: THREE.Texture, hazeAmount: number, opacity = 1, centerAnchor = false, fields = false): THREE.ShaderMaterial {
+export function createBillboardMaterial(
+  map: THREE.Texture,
+  hazeAmount: number,
+  opacity = 1,
+  centerAnchor = false,
+  fields = false,
+  taper = 0,
+): THREE.ShaderMaterial {
   const defines: Record<string, string> = {};
   if (centerAnchor) defines.CENTER_ANCHOR = '';
   if (fields) defines.FIELDS = '';
+  if (taper > 0) defines.TAPER = '';
   return new THREE.ShaderMaterial({
     uniforms: {
       map: { value: map },
@@ -84,6 +118,8 @@ export function createBillboardMaterial(map: THREE.Texture, hazeAmount: number, 
       haze: atmosphere.haze,
       hazeAmount: { value: hazeAmount },
       opacity: { value: opacity },
+      seam: atmosphere.seam,
+      taper: { value: taper },
     },
     defines,
     vertexShader,
@@ -169,16 +205,43 @@ export function buildSpriteBatches(
   return meshes;
 }
 
+/** Bottom-anchored strip subdivided along x so the vertex shader can taper its ends. */
+function createStripGeometry(skirt: number, cols: number): THREE.BufferGeometry {
+  const rows = skirt > 0 ? [-skirt, 0, 1] : [0, 1];
+  const pos: number[] = [];
+  const idx: number[] = [];
+  for (let r = 0; r < rows.length; r++) {
+    for (let c = 0; c <= cols; c++) pos.push(c / cols - 0.5, rows[r], 0);
+  }
+  const stride = cols + 1;
+  for (let r = 0; r < rows.length - 1; r++) {
+    for (let c = 0; c < cols; c++) {
+      const a = r * stride + c;
+      const b = a + 1;
+      const d = a + stride;
+      const e = d + 1;
+      idx.push(a, b, d, d, b, e);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  return g;
+}
+
 /** A horizontally repeating painted strip covering world x segments. */
 export function buildTileStrip(
   texture: THREE.Texture,
   tileW: number,
   tileH: number,
   segments: [number, number][],
-  options: { hazeAmount: number; skirt: number; renderOrder: number; fields?: boolean },
+  options: { hazeAmount: number; skirt: number; renderOrder: number; fields?: boolean; taper?: number },
 ): THREE.InstancedMesh {
-  const geometry = createQuadGeometry(options.skirt, false);
-  const material = createBillboardMaterial(texture, options.hazeAmount, 1, false, options.fields);
+  const taper = options.taper ?? 0;
+  const widest = Math.max(1, ...segments.map(([a, b]) => b - a));
+  const cols = Math.min(640, Math.max(32, Math.ceil((widest * 5) / Math.max(1, taper))));
+  const geometry = taper > 0 ? createStripGeometry(options.skirt, cols) : createQuadGeometry(options.skirt, false);
+  const material = createBillboardMaterial(texture, options.hazeAmount, 1, false, options.fields, taper);
   const mesh = new THREE.InstancedMesh(geometry, material, segments.length);
   const rects = new Float32Array(segments.length * 4);
   const vInset = 1.5 / (texture.image as HTMLCanvasElement).height;

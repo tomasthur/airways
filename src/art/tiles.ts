@@ -165,6 +165,28 @@ export function paintHillsTile(): TileSpec {
   return { canvas, w: W, h: H };
 }
 
+/** Sandy ridges for desert / Gulf hops. */
+export function paintDesertTile(): TileSpec {
+  const W = 1200;
+  const H = 280;
+  const canvas = paintTile(W, H, 2048 / W, 41, (ctx, r) => {
+    const back = periodicNoise(r, W, [[1, 18], [2, 12], [3, 8], [5, 5], [8, 3]]);
+    const front = periodicNoise(r, W, [[1, 10], [2, 8], [4, 5], [7, 2.5]]);
+    const backH = (x: number) => 88 + back(x);
+    const frontH = (x: number) => 42 + front(x);
+    fillProfile(ctx, 0, W, backH, vgrad(ctx, 140, 30, [[0, '#c4a06a'], [1, '#e2c48a']]), 2);
+    fillProfile(ctx, 0, W, frontH, vgrad(ctx, 80, 10, [[0, '#d4b07a'], [1, '#edcf96']]), 2);
+    ctx.globalAlpha = 0.18;
+    for (let x = 0; x < W; x += 4) {
+      const h = frontH(x);
+      if (frontH(x + 4) - h < -0.2) rect(ctx, x, h - 10, 4, 10, '#fff3d0');
+    }
+    ctx.globalAlpha = 1;
+    rect(ctx, 0, 0, W, 4, '#c9a66a');
+  });
+  return { canvas, w: W, h: H };
+}
+
 /** Near countryside strip: tree lines, poplars, farms. Transparent sky above. */
 export function paintCountryTile(): TileSpec {
   const W = 820;
