@@ -767,7 +767,7 @@ export class Game {
     void acquireWakeLock();
   }
 
-  /** Leave the flight / report and reopen the map hub (selection remembered). */
+  /** Leave the flight / report and reopen the map hub with a fresh route pick. */
   private returnToHub(): void {
     this.reset();
     this.hud.show('report', false);

@@ -129,8 +129,9 @@ export class HubMenu {
         this.camera.fitBox(0, 0, WORLD_W, WORLD_H, { animate: false, pad: 0 });
         this.focusHome(true);
       });
-      if (this.selected) this.selectDestination(this.selected);
-      else this.clearSelection();
+      // Coming back from a hop: drop the old destination so only the base glows
+      // amber and the player picks a new route from scratch.
+      this.clearSelection();
     }
   }
 
