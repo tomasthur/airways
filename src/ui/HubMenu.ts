@@ -117,6 +117,11 @@ export class HubMenu {
     });
   }
 
+  setAirline(name: string): void {
+    const el = this.root.querySelector('[data-hub="airline"]');
+    if (el) el.textContent = name;
+  }
+
   show(visible: boolean): void {
     this.root.classList.toggle('is-hidden', !visible);
     if (visible) {

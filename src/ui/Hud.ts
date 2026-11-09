@@ -1,5 +1,6 @@
 import type { LandingReport } from '../sim/Landing';
 import type { HoldAction, Input, PressAction } from '../game/Input';
+import { Coach, type CoachCue } from './Coach';
 
 export interface HudData {
   speedKmh: number;
@@ -56,10 +57,12 @@ export class Hud {
   private landmarkKey = '';
 
   private readonly root: HTMLElement;
+  private readonly coach: Coach;
   private speedMaxKmh = 320;
 
   constructor(root: HTMLElement, input: Input) {
     this.root = root;
+    this.coach = new Coach(root);
     root.querySelectorAll<HTMLElement>('[data-ref]').forEach((el) => this.refs.set(el.dataset.ref!, el));
     root.querySelectorAll<HTMLElement>('[data-warn]').forEach((el) => this.warnEls.set(el.dataset.warn as WarningKey, el));
     this.papiLights = Array.from(root.querySelectorAll<HTMLElement>('.papi-lights i'));
@@ -114,7 +117,7 @@ export class Hud {
     el.className = value;
   }
 
-  show(id: 'hud' | 'menu' | 'pause' | 'report' | 'loading', visible: boolean): void {
+  show(id: 'hud' | 'menu' | 'pause' | 'report' | 'loading' | 'register', visible: boolean): void {
     document.getElementById(id)?.classList.toggle('is-hidden', !visible);
   }
 
@@ -183,6 +186,18 @@ export class Hud {
 
   setMuted(muted: boolean): void {
     this.text('mute', muted ? 'Sound off' : 'Sound on');
+  }
+
+  setAutopilot(on: boolean): void {
+    this.root.querySelectorAll<HTMLElement>('[data-autopilot]').forEach((el) => {
+      el.textContent = on ? 'Autopilot on' : 'Autopilot off';
+      el.classList.toggle('is-on', on);
+    });
+    if (!on) this.coach.clear();
+  }
+
+  setCoach(cue: CoachCue | null): void {
+    this.coach.show(this.root, cue);
   }
 
   setHint(text: string): void {

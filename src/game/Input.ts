@@ -23,7 +23,8 @@ export type PressAction =
   | 'restart'
   | 'mute'
   | 'start'
-  | 'quality';
+  | 'quality'
+  | 'autopilot';
 
 /**
  * Default key map. Deliberately free of Ctrl/Alt/Meta combinations, Escape (Shift+Esc opens the
@@ -71,6 +72,8 @@ export class Input {
   constructor() {
     window.addEventListener('keydown', (e) => {
       if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const typing = e.target as HTMLElement | null;
+      if (typing && (typing.tagName === 'INPUT' || typing.tagName === 'TEXTAREA' || typing.isContentEditable)) return;
       if (HOLD_KEYS[e.code]) {
         this.codes.add(e.code);
         e.preventDefault();

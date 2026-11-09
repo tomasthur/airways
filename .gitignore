@@ -2,6 +2,8 @@ node_modules
 dist
 *.log
 .shots
+.env.local
+.env*.local
 
 # Android / Capacitor build output
 android/.gradle

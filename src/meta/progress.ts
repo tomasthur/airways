@@ -1,4 +1,5 @@
 import { AIRPORTS, STARTER_IATAS } from './airports';
+import { applyPlayerStats } from './player';
 import { getRoute } from './routes';
 
 const STORAGE_KEY = 'airways.progress.v3';
@@ -90,6 +91,12 @@ export function loadProgress(): Progress {
 
 export function saveProgress(p: Progress): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+  applyPlayerStats({
+    flights: p.successfulFlights,
+    crashes: p.crashes,
+    losses: p.deaths,
+    cash: p.credits,
+  });
 }
 
 export function isAirportUnlocked(p: Progress, iata: string): boolean {

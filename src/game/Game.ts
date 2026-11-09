@@ -25,6 +25,9 @@ import { acquireWakeLock, bindNativeLifecycle, isNativePlatform, releaseWakeLock
 import { FlightControls } from '../ui/FlightControls';
 import { HubMenu } from '../ui/HubMenu';
 import { Hud, type ChecklistView, type WarningKey } from '../ui/Hud';
+import type { CoachCue } from '../ui/Coach';
+import { RegisterScreen } from '../ui/RegisterScreen';
+import { flushPendingPlayer, hasPlayer, loadPlayer } from '../meta/player';
 import { Atc } from './Atc';
 import { Input, type PressAction } from './Input';
 
@@ -39,8 +42,16 @@ const QUALITY: Record<Quality, { label: string; pixelRatio: number; shadowMap: n
 };
 const QUALITY_ORDER: Quality[] = ['low', 'medium', 'high'];
 
+const AP_KEY = 'airways.autopilot';
 const BASE_FOV = 38;
 const CAMERA_PITCH = -0.045;
+
+function loadAutopilot(): boolean {
+  const v = localStorage.getItem(AP_KEY);
+  if (v === 'on') return true;
+  if (v === 'off') return false;
+  return loadProgress().successfulFlights === 0;
+}
 const PAPI_THRESHOLDS = [3.0, 3.33, 3.67, 4.0];
 /** Walkers drawn on the apron; airliner loads board as a representative group. */
 const MAX_VISIBLE_PASSENGERS = 12;
@@ -61,6 +72,7 @@ export class Game {
   private readonly input = new Input();
   private readonly hud: Hud;
   private readonly hub: HubMenu;
+  private readonly register: RegisterScreen;
   private route: FlightRoute = layoutRoute(DEFAULT_ROUTE, this.fm.config.performance);
   private readonly sound = new EngineSound();
   private readonly hemi: THREE.HemisphereLight;
@@ -109,6 +121,8 @@ export class Game {
   private atcTimer = 0;
   private routeStormTimer = 0;
   private quality: Quality;
+  /** Coach overlay that points at the next control. On by default for the first flight. */
+  private autopilot: boolean;
   private touchdownItems: ScoreItem[] | null = null;
   private overran = false;
   private tailStrike = false;
@@ -136,6 +150,8 @@ export class Game {
   private hudTimer = 0;
   private beltSign: 'on' | 'off' | null = null;
   private beltSignTimer = 0;
+  /** Once near the destination, Autopilot stays on landing config even if the nose comes up. */
+  private coachLanding = false;
 
   private readonly warnings: Record<WarningKey, boolean> = {
     stall: false,
@@ -196,6 +212,9 @@ export class Game {
 
     this.hud = new Hud(app, this.input);
     this.hub = new HubMenu(document.getElementById('menu')!, (req) => this.begin(req.from, req.to));
+    this.register = new RegisterScreen(document.getElementById('register')!, (player) => {
+      this.hub.setAirline(player.airline);
+    });
     this.controlsUi = new FlightControls(
       app,
       (v) => this.fm.setThrottleLever(v),
@@ -244,10 +263,17 @@ export class Game {
     this.route = layoutRoute(DEFAULT_ROUTE, this.fm.config.performance);
     this.world.setCorridor(this.route.layout);
     this.reset();
+    this.autopilot = loadAutopilot();
     this.hud.setMuted(false);
+    this.hud.setAutopilot(this.autopilot);
     this.hud.show('loading', false);
     this.hud.show('hud', true);
     this.hub.show(true);
+    const player = loadPlayer();
+    if (player) {
+      this.hub.setAirline(player.airline);
+      flushPendingPlayer();
+    } else this.register.show();
     this.lastFrame = performance.now();
     this.renderer.setAnimationLoop((t) => this.frame(t));
   }
@@ -393,6 +419,7 @@ export class Game {
     this.flashTimer = 0;
     this.beltSign = null;
     this.beltSignTimer = 0;
+    this.coachLanding = false;
   }
 
   // ------------------------------------------------------------------ input
@@ -400,6 +427,7 @@ export class Game {
   private onPress(a: PressAction): void {
     switch (a) {
       case 'start':
+        if (this.register.visible) break;
         if (this.state === 'menu') this.hub.tryFlyFromKeyboard();
         else if (this.state === 'report') this.returnToHub();
         else if (this.state === 'paused') this.setPaused(false);
@@ -418,6 +446,9 @@ export class Game {
       case 'quality':
         this.quality = QUALITY_ORDER[(QUALITY_ORDER.indexOf(this.quality) + 1) % QUALITY_ORDER.length];
         this.applyQuality();
+        break;
+      case 'autopilot':
+        this.setAutopilotEnabled(!this.autopilot);
         break;
       case 'flaps':
       case 'flapsDown':
@@ -617,6 +648,19 @@ export class Game {
     return toAim < glideStart + 300;
   }
 
+  /** Last stretch to the arrival runway. Must not fire on take-off: short hops are only a few km long. */
+  private onLandingApproach(toAim: number): boolean {
+    if (this.coachLanding) return true;
+    if (this.phase !== 'airborne' || this.fm.onGround) return false;
+    const originEnd = this.route.origin.x1;
+    const destX0 = this.route.dest.x0;
+    if (this.fm.x < originEnd + 800) return false;
+    const hop = Math.max(2000, destX0 - originEnd);
+    const window = Math.min(2800, Math.max(1400, hop * 0.32));
+    if (toAim < window || this.fm.x > destX0 - window) this.coachLanding = true;
+    return this.coachLanding;
+  }
+
   private stepCabin(dt: number): void {
     if (this.phase !== 'airborne' || this.crashed) return;
     const fm = this.fm;
@@ -740,6 +784,10 @@ export class Game {
   }
 
   private begin(from: string, to: string): void {
+    if (!hasPlayer()) {
+      this.register.show();
+      return;
+    }
     const authored = getRoute(from, to);
     const progress = loadProgress();
     if (!authored || !isWithinRange(from, to, progress.activeAircraft)) {
@@ -747,6 +795,9 @@ export class Game {
       return;
     }
     this.setAircraft(progress.activeAircraft);
+    if (localStorage.getItem(AP_KEY) === null && progress.successfulFlights === 0) {
+      this.setAutopilotEnabled(true);
+    }
     const route = layoutRoute(authored, this.fm.config.performance);
     this.route = route;
     const origin = airportByIata(route.from);
@@ -1349,12 +1400,89 @@ export class Game {
     const lm = flying || this.state === 'menu' ? this.route.landmarks.find((l) => camX >= l.x0 && camX <= l.x1) : undefined;
     this.hud.setLandmark(lm?.title ?? '', lm?.subtitle ?? '');
 
+    const cue = this.autopilot && (flying || this.state === 'paused') ? this.coachCue(toAim) : null;
+    this.hud.setCoach(cue);
     if (this.flashTimer > 0) {
       this.flashTimer -= 1 / 20;
       this.hud.setHint(this.flashText);
     } else {
-      this.hud.setHint(flying ? this.hint(toAim) : '');
+      this.hud.setHint(flying && !cue ? this.hint(toAim) : '');
     }
+  }
+
+  private setAutopilotEnabled(on: boolean): void {
+    this.autopilot = on;
+    localStorage.setItem(AP_KEY, on ? 'on' : 'off');
+    this.hud.setAutopilot(on);
+    const flying = this.state === 'flying' || this.state === 'paused';
+    this.hud.setCoach(on && flying ? this.coachCue(this.aimX - this.fm.x) : null);
+  }
+
+  /** Next control to press, with a short why — used by the Autopilot coach. */
+  private coachCue(toAim: number): CoachCue | null {
+    const fm = this.fm;
+    if (this.state !== 'flying' && this.state !== 'paused') return null;
+    if (this.crashed || this.phase === 'falling') return null;
+    const kmh = fm.airspeed * 3.6;
+    const lim = fm.config.limits;
+    const atc = this.atc.current;
+
+    if (this.engineFailed && !this.engineRelit && fm.engine.state === 'off') {
+      return { id: 'relight', text: `Relight — the ${this.engineWord} cut in cruise.` };
+    }
+    if (atc && atc.replies.length) {
+      const label = atc.replies[0];
+      return {
+        id: 'atc',
+        text: label === 'Wilco' ? 'Tap Wilco to follow this ATC altitude.' : `Tap ${label} to answer ATC.`,
+      };
+    }
+    if (this.phase === 'preflight') {
+      const c = this.checklist();
+      if (!this.boardingStarted) return { id: 'door', text: 'Open the door so passengers can board.' };
+      if (!c.done.boarding) return { id: 'boarding', text: 'Wait here — boarding finishes on its own.' };
+      if (!c.done.door) return { id: 'door', text: 'Close the door before engine start.' };
+      if (!c.done.lights) return { id: 'lights', text: 'Beacon on — the aircraft is live on the apron.' };
+      if (!c.done.flaps) return { id: 'flapsTakeoff', text: `Set ${this.takeoffFlapDeg}° flaps for extra lift at take-off.` };
+      if (!c.done.belts) return { id: 'beltsCl', text: 'Seatbelt sign on for taxi and take-off.' };
+      if (fm.engine.state === 'starting') return null;
+      return { id: 'engine', text: `Start the ${this.engineWord}, then we can roll.` };
+    }
+    if (this.phase === 'takeoff') {
+      if (fm.throttleLever < 0.95) return { id: 'throttle', text: 'Push throttle to full power for the take-off roll.' };
+      if (kmh < lim.vrKmh * 0.9) return { id: 'throttle', text: `Hold full power — rotate at ${lim.vrKmh} km/h.` };
+      return { id: 'yoke', text: 'Pull the yoke to raise the nose and leave the runway.' };
+    }
+    if (this.phase === 'rollout') {
+      if (Math.abs(fm.vx) <= 0.5) return null;
+      if (fm.throttleLever > 0.05) return { id: 'throttle', text: 'Idle the throttle, then we stop with the brakes.' };
+      return { id: 'brake', text: 'Hold Brake to stop on the runway.' };
+    }
+    if (this.meal) return { id: 'yoke', text: 'Hold the yoke still — cabin is serving.' };
+    if (fm.stalled) return { id: 'yoke', text: 'Push the yoke forward — do not pull in a stall.' };
+    if (fm.overspeed) return { id: 'throttle', text: 'Pull the throttle back — we are too fast.' };
+    if (this.weatherNeedsBelts() && !this.belts) return { id: 'belts', text: 'Seatbelt sign on — rain and turbulence ahead.' };
+
+    if (this.onLandingApproach(toAim)) {
+      if (!this.belts) return { id: 'belts', text: 'Seatbelt sign on for descent and landing.' };
+      if (fm.gearTarget < 0.5) return { id: 'gear', text: 'Gear down for landing.' };
+      if (fm.flapsTarget < 1) return { id: 'flapsDown', text: `Landing flaps — full is ${maxFlapDeg(fm.config)}°.` };
+      if (toAim <= 0 || (fm.y < 14 && fm.x > this.route.dest.x0 - 300)) {
+        return { id: 'yoke', text: 'Flare: ease the yoke back and cut the power.' };
+      }
+      return null;
+    }
+
+    if (this.inDescent(toAim) && !this.belts) return { id: 'belts', text: 'Seatbelt sign on for descent and landing.' };
+    if (fm.gearTarget > 0.5 && fm.y > 15) return { id: 'gear', text: 'Gear up — less drag for the climb.' };
+    if (fm.flapIndex > 0 && fm.y > 60) return { id: 'flapsUp', text: 'Flaps up for cruise speed.' };
+    if (this.belts && this.beltCruiseOnS > 8 && this.inCruise(toAim) && !this.weatherNeedsBelts()) {
+      return { id: 'belts', text: 'Smooth cruise — you can switch the sign off.' };
+    }
+    if (this.inCruise(toAim) && fm.throttleLever > 0.82) {
+      return { id: 'throttle', text: 'Ease throttle to about 70% for cruise.' };
+    }
+    return null;
   }
 
   private checklist(): ChecklistView {
@@ -1470,6 +1598,12 @@ export class Game {
     if (fm.air.cloud > 0.3 && fm.air.turbulence > 1.2 && kmh > turbulenceKmh) return `Severe turbulence – slow below ${turbulenceKmh} km/h to protect the airframe`;
     const glideStart = fm.y / Math.tan(THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG));
     const descending = toAim < glideStart + 200;
+    if (this.onLandingApproach(toAim)) {
+      if (fm.gearTarget < 0.5) return 'Landing gear down';
+      if (fm.flapsTarget < 1) return `Flaps down for landing — full is ${maxFlapDeg(fm.config)}°`;
+      if (fm.y < 14) return `Flare: cut the power and gently raise the nose – do not let the speed decay below ~${round10(lim.vs1Kmh * 1.18)} km/h`;
+      return 'Final approach — hold the path, 2 white + 2 red PAPI';
+    }
     if (!descending) {
       if (fm.gearTarget > 0.5 && fm.y > 15) return 'Positive climb – retract the landing gear';
       if (fm.flapIndex > 0 && fm.y > 60) return 'Retract the flaps for cruise';

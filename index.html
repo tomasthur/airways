@@ -16,6 +16,26 @@
     <div id="app">
       <div id="loading" class="loading"><div class="spinner"></div><span>Painting the Danube…</span></div>
 
+      <div id="register" class="register is-hidden" data-register="root">
+        <div class="register-card">
+          <div class="register-wordmark">AIRWAYS</div>
+          <p class="register-tag">Found your airline</p>
+          <p class="register-lead">Name the carrier and leave an email. We’ll keep your flights, crashes and cash on the world board.</p>
+          <form class="register-form" novalidate>
+            <label class="register-field">
+              <span>Airline name</span>
+              <input name="airline" type="text" maxlength="40" autocomplete="organization" autocapitalize="words" placeholder="e.g. Danube Air" required />
+            </label>
+            <label class="register-field">
+              <span>Email</span>
+              <input name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@airline.com" required />
+            </label>
+            <p class="register-error" data-register="error" role="alert"></p>
+            <button type="submit" class="register-go">Start flying</button>
+          </form>
+        </div>
+      </div>
+
       <div id="hud" class="hud is-hidden">
         <div class="hud-top-left">
           <section class="panel mission">
@@ -60,6 +80,7 @@
         <section class="toolbar">
           <button type="button" data-action="quality" data-ref="quality">High</button>
           <button type="button" data-action="mute" data-ref="mute">Sound on</button>
+          <button type="button" data-action="autopilot" data-autopilot>Autopilot on</button>
           <button type="button" data-action="pause">Pause</button>
         </section>
 
@@ -195,7 +216,7 @@
         <header class="hub-top">
           <div class="hub-brand">
             <div class="hub-wordmark">AIRWAYS</div>
-            <p class="hub-tag">World charter · earn · unlock · fly</p>
+            <p class="hub-tag" data-hub="airline">World charter · earn · unlock · fly</p>
           </div>
           <div class="hub-stats" aria-label="Career stats">
             <div class="hub-stat hub-stat--cash"><span data-hub="statCredits">€0</span><small>Cash</small></div>
@@ -203,6 +224,7 @@
             <div class="hub-stat"><span data-hub="statCrashes">—</span><small>Crashes</small></div>
             <div class="hub-stat"><span data-hub="statDeaths">—</span><small>Losses</small></div>
             <div class="hub-stat hub-stat--home"><span data-hub="statHome">BTS</span><small>Base</small></div>
+            <button type="button" class="hub-hangar-btn" data-action="autopilot" data-autopilot>Autopilot on</button>
             <button type="button" class="hub-hangar-btn" data-hub="hangarOpen">Hangar</button>
           </div>
         </header>
@@ -285,6 +307,7 @@
           <h2>Paused</h2>
           <div class="row">
             <button type="button" class="primary" data-action="pause">Resume</button>
+            <button type="button" data-action="autopilot" data-autopilot>Autopilot on</button>
             <button type="button" data-action="restart">Restart</button>
           </div>
         </div>
@@ -304,6 +327,10 @@
           <div class="stats" data-ref="reportStats"></div>
           <button type="button" class="primary" data-action="restart" data-ref="reportButton">Back to map</button>
         </div>
+      </div>
+      <div id="coach" class="coach is-hidden" aria-hidden="true">
+        <div class="coach-ring"></div>
+        <div class="coach-tip"><span class="coach-msg"></span></div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
