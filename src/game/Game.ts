@@ -105,8 +105,10 @@ export class Game {
   private stormEncounter: 'none' | 'light' | 'moderate' | 'severe' = 'none';
   /** Corridor x positions where a cruise meal service may start. */
   private mealAt: number[] = [];
-  private meal: { left: number; rough: number } | null = null;
-  private mealResults: { ok: boolean; rough: number }[] = [];
+  private meal: { left: number; dur: number; rough: number } | null = null;
+  private mealResults: { ok: boolean; rough: number; dur: number }[] = [];
+  /** Seconds a trolley run lasts on this hop (scales with cruise). */
+  private mealDur = 10;
   /** Corridor x of a one-shot cruise engine failure; 0 = none this hop. */
   private engineFailX = 0;
   private engineFailed = false;
@@ -589,7 +591,7 @@ export class Game {
     }
   }
 
-  /** Place meal service (and maybe an engine cut) on longer hops only. */
+  /** Place meal service (and maybe an engine cut) in proportion to this hop's cruise. */
   private scheduleCabinEvents(seed: number): void {
     this.mealAt = [];
     this.meal = null;
@@ -616,11 +618,15 @@ export class Game {
       return (s >>> 0) / 4294967296;
     };
 
-    if (cruiseSec >= 90) this.mealAt.push(origin + span * 0.3);
-    if (cruiseSec >= 210) this.mealAt.push(origin + span * 0.52);
-    if (cruiseSec >= 110 && rnd() < 0.55) {
-      const gap = Math.max(1200, span * 0.06);
-      for (const f of [0.48, 0.42, 0.58, 0.38, 0.34]) {
+    // 2-min hops stay quiet. One trolley from ~3 min, two on the 5–7 min legs.
+    this.mealDur = Math.round(Math.min(14, Math.max(8, cruiseSec * 0.05)));
+    if (cruiseSec >= 70) this.mealAt.push(origin + span * 0.32);
+    if (cruiseSec >= 175) this.mealAt.push(origin + span * 0.55);
+    const failChance = cruiseSec >= 200 ? 0.55 : 0.4;
+    if (cruiseSec >= 90 && rnd() < failChance) {
+      const mealFrac = this.mealDur / cruiseSec;
+      const gap = Math.max(span * 0.08, span * mealFrac * 1.8);
+      for (const f of [0.44, 0.4, 0.5, 0.62, 0.36]) {
         const x = origin + span * f;
         if (this.mealAt.every((m) => Math.abs(m - x) > gap)) {
           this.engineFailX = x;
@@ -718,7 +724,7 @@ export class Game {
         const pitch = Math.abs(fm.pitch) * (180 / Math.PI);
         if (bank > 10 || pitch > 12 || Math.abs(fm.vy) > 2.8) this.meal.rough += dt;
         if (bank > 22 || pitch > 20 || Math.abs(fm.vy) > 6) this.finishMeal(false);
-        else if (this.meal.left <= 0) this.finishMeal(this.meal.rough < 4);
+        else if (this.meal.left <= 0) this.finishMeal(this.meal.rough < this.meal.dur * 0.2);
       }
     } else if (
       cruise &&
@@ -730,7 +736,7 @@ export class Game {
       // Late into cruise: keep at most one overdue service so they do not stack.
       while (this.mealAt.length > 1 && fm.x >= this.mealAt[1]) this.mealAt.shift();
       this.mealAt.shift();
-      this.meal = { left: 20, rough: 0 };
+      this.meal = { left: this.mealDur, dur: this.mealDur, rough: 0 };
       this.flash('Cabin crew serving meals — keep the aircraft straight and level', 5);
     } else if (this.mealAt.length > 0 && descent && fm.x >= this.mealAt[0]) {
       this.mealAt.shift();
@@ -739,12 +745,12 @@ export class Game {
 
   private finishMeal(ok: boolean): void {
     if (!this.meal) return;
-    const rough = this.meal.rough;
-    this.mealResults.push({ ok, rough });
+    const { rough, dur } = this.meal;
+    this.mealResults.push({ ok, rough, dur });
     this.meal = null;
     this.flash(
       ok
-        ? rough < 1.2
+        ? rough < dur * 0.06
           ? 'Meal service complete — well flown'
           : 'Meal service finished'
         : 'Meal service interrupted — too much movement',
@@ -1138,7 +1144,7 @@ export class Game {
       const r = this.mealResults[i];
       const n = this.mealResults.length > 1 ? ` ${i + 1}` : '';
       if (!r.ok) items.push({ label: `Meal service${n}`, value: 'Interrupted — too much movement', score: -3, max: 0 });
-      else if (r.rough < 1.2) items.push({ label: `Meal service${n}`, value: 'Smooth', score: 8, max: 8 });
+      else if (r.rough < r.dur * 0.06) items.push({ label: `Meal service${n}`, value: 'Smooth', score: 8, max: 8 });
       else items.push({ label: `Meal service${n}`, value: 'Completed', score: 3, max: 8 });
     }
     if (this.engineFailed) {
@@ -1359,7 +1365,7 @@ export class Game {
         tag: 'CABIN',
         text: `Keep the aircraft straight and level — meal service ${Math.ceil(this.meal.left)} s`,
         start: false,
-        timer: this.meal.left / 20,
+        timer: this.meal.left / this.meal.dur,
       });
     } else {
       this.hud.setCabin(null);

@@ -69,7 +69,7 @@ export const THEME_SEA_SPANS: Partial<Record<SceneryTheme, [number, number][]>> 
 };
 
 const WORLD_X0 = -3500;
-/** Long enough for the longest corridor (A380, 12 min ≈ 157 km) plus overrun. */
+/** Long enough for the longest corridor (A380, 7 min ≈ 83 km) plus overrun. */
 const WORLD_X1 = 175000;
 /** End of the authored reference layout; corridor scenery is generated up to here and remapped. */
 const REF_X1 = 19000;
