@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>AIRWAYS fleet capture</title>
+    <style>
+      body { margin: 0; background: #1a2228; color: #eee; font: 13px sans-serif; }
+      #preview { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; padding: 16px; }
+      #preview img { width: 100%; background: repeating-conic-gradient(#333 0 25%, #222 0 50%) 0 0 / 16px 16px; border-radius: 12px; }
+    </style>
+  </head>
+  <body>
+    <p id="status">Rendering fleet…</p>
+    <div id="preview"></div>
+    <script type="module" src="/src/captureFleet.ts"></script>
+  </body>
+</html>

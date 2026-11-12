@@ -42,12 +42,13 @@ const QUALITY: Record<Quality, { label: string; pixelRatio: number; shadowMap: n
 };
 const QUALITY_ORDER: Quality[] = ['low', 'medium', 'high'];
 
-const AP_KEY = 'airways.autopilot';
+const CP_KEY = 'airways.copilot';
+const LEGACY_AP_KEY = 'airways.autopilot';
 const BASE_FOV = 38;
 const CAMERA_PITCH = -0.045;
 
-function loadAutopilot(): boolean {
-  const v = localStorage.getItem(AP_KEY);
+function loadCopilot(): boolean {
+  const v = localStorage.getItem(CP_KEY) ?? localStorage.getItem(LEGACY_AP_KEY);
   if (v === 'on') return true;
   if (v === 'off') return false;
   return loadProgress().successfulFlights === 0;
@@ -122,7 +123,7 @@ export class Game {
   private routeStormTimer = 0;
   private quality: Quality;
   /** Coach overlay that points at the next control. On by default for the first flight. */
-  private autopilot: boolean;
+  private copilot: boolean;
   private touchdownItems: ScoreItem[] | null = null;
   private overran = false;
   private tailStrike = false;
@@ -150,7 +151,7 @@ export class Game {
   private hudTimer = 0;
   private beltSign: 'on' | 'off' | null = null;
   private beltSignTimer = 0;
-  /** Once near the destination, Autopilot stays on landing config even if the nose comes up. */
+  /** Once near the destination, Copilot stays on landing config even if the nose comes up. */
   private coachLanding = false;
 
   private readonly warnings: Record<WarningKey, boolean> = {
@@ -263,9 +264,9 @@ export class Game {
     this.route = layoutRoute(DEFAULT_ROUTE, this.fm.config.performance);
     this.world.setCorridor(this.route.layout);
     this.reset();
-    this.autopilot = loadAutopilot();
+    this.copilot = loadCopilot();
     this.hud.setMuted(false);
-    this.hud.setAutopilot(this.autopilot);
+    this.hud.setCopilot(this.copilot);
     this.hud.show('loading', false);
     this.hud.show('hud', true);
     this.hub.show(true);
@@ -447,8 +448,8 @@ export class Game {
         this.quality = QUALITY_ORDER[(QUALITY_ORDER.indexOf(this.quality) + 1) % QUALITY_ORDER.length];
         this.applyQuality();
         break;
-      case 'autopilot':
-        this.setAutopilotEnabled(!this.autopilot);
+      case 'copilot':
+        this.setCopilotEnabled(!this.copilot);
         break;
       case 'flaps':
       case 'flapsDown':
@@ -795,8 +796,8 @@ export class Game {
       return;
     }
     this.setAircraft(progress.activeAircraft);
-    if (localStorage.getItem(AP_KEY) === null && progress.successfulFlights === 0) {
-      this.setAutopilotEnabled(true);
+    if (localStorage.getItem(CP_KEY) === null && localStorage.getItem(LEGACY_AP_KEY) === null && progress.successfulFlights === 0) {
+      this.setCopilotEnabled(true);
     }
     const route = layoutRoute(authored, this.fm.config.performance);
     this.route = route;
@@ -1400,7 +1401,7 @@ export class Game {
     const lm = flying || this.state === 'menu' ? this.route.landmarks.find((l) => camX >= l.x0 && camX <= l.x1) : undefined;
     this.hud.setLandmark(lm?.title ?? '', lm?.subtitle ?? '');
 
-    const cue = this.autopilot && (flying || this.state === 'paused') ? this.coachCue(toAim) : null;
+    const cue = this.copilot && (flying || this.state === 'paused') ? this.coachCue(toAim) : null;
     this.hud.setCoach(cue);
     if (this.flashTimer > 0) {
       this.flashTimer -= 1 / 20;
@@ -1410,15 +1411,16 @@ export class Game {
     }
   }
 
-  private setAutopilotEnabled(on: boolean): void {
-    this.autopilot = on;
-    localStorage.setItem(AP_KEY, on ? 'on' : 'off');
-    this.hud.setAutopilot(on);
+  private setCopilotEnabled(on: boolean): void {
+    this.copilot = on;
+    localStorage.setItem(CP_KEY, on ? 'on' : 'off');
+    localStorage.removeItem(LEGACY_AP_KEY);
+    this.hud.setCopilot(on);
     const flying = this.state === 'flying' || this.state === 'paused';
     this.hud.setCoach(on && flying ? this.coachCue(this.aimX - this.fm.x) : null);
   }
 
-  /** Next control to press, with a short why — used by the Autopilot coach. */
+  /** Next control to press, with a short why — used by the Copilot coach. */
   private coachCue(toAim: number): CoachCue | null {
     const fm = this.fm;
     if (this.state !== 'flying' && this.state !== 'paused') return null;

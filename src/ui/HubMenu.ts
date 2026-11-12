@@ -23,6 +23,7 @@ import { getRoute } from '../meta/routes';
 import { BORDER_PATH, LAND_PATH, WORLD_H, WORLD_W, projectLonLat } from '../meta/worldMap';
 import { aircraftById } from '../sim/aircraft';
 import type { Propulsion } from '../sim/aircraft/AircraftConfig';
+import { aircraftPortraitUrl } from './AircraftPortrait';
 import { MapCamera, type CameraView } from './MapCamera';
 
 const PROPULSION_LABEL: Record<Propulsion, string> = { piston: 'piston prop', turboprop: 'turboprop', jet: 'turbofan' };
@@ -99,6 +100,7 @@ export class HubMenu {
     root.querySelector('[data-hub="clear"]')?.addEventListener('click', () => this.clearSelection());
     root.querySelector('[data-hub="random"]')?.addEventListener('click', () => this.pickRandom());
     root.querySelector('[data-hub="hangarOpen"]')?.addEventListener('click', () => this.openHangar());
+    root.querySelector('[data-hub="ship"]')?.addEventListener('click', () => this.openHangar());
     root.querySelector('[data-hub="hangarClose"]')?.addEventListener('click', () => this.closeHangar());
     root.querySelector('[data-hub="zoomIn"]')?.addEventListener('click', () => this.camera.zoomBy(1.6));
     root.querySelector('[data-hub="zoomOut"]')?.addEventListener('click', () => this.camera.zoomBy(1 / 1.6));
@@ -477,6 +479,19 @@ export class HubMenu {
     this.setText('statCrashes', fmt(this.progress.crashes));
     this.setText('statDeaths', fmt(this.progress.deaths));
     this.setText('statHome', this.progress.homeAirport);
+    this.renderActiveShip();
+  }
+
+  private renderActiveShip(): void {
+    const craft = fleetById(this.progress.activeAircraft);
+    this.setText('shipName', craft.name);
+    const img = this.root.querySelector<HTMLImageElement>('[data-hub="shipArt"]');
+    if (img) {
+      img.src = aircraftPortraitUrl(craft.id);
+      img.alt = craft.name;
+    }
+    const btn = this.root.querySelector<HTMLButtonElement>('[data-hub="ship"]');
+    if (btn) btn.title = `Hangar · ${craft.name}`;
   }
 
   private openHangar(): void {
@@ -499,6 +514,16 @@ export class HubMenu {
       const active = this.progress.activeAircraft === craft.id;
       const card = document.createElement('article');
       card.className = `hub-fleet-card${owned ? ' is-owned' : ' is-locked'}${active ? ' is-active' : ''}`;
+
+      const visual = document.createElement('div');
+      visual.className = 'hub-fleet-visual';
+      const art = document.createElement('img');
+      art.src = aircraftPortraitUrl(craft.id);
+      art.alt = craft.name;
+      visual.appendChild(art);
+
+      const body = document.createElement('div');
+      body.className = 'hub-fleet-body';
 
       const head = document.createElement('div');
       head.className = 'hub-fleet-head';
@@ -564,7 +589,8 @@ export class HubMenu {
         actions.appendChild(buy);
       }
 
-      card.append(head, type, blurb, meta, actions);
+      body.append(head, type, blurb, meta, actions);
+      card.append(visual, body);
       this.hangarList.appendChild(card);
     }
   }

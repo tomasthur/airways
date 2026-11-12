@@ -188,9 +188,9 @@ export class Hud {
     this.text('mute', muted ? 'Sound off' : 'Sound on');
   }
 
-  setAutopilot(on: boolean): void {
-    this.root.querySelectorAll<HTMLElement>('[data-autopilot]').forEach((el) => {
-      el.textContent = on ? 'Autopilot on' : 'Autopilot off';
+  setCopilot(on: boolean): void {
+    this.root.querySelectorAll<HTMLElement>('[data-copilot]').forEach((el) => {
+      el.textContent = on ? 'Copilot on' : 'Copilot off';
       el.classList.toggle('is-on', on);
     });
     if (!on) this.coach.clear();

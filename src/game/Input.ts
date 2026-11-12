@@ -24,7 +24,7 @@ export type PressAction =
   | 'mute'
   | 'start'
   | 'quality'
-  | 'autopilot';
+  | 'copilot';
 
 /**
  * Default key map. Deliberately free of Ctrl/Alt/Meta combinations, Escape (Shift+Esc opens the

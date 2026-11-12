@@ -1441,12 +1441,85 @@ button {
 }
 
 .hub-tag {
-  margin: 6px 0 0;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
+  display: block;
+  margin: 5px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(230, 238, 245, 0.82);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hub-aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+  pointer-events: auto;
+}
+
+.hub-ship {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(100%, 340px);
+  padding: 2px 12px 2px 2px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(8, 16, 26, 0.55);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.hub-ship:hover {
+  border-color: rgba(126, 200, 255, 0.4);
+  background: rgba(12, 24, 36, 0.72);
+}
+
+.hub-ship-art {
+  flex: 0 0 92px;
+  width: 92px;
+  height: 52px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.hub-ship-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scale(1.72);
+  transform-origin: center;
+}
+
+.hub-ship span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.hub-ship small {
+  font-size: 9px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(230, 238, 245, 0.55);
+  color: var(--hub-cyan);
+}
+
+.hub-ship strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1522,7 +1595,7 @@ button {
   background: rgba(126, 200, 255, 0.18);
 }
 
-.hub-hangar-btn[data-autopilot].is-on {
+.hub-hangar-btn[data-copilot].is-on {
   border-color: rgba(255, 195, 92, 0.55);
   background: rgba(255, 195, 92, 0.16);
   color: var(--accent);
@@ -2006,7 +2079,7 @@ button {
 }
 
 .hub-hangar-panel {
-  width: min(580px, 100%);
+  width: min(720px, 100%);
   max-height: min(82vh, 760px);
   overflow: auto;
   padding: 20px 18px 18px;
@@ -2055,10 +2128,33 @@ button {
 }
 
 .hub-fleet-card {
-  padding: 14px 14px 12px;
+  display: grid;
+  grid-template-columns: minmax(140px, 42%) 1fr;
+  gap: 12px 14px;
+  align-items: center;
+  padding: 12px;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
+}
+
+.hub-fleet-visual {
+  min-width: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: radial-gradient(120% 80% at 50% 70%, rgba(90, 140, 180, 0.18), rgba(8, 14, 20, 0.55));
+  aspect-ratio: 2 / 1;
+}
+
+.hub-fleet-visual img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.hub-fleet-body {
+  min-width: 0;
 }
 
 .hub-fleet-card.is-active {
@@ -2104,7 +2200,7 @@ button {
 
 .hub-fleet-specs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   margin: 8px 0 10px;
 }
@@ -2128,11 +2224,13 @@ button {
 .hub-fleet-specs b {
   font-size: 12px;
   font-weight: 600;
-  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 480px) {
+  .hub-fleet-card {
+    grid-template-columns: 1fr;
+  }
   .hub-fleet-specs {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -2199,7 +2297,24 @@ button {
     font-size: clamp(22px, 5vw, 34px);
   }
   .hub-tag {
-    display: none;
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+  }
+  .hub-aside {
+    width: 100%;
+  }
+  .hub-ship {
+    max-width: min(100%, 280px);
+    padding: 2px 10px 2px 2px;
+  }
+  .hub-ship-art {
+    flex-basis: 84px;
+    width: 84px;
+    height: 46px;
+  }
+  .hub-ship strong {
+    font-size: 12px;
   }
   .hub-stats {
     width: 100%;

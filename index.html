@@ -82,7 +82,7 @@
         <section class="toolbar">
           <button type="button" data-action="quality" data-ref="quality">High</button>
           <button type="button" data-action="mute" data-ref="mute">Sound on</button>
-          <button type="button" data-action="autopilot" data-autopilot>Autopilot on</button>
+          <button type="button" data-action="copilot" data-copilot>Copilot on</button>
           <button type="button" data-action="pause">Pause</button>
         </section>
 
@@ -220,14 +220,23 @@
             <div class="hub-wordmark">AIRWAYS</div>
             <p class="hub-tag" data-hub="airline">World charter · earn · unlock · fly</p>
           </div>
-          <div class="hub-stats" aria-label="Career stats">
-            <div class="hub-stat hub-stat--cash"><span data-hub="statCredits">€0</span><small>Cash</small></div>
-            <div class="hub-stat"><span data-hub="statFlights">—</span><small>Flights</small></div>
-            <div class="hub-stat"><span data-hub="statCrashes">—</span><small>Crashes</small></div>
-            <div class="hub-stat"><span data-hub="statDeaths">—</span><small>Losses</small></div>
-            <div class="hub-stat hub-stat--home"><span data-hub="statHome">BTS</span><small>Base</small></div>
-            <button type="button" class="hub-hangar-btn" data-action="autopilot" data-autopilot>Autopilot on</button>
-            <button type="button" class="hub-hangar-btn" data-hub="hangarOpen">Hangar</button>
+          <div class="hub-aside">
+            <div class="hub-stats" aria-label="Career stats">
+              <div class="hub-stat hub-stat--cash"><span data-hub="statCredits">€0</span><small>Cash</small></div>
+              <div class="hub-stat"><span data-hub="statFlights">—</span><small>Flights</small></div>
+              <div class="hub-stat"><span data-hub="statCrashes">—</span><small>Crashes</small></div>
+              <div class="hub-stat"><span data-hub="statDeaths">—</span><small>Losses</small></div>
+              <div class="hub-stat hub-stat--home"><span data-hub="statHome">BTS</span><small>Base</small></div>
+              <button type="button" class="hub-hangar-btn" data-action="copilot" data-copilot>Copilot on</button>
+              <button type="button" class="hub-hangar-btn" data-hub="hangarOpen">Hangar</button>
+            </div>
+            <button type="button" class="hub-ship" data-hub="ship" title="Open hangar">
+              <span class="hub-ship-art"><img data-hub="shipArt" alt="" /></span>
+              <span>
+                <small>Selected</small>
+                <strong data-hub="shipName">Cessna 172RG</strong>
+              </span>
+            </button>
           </div>
         </header>
 
@@ -309,7 +318,7 @@
           <h2>Paused</h2>
           <div class="row">
             <button type="button" class="primary" data-action="pause">Resume</button>
-            <button type="button" data-action="autopilot" data-autopilot>Autopilot on</button>
+            <button type="button" data-action="copilot" data-copilot>Copilot on</button>
             <button type="button" data-action="restart">Restart</button>
           </div>
         </div>
