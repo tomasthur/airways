@@ -111,6 +111,7 @@ export class MapCamera {
     this.stage.addEventListener(
       'wheel',
       (e) => {
+        if ((e.target as Element).closest('.hub-dock, .hub-map-tools')) return;
         e.preventDefault();
         // Gentle, continuous zoom: trackpads send many small deltas, wheels a few big ones.
         const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
@@ -121,7 +122,7 @@ export class MapCamera {
     );
 
     this.stage.addEventListener('pointerdown', (e) => {
-      if ((e.target as Element).closest('.hub-map-tools')) return;
+      if ((e.target as Element).closest('.hub-map-tools, .hub-dock')) return;
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.pointers.size === 1) {
         this.dragStart = { x: e.clientX, y: e.clientY };

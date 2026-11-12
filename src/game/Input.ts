@@ -23,7 +23,6 @@ export type PressAction =
   | 'restart'
   | 'mute'
   | 'start'
-  | 'quality'
   | 'copilot';
 
 /**

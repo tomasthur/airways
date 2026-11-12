@@ -81,8 +81,16 @@ export class Coach {
       this.clear();
       return;
     }
+    const clip = el.closest('.checklist');
+    if (clip instanceof HTMLElement && !fullyVisible(el, clip)) {
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
     const r = el.getBoundingClientRect();
     if (r.width < 2 || r.height < 2) {
+      this.clear();
+      return;
+    }
+    if (clip instanceof HTMLElement && !fullyVisible(el, clip)) {
       this.clear();
       return;
     }
@@ -128,4 +136,10 @@ export class Coach {
     this.tip.style.left = `${Math.min(vw - tw - m, Math.max(m, pick.left))}px`;
     this.tip.style.top = `${Math.min(vh - th - m, Math.max(m, pick.top))}px`;
   }
+}
+
+function fullyVisible(el: HTMLElement, clip: HTMLElement): boolean {
+  const er = el.getBoundingClientRect();
+  const cr = clip.getBoundingClientRect();
+  return er.top >= cr.top - 1 && er.bottom <= cr.bottom + 1;
 }

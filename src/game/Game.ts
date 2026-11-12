@@ -23,7 +23,7 @@ import { Weather } from '../sim/Weather';
 import { buildReport, evaluateTouchdown, failureReport, onRunway, type ScoreItem } from '../sim/Landing';
 import { initAds, showInterstitialThen } from '../ads/admob';
 import { initIap } from '../iap/playBilling';
-import { acquireWakeLock, bindNativeLifecycle, isNativePlatform, releaseWakeLock } from '../native';
+import { acquireWakeLock, bindNativeLifecycle, releaseWakeLock } from '../native';
 import { FlightControls } from '../ui/FlightControls';
 import { HubMenu } from '../ui/HubMenu';
 import { Hud, type ChecklistView, type WarningKey } from '../ui/Hud';
@@ -36,14 +36,7 @@ import { Input, type PressAction } from './Input';
 
 type State = 'menu' | 'flying' | 'paused' | 'report';
 type Phase = 'preflight' | 'takeoff' | 'airborne' | 'rollout' | 'falling';
-type Quality = 'low' | 'medium' | 'high';
-
-const QUALITY: Record<Quality, { pixelRatio: number; shadowMap: number }> = {
-  low: { pixelRatio: 1, shadowMap: 0 },
-  medium: { pixelRatio: 1.5, shadowMap: 1024 },
-  high: { pixelRatio: 2, shadowMap: 2048 },
-};
-const QUALITY_ORDER: Quality[] = ['low', 'medium', 'high'];
+const QUALITY = { pixelRatio: 2, shadowMap: 2048 };
 
 const CP_KEY = 'airways.copilot';
 const LEGACY_AP_KEY = 'airways.autopilot';
@@ -129,7 +122,6 @@ export class Game {
   private beltWxHintCool = 0;
   private atcTimer = 0;
   private routeStormTimer = 0;
-  private quality: Quality;
   /** Coach overlay that points at the next control. On by default for the first flight. */
   private copilot: boolean;
   private touchdownItems: ScoreItem[] | null = null;
@@ -188,10 +180,6 @@ export class Game {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     app.prepend(this.renderer.domElement);
-
-    // Mobile WebView starts on Low; desktop keeps High. A saved preference always wins.
-    const saved = localStorage.getItem('airways.quality') as Quality | null;
-    this.quality = saved && saved in QUALITY ? saved : isNativePlatform() ? 'low' : 'high';
 
     const maxAniso = this.renderer.capabilities.getMaxAnisotropy();
     this.world = new World(Math.min(4, maxAniso));
@@ -285,7 +273,7 @@ export class Game {
     this.world.setCorridor(this.route.layout);
     this.reset();
     this.copilot = loadCopilot();
-    this.hud.setMuted(false);
+    this.sound.setMuted(false);
     this.hud.setCopilot(this.copilot);
     onLangChange(() => this.onLanguageChange());
     const hold = Math.max(0, 1600 - (performance.now() - bootAt));
@@ -356,22 +344,17 @@ export class Game {
   }
 
   private applyQuality(): void {
-    const q = QUALITY[this.quality];
+    const q = QUALITY;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.pixelRatio));
-    const shadows = q.shadowMap > 0;
-    this.renderer.shadowMap.enabled = shadows;
-    this.sun.castShadow = shadows;
-    if (shadows) {
-      this.sun.shadow.mapSize.set(q.shadowMap, q.shadowMap);
-      this.sun.shadow.map?.dispose();
-      this.sun.shadow.map = null;
-    }
+    this.renderer.shadowMap.enabled = true;
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(q.shadowMap, q.shadowMap);
+    this.sun.shadow.map?.dispose();
+    this.sun.shadow.map = null;
     this.scene.traverse((o) => {
       const m = (o as THREE.Mesh).material;
       if (m) (Array.isArray(m) ? m : [m]).forEach((mm) => (mm.needsUpdate = true));
     });
-    this.hud.setQuality(t(`hub.quality.${this.quality}`));
-    localStorage.setItem('airways.quality', this.quality);
     this.resize();
   }
 
@@ -468,11 +451,6 @@ export class Game {
         break;
       case 'mute':
         this.sound.setMuted(!this.sound.muted);
-        this.hud.setMuted(this.sound.muted);
-        break;
-      case 'quality':
-        this.quality = QUALITY_ORDER[(QUALITY_ORDER.indexOf(this.quality) + 1) % QUALITY_ORDER.length];
-        this.applyQuality();
         break;
       case 'copilot':
         this.setCopilotEnabled(!this.copilot);
@@ -586,8 +564,6 @@ export class Game {
 
   private onLanguageChange(): void {
     this.hud.refreshLang();
-    this.hud.setQuality(t(`hub.quality.${this.quality}`));
-    this.hud.setMuted(this.sound.muted);
     this.hud.setCopilot(this.copilot);
     this.hud.setAircraft(
       tempGaugeLabel(this.fm.config),
@@ -1076,9 +1052,13 @@ export class Game {
           this.overran = true;
         }
         if (fm.vx < 0.5 && this.touchdownItems) {
+          const dest = airportByIata(this.route.to);
           const report = buildReport([...this.touchdownItems, ...this.flightItems()], this.overran, this.tailStrike, {
-            title: this.route.welcomeTitle,
-            message: this.route.welcomeMessage.replace('OM-BTV', this.fm.config.registration),
+            title: t('cabin.welcome.title', { city: dest?.city ?? this.route.to }),
+            message: t('cabin.welcome.msg', {
+              reg: this.fm.config.registration,
+              airport: dest?.name ?? this.route.dest.code,
+            }),
           });
           const { payout } = settleSuccess(loadProgress(), this.route.from, this.route.to, report.total);
           this.state = 'report';

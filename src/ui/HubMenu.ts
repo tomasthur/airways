@@ -1,5 +1,5 @@
 import { adsAvailable, AD_REWARD_CREDITS, showRewarded } from '../ads/admob';
-import { t } from '../i18n';
+import { hasT, t } from '../i18n';
 import { aircraftPriceLabel, purchaseAircraft, restoreAircraftPurchases, type IapFail } from '../iap/playBilling';
 import { AIRPORTS, airportByIata, type Airport } from '../meta/airports';
 import {
@@ -24,7 +24,6 @@ import {
   resetCareerProgress,
   type Progress,
 } from '../meta/progress';
-import { getRoute } from '../meta/routes';
 import { BORDER_PATH, LAND_PATH, WORLD_H, WORLD_W, projectLonLat } from '../meta/worldMap';
 import { aircraftById } from '../sim/aircraft';
 import type { Propulsion } from '../sim/aircraft/AircraftConfig';
@@ -330,8 +329,8 @@ export class HubMenu {
     this.setText('dockFrom', '—');
     this.setText('dockTo', ap.iata);
     this.setText('dockTitle', t('hub.unlockCity', { city: ap.city }));
-    this.setText('dockBrief', ap.lockHint ?? ap.brief ?? '');
-    this.setText('dockMeta', t('hub.tier', { n: ap.tier, region: ap.region }));
+    this.setText('dockBrief', this.unlockBrief(ap));
+    this.setText('dockMeta', t('hub.tier', { n: ap.tier, region: t(`hub.region.${ap.region}`) }));
     this.setText('dockPay', t('hub.clearance', { n: formatCredits(ap.unlockCost) }));
     this.setText('unlockLabel', t('hub.unlockCost', { n: formatCredits(ap.unlockCost) }));
     this.setText('flyLabel', t('hub.fly'));
@@ -383,9 +382,8 @@ export class HubMenu {
     this.root.classList.add('has-route');
     this.setText('dockFrom', home.iata);
     this.setText('dockTo', dest.iata);
-    const route = getRoute(home.iata, dest.iata);
     this.setText('dockTitle', `${home.city} → ${dest.city}`);
-    this.setText('dockBrief', route?.brief ?? dest.brief ?? '');
+    this.setText('dockBrief', this.routeBrief(home.iata, dest.iata));
     this.setText('dockMeta', this.routeMeta(home, dest));
     if (reachable) {
       const pay = estimatePayout(home.iata, dest.iata, this.progress.activeAircraft);
@@ -514,6 +512,22 @@ export class HubMenu {
     // Restart the draw animation.
     void this.routePath.getBoundingClientRect();
     this.routePath.classList.add('is-drawn');
+  }
+
+  private routeBrief(from: string, to: string): string {
+    const hop = `route.brief.${from}-${to}`;
+    if (hasT(hop)) return t(hop);
+    const dest = `airport.brief.${to}`;
+    if (hasT(dest)) return t(dest);
+    return t('route.brief.generic', { city: airportByIata(to)?.city ?? to });
+  }
+
+  private unlockBrief(ap: Airport): string {
+    const lock = `airport.lock.${ap.iata}`;
+    if (hasT(lock)) return t(lock);
+    const dest = `airport.brief.${ap.iata}`;
+    if (hasT(dest)) return t(dest);
+    return t('airport.lock.generic', { city: ap.city });
   }
 
   private routeMeta(from: Airport, to: Airport): string {

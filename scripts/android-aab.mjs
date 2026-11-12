@@ -30,6 +30,9 @@ if (!fs.existsSync(props)) {
   process.exit(1);
 }
 
+const adsMode = path.join(androidDir, 'app', 'src', 'main', 'assets', 'public', 'ads-mode.json');
+if (fs.existsSync(adsMode)) fs.unlinkSync(adsMode);
+
 const [cmd, args] =
   process.platform === 'win32'
     ? [process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'gradlew.bat', 'bundleRelease']]

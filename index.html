@@ -102,9 +102,6 @@
         </div>
 
         <section class="toolbar">
-          <button type="button" data-action="quality" data-ref="quality">High</button>
-          <button type="button" data-action="mute" data-ref="mute" data-i18n="hud.soundOn">Sound on</button>
-          <button type="button" data-action="copilot" data-copilot data-i18n="hud.copilotOn">Copilot on</button>
           <button type="button" data-action="pause" data-i18n="hud.pause">Pause</button>
         </section>
 
@@ -181,16 +178,6 @@
         <section class="controls" data-i18n-aria="hud.controlsAria">
           <div class="ctl-group config">
             <span class="ctl-label" data-i18n="hud.config">Config</span>
-            <div class="cfg-readouts" data-i18n-aria="hud.cfgAria">
-              <div class="cfg-read">
-                <label data-i18n="hud.flaps">Flaps</label>
-                <div class="state-val" data-ref="flaps">UP</div>
-              </div>
-              <div class="cfg-read">
-                <label data-i18n="hud.gear">Gear</label>
-                <div class="state-val" data-ref="gear">DOWN</div>
-              </div>
-            </div>
             <div class="ctl-grid">
               <button type="button" class="ctl wide" data-action="flapsDown" data-i18n="hud.flapsDown">Flaps ▼</button>
               <button type="button" class="ctl wide" data-action="flapsUp" data-i18n="hud.flapsUp">Flaps ▲</button>
@@ -300,32 +287,31 @@
             <button type="button" class="hub-map-btn" data-hub="zoomHome" data-i18n-title="hub.zoomHome" title="Center on base">◎</button>
           </div>
           <div class="hub-haze" aria-hidden="true"></div>
+          <div class="hub-dock is-hidden" data-hub="dock">
+            <div class="hub-dock-route">
+              <span class="hub-dock-code" data-hub="dockFrom">BTS</span>
+              <span class="hub-dock-arrow" aria-hidden="true">→</span>
+              <span class="hub-dock-code" data-hub="dockTo">VIE</span>
+            </div>
+            <div class="hub-dock-copy">
+              <strong data-hub="dockTitle">Bratislava → Vienna</strong>
+              <span data-hub="dockBrief"></span>
+              <small data-hub="dockMeta"></small>
+              <small class="hub-dock-pay" data-hub="dockPay">Charter ~€0</small>
+            </div>
+            <div class="hub-dock-actions">
+              <button type="button" class="hub-ghost" data-hub="clear" data-i18n="hub.clear">Clear</button>
+              <button type="button" class="hub-fly hub-unlock is-hidden" data-hub="unlock">
+                <span data-hub="unlockLabel">Unlock</span>
+              </button>
+              <button type="button" class="hub-fly" data-hub="fly">
+                <span data-hub="flyLabel">Fly to Vienna</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <p class="hub-hint"><span data-i18n="hub.hint">Drag to pan · pinch to zoom · tap a city · or</span> <button type="button" class="hub-link" data-hub="random" data-i18n="hub.surprise">surprise me</button></p>
-
-<div class="hub-dock is-hidden" data-hub="dock">
-          <div class="hub-dock-route">
-            <span class="hub-dock-code" data-hub="dockFrom">BTS</span>
-            <span class="hub-dock-arrow" aria-hidden="true">→</span>
-            <span class="hub-dock-code" data-hub="dockTo">VIE</span>
-          </div>
-          <div class="hub-dock-copy">
-            <strong data-hub="dockTitle">Bratislava → Vienna</strong>
-            <span data-hub="dockBrief"></span>
-            <small data-hub="dockMeta"></small>
-            <small class="hub-dock-pay" data-hub="dockPay">Charter ~€0</small>
-          </div>
-          <div class="hub-dock-actions">
-            <button type="button" class="hub-ghost" data-hub="clear" data-i18n="hub.clear">Clear</button>
-            <button type="button" class="hub-fly hub-unlock is-hidden" data-hub="unlock">
-              <span data-hub="unlockLabel">Unlock</span>
-            </button>
-            <button type="button" class="hub-fly" data-hub="fly">
-              <span data-hub="flyLabel">Fly to Vienna</span>
-            </button>
-          </div>
-        </div>
 
         <div class="hub-hangar is-hidden" data-hub="hangar" aria-hidden="true">
           <div class="hub-hangar-panel">

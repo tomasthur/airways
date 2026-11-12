@@ -479,7 +479,7 @@ button {
   --cfg-w: 78px;
   --yoke-w: 118px;
   /* Clearance above bottom controls (config + readouts + buttons). */
-  --ctl-stack: 236px;
+  --ctl-stack: 186px;
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -945,24 +945,6 @@ button {
   background: #fff;
 }
 
-.state-val {
-  margin-top: 4px;
-  font-size: clamp(12px, 1.8vw, 15px);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.state-val.on {
-  color: var(--good);
-}
-
-.state-val.transit {
-  color: var(--accent);
-}
-
 /* ---------- ATC radio ---------- */
 .atc {
   position: relative;
@@ -1196,7 +1178,7 @@ button {
   position: absolute;
   right: var(--pad-r);
   top: calc(var(--pad-t) + var(--top-h));
-  width: min(280px, 42vw);
+  width: min(300px, 46vw);
   max-height: calc(100% - var(--pad-t) - var(--top-h) - var(--pad-b) - var(--ctl-stack) - var(--gap));
   padding: 8px 10px;
   font-size: 12px;
@@ -1319,47 +1301,6 @@ button {
 .ctl-group.config {
   width: var(--cfg-w);
   flex: 0 0 var(--cfg-w);
-}
-
-.cfg-readouts {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 3px;
-  width: 100%;
-}
-
-.cfg-read {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  min-width: 0;
-  padding: 3px 5px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(10, 16, 24, 0.55);
-}
-
-.cfg-read label {
-  flex: 0 0 auto;
-  font-size: 8px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  line-height: 1;
-}
-
-.cfg-read .state-val {
-  margin-top: 0;
-  min-width: 0;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0;
-  line-height: 1.15;
-  text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .ctl-label {
@@ -1615,7 +1556,7 @@ button {
   inset: 0;
   z-index: 20;
   display: grid;
-  grid-template-rows: auto 1fr auto auto;
+  grid-template-rows: auto 1fr auto;
   padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   background: var(--ink);
   color: var(--text);
@@ -1940,10 +1881,6 @@ button {
   margin: 0;
 }
 
-.hub.has-route .hub-corner-lang,
-.hub.has-route .hub-corner-money {
-  bottom: max(96px, calc(env(safe-area-inset-bottom) + 84px));
-}
 
 .hub.is-departing [data-hub="fly"] {
   opacity: 0.6;
@@ -2271,14 +2208,17 @@ button {
 }
 
 .hub-dock {
-  position: relative;
-  z-index: 3;
+  position: absolute;
+  z-index: 4;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 14px 18px;
   align-items: center;
-  width: min(920px, 100%);
-  margin: 0 auto;
+  width: auto;
+  margin: 0;
   padding: 14px 16px;
   border-radius: 18px;
   background: rgba(10, 18, 28, 0.78);
@@ -3239,7 +3179,7 @@ kbd {
     --yoke-w: 108px;
     --rail-r: 200px; /* cfg + gap + yoke */
     --bar-b: 72px;
-    --ctl-stack: 192px;
+    --ctl-stack: 148px;
     --top-h: 72px;
     --gap: 6px;
   }
@@ -3275,11 +3215,8 @@ kbd {
     height: 32px;
     font-size: 10px;
   }
-  .cfg-read .state-val {
-    font-size: 10px;
-  }
   .checklist {
-    width: min(250px, 38vw);
+    width: min(280px, 44vw);
     font-size: 11px;
   }
   .hint {
@@ -3326,12 +3263,12 @@ kbd {
     top: var(--pad-t);
     right: var(--pad-r);
     left: auto;
-    flex-wrap: wrap;
-    max-width: 46vw;
+    flex-wrap: nowrap;
+    max-width: none;
     justify-content: flex-end;
   }
   .checklist {
-    width: min(260px, 48vw);
+    width: min(280px, 52vw);
   }
 }
 

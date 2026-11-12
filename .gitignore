@@ -19,4 +19,6 @@ android/*.iml
 *.keystore
 android/keystore.properties
 android/keystore/
+# Written by android-apk.mjs so debug APKs fetch Google test units.
+android/app/src/main/assets/public/ads-mode.json
 .capacitor

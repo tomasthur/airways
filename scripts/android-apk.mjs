@@ -29,6 +29,12 @@ if (!fs.existsSync(androidDir)) {
   process.exit(1);
 }
 
+// Capacitor's WebView serves main/assets/public. Debug source-set extras are
+// easy to miss, so put ads-mode.json where the fetch in admob.ts will find it.
+const adsMode = path.join(androidDir, 'app', 'src', 'main', 'assets', 'public', 'ads-mode.json');
+fs.mkdirSync(path.dirname(adsMode), { recursive: true });
+fs.writeFileSync(adsMode, '{"testAds":true}\n');
+
 // Node refuses to spawn .bat files directly, so Windows goes through cmd.exe.
 const [cmd, args] =
   process.platform === 'win32'

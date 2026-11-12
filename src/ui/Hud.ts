@@ -140,21 +140,6 @@ export class Hud {
     const chtTone = cht >= 0.9 ? 'hot' : cht >= 0.78 ? 'caution' : '';
     this.cls(chtFill, 'chtFill', `bar-fill cht${chtTone ? ` ${chtTone}` : ''}`);
 
-    const flapsMoving = Math.abs(d.flapsDeg - d.flapsTargetDeg) > 0.3;
-    const flapsDown = d.flapsTargetDeg > 0;
-    this.text(
-      'flaps',
-      flapsMoving
-        ? t(d.flapsTargetDeg > d.flapsDeg ? 'hud.flapsExt' : 'hud.flapsRet', { deg: d.flapsTargetDeg })
-        : flapsDown
-          ? t('hud.flapsDownState', { deg: d.flapsTargetDeg })
-          : t('hud.up'),
-    );
-    this.cls(this.ref('flaps'), 'flapsCls', `state-val${flapsMoving ? ' transit' : flapsDown ? ' on' : ''}`);
-    const gearMoving = Math.abs(d.gear - d.gearTarget) > 0.01;
-    this.text('gear', gearMoving ? t('hud.transit') : d.gear > 0.5 ? t('hud.down') : t('hud.up'));
-    this.cls(this.ref('gear'), 'gearCls', `state-val${gearMoving ? ' transit' : d.gear > 0.5 ? ' on' : ''}`);
-
     const p = Math.max(0, Math.min(1, d.progress));
     this.style('trackFill', 'width', `${(p * 100).toFixed(2)}%`);
     this.style('trackPlane', 'left', `${(p * 100).toFixed(2)}%`);
@@ -193,14 +178,6 @@ export class Hud {
   refreshLang(): void {
     this.cache.clear();
     this.landmarkKey = '';
-  }
-
-  setQuality(label: string): void {
-    this.text('quality', t('hud.qualityLine', { label }));
-  }
-
-  setMuted(muted: boolean): void {
-    this.text('mute', muted ? t('hud.soundOff') : t('hud.soundOn'));
   }
 
   setCopilot(on: boolean): void {
