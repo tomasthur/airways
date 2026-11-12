@@ -132,7 +132,6 @@ export class HubMenu {
     root.querySelector('[data-hub="hangarOpen"]')?.addEventListener('click', () => this.openHangar());
     root.querySelector('[data-hub="ship"]')?.addEventListener('click', () => this.openHangar());
     root.querySelector('[data-hub="hangarClose"]')?.addEventListener('click', () => this.closeHangar());
-    root.querySelector('[data-hub="hangarRestore"]')?.addEventListener('click', () => void this.restoreFleet(true));
     root.querySelector('[data-hub="careerReset"]')?.addEventListener('click', () => {
       if (this.tour.active) return;
       this.toggleCareerConfirm(true);
@@ -630,7 +629,7 @@ export class HubMenu {
     this.renderHangar();
     this.hangar.classList.remove('is-hidden');
     this.hangar.setAttribute('aria-hidden', 'false');
-    void this.restoreFleet(false);
+    void this.restoreFleet();
   }
 
   private closeHangar(): void {
@@ -895,18 +894,15 @@ export class HubMenu {
     }
   }
 
-  private async restoreFleet(fromButton: boolean): Promise<void> {
+  private async restoreFleet(): Promise<void> {
     if (this.iapRestoreBusy) return;
     this.iapRestoreBusy = true;
     try {
-      const granted = await restoreAircraftPurchases();
+      await restoreAircraftPurchases();
       this.progress = loadProgress();
       this.renderStats();
       this.renderHangar();
       if (this.selected) this.selectDestination(this.selected);
-      if (fromButton) {
-        this.toast(granted.length ? t('hangar.restored') : t('hangar.restored.none'));
-      }
     } finally {
       this.iapRestoreBusy = false;
     }

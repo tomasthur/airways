@@ -631,7 +631,8 @@ button {
 .toolbar {
   position: absolute;
   top: var(--pad-t);
-  right: var(--pad-r);
+  left: var(--pad-l);
+  right: auto;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -1175,13 +1176,14 @@ button {
 
 /* ---------- pre-flight checklist ---------- */
 .checklist {
+  --cl-w: min(400px, max(var(--rail-r), 42vw));
   position: absolute;
   right: var(--pad-r);
-  top: calc(var(--pad-t) + var(--top-h));
-  width: min(300px, 46vw);
-  max-height: calc(100% - var(--pad-t) - var(--top-h) - var(--pad-b) - var(--ctl-stack) - var(--gap));
-  padding: 8px 10px;
-  font-size: 12px;
+  top: var(--pad-t);
+  width: var(--cl-w);
+  max-height: calc(100% - var(--pad-t) - var(--pad-b) - var(--ctl-stack) - var(--gap));
+  padding: 10px 12px;
+  font-size: 13px;
   pointer-events: auto;
   overflow-x: hidden;
   overflow-y: auto;
@@ -1189,12 +1191,17 @@ button {
   z-index: 2;
 }
 
+/* Keep the route strip out of the enlarged pre-flight table. */
+.hud:has(.checklist:not(.is-hidden)) .hud-top-left {
+  right: calc(var(--pad-r) + min(400px, max(var(--rail-r), 42vw)) + var(--gap));
+}
+
 .cl-head {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 4px;
-  font-size: 10px;
+  margin-bottom: 6px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -1218,8 +1225,8 @@ button {
   display: grid;
   grid-template-columns: 12px minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 6px;
-  min-height: 26px;
+  gap: 8px;
+  min-height: 32px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   min-width: 0;
 }
@@ -1248,18 +1255,18 @@ button {
 }
 
 .cl-row b {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--muted);
   white-space: nowrap;
 }
 
 .cl-row button {
-  padding: 3px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.12);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
   flex-shrink: 0;
@@ -2420,12 +2427,6 @@ button {
   font-weight: 700;
 }
 
-.hub-hangar-restore {
-  flex-shrink: 0;
-  padding: 6px 10px;
-  font-size: 11px;
-}
-
 .hub-hangar-list {
   display: grid;
   gap: 10px;
@@ -3216,8 +3217,14 @@ kbd {
     font-size: 10px;
   }
   .checklist {
-    width: min(280px, 44vw);
-    font-size: 11px;
+    --cl-w: min(360px, max(var(--rail-r), 44vw));
+    font-size: 12px;
+  }
+  .hud:has(.checklist:not(.is-hidden)) .hud-top-left {
+    right: calc(var(--pad-r) + min(360px, max(var(--rail-r), 44vw)) + var(--gap));
+  }
+  .cl-row {
+    min-height: 28px;
   }
   .hint {
     font-size: 12px;
@@ -3261,14 +3268,22 @@ kbd {
   }
   .toolbar {
     top: var(--pad-t);
-    right: var(--pad-r);
-    left: auto;
+    left: var(--pad-l);
+    right: auto;
     flex-wrap: nowrap;
     max-width: none;
-    justify-content: flex-end;
+    justify-content: flex-start;
   }
   .checklist {
-    width: min(280px, 52vw);
+    --cl-w: auto;
+    top: calc(var(--pad-t) + var(--top-h));
+    left: calc(var(--pad-l) + var(--rail-l) + var(--gap));
+    right: var(--pad-r);
+    width: auto;
+    max-width: none;
+  }
+  .hud:has(.checklist:not(.is-hidden)) .hud-top-left {
+    right: calc(var(--pad-r) + var(--rail-r) + var(--gap));
   }
 }
 
