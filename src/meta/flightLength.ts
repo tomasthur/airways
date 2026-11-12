@@ -17,7 +17,7 @@ const REF_AIM_X = BASE_DEST_X0 + 300;
 const D_MIN_KM = 48;
 const D_MAX_KM = 9000;
 /** Shortest hop (BTS–VIE) airborne time. */
-const T_MIN_SEC = 120;
+const T_MIN_SEC = 180;
 /** Longest hop airborne time — anything past 9000 km stays here. */
 const T_MAX_SEC = 420;
 

@@ -109,6 +109,9 @@ export class Game {
   private mealResults: { ok: boolean; rough: number; dur: number }[] = [];
   /** Seconds a trolley run lasts on this hop (scales with cruise). */
   private mealDur = 10;
+  /** Smoothed glide angle for airliner PAPI (deg). Light types skip the filter. */
+  private papiAngle = GLIDE_SLOPE_DEG;
+  private papiWhitesHeld = 2;
   /** Corridor x of a one-shot cruise engine failure; 0 = none this hop. */
   private engineFailX = 0;
   private engineFailed = false;
@@ -423,6 +426,8 @@ export class Game {
     this.beltSign = null;
     this.beltSignTimer = 0;
     this.coachLanding = false;
+    this.papiAngle = GLIDE_SLOPE_DEG;
+    this.papiWhitesHeld = 2;
   }
 
   // ------------------------------------------------------------------ input
@@ -591,6 +596,49 @@ export class Game {
     }
   }
 
+  /** 0 on light types (C172–King Air). ATR and up get a wider, slower PAPI. */
+  private papiEase(): number {
+    const b = this.fm.config.controls.flareBoost ?? 0;
+    if (b <= 0) return 0;
+    return Math.min(1, 0.5 + ((b - 0.08) / 0.04) * 0.5);
+  }
+
+  /**
+   * Count white PAPI lamps (0..4, or -1 if too close). Light aircraft keep the original
+   * 0.17° on-path window. Faster types filter the angle and need a clearer miss to leave
+   * two-white / two-red, so the lights stop flickering on every bump.
+   */
+  private stepPapi(dt: number, toAim: number): number {
+    if (toAim <= 30) {
+      this.papiWhitesHeld = -1;
+      return -1;
+    }
+    const raw = THREE.MathUtils.radToDeg(Math.atan2(this.fm.y, toAim));
+    const ease = this.papiEase();
+    if (ease <= 0) {
+      this.papiAngle = raw;
+      let whites = 0;
+      for (const t of PAPI_THRESHOLDS) if (raw > t) whites++;
+      this.papiWhitesHeld = whites;
+      return whites;
+    }
+
+    const tau = 0.2 + 0.35 * ease;
+    this.papiAngle += (raw - this.papiAngle) * (1 - Math.exp(-dt / tau));
+    const inner = 0.17 + 0.28 * ease;
+    const outer = 0.5 + 0.42 * ease;
+    const c = GLIDE_SLOPE_DEG;
+    const thresholds = [c - outer, c - inner, c + inner, c + outer];
+    const hyst = 0.06 + 0.12 * ease;
+    const prev = Math.max(0, this.papiWhitesHeld);
+    let whites = 0;
+    for (let i = 0; i < 4; i++) {
+      if (prev > i ? this.papiAngle > thresholds[i] - hyst : this.papiAngle > thresholds[i]) whites++;
+    }
+    this.papiWhitesHeld = whites;
+    return whites;
+  }
+
   /** Place meal service (and maybe an engine cut) in proportion to this hop's cruise. */
   private scheduleCabinEvents(seed: number): void {
     this.mealAt = [];
@@ -618,12 +666,12 @@ export class Game {
       return (s >>> 0) / 4294967296;
     };
 
-    // 2-min hops stay quiet. One trolley from ~3 min, two on the 5–7 min legs.
+    // 3-min hops stay mostly quiet. One trolley once cruise has room, two on the 5–7 min legs.
     this.mealDur = Math.round(Math.min(14, Math.max(8, cruiseSec * 0.05)));
-    if (cruiseSec >= 70) this.mealAt.push(origin + span * 0.32);
+    if (cruiseSec >= 90) this.mealAt.push(origin + span * 0.32);
     if (cruiseSec >= 175) this.mealAt.push(origin + span * 0.55);
     const failChance = cruiseSec >= 200 ? 0.55 : 0.4;
-    if (cruiseSec >= 90 && rnd() < failChance) {
+    if (cruiseSec >= 110 && rnd() < failChance) {
       const mealFrac = this.mealDur / cruiseSec;
       const gap = Math.max(span * 0.08, span * mealFrac * 1.8);
       for (const f of [0.44, 0.4, 0.5, 0.62, 0.36]) {
@@ -1282,13 +1330,8 @@ export class Game {
     this.blob.visible = blobFade > 0;
 
     // PAPI and approach guidance
-    let whites = -1;
     const toAim = this.aimX - fm.x;
-    if (toAim > 30) {
-      const angle = THREE.MathUtils.radToDeg(Math.atan2(fm.y, toAim));
-      whites = 0;
-      for (const t of PAPI_THRESHOLDS) if (angle > t) whites++;
-    }
+    const whites = this.stepPapi(dt, toAim);
     this.world.setPapi(Math.max(0, whites));
 
     if (this.state === 'flying') {
