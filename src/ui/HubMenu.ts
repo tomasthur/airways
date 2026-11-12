@@ -23,6 +23,7 @@ import { getRoute } from '../meta/routes';
 import { BORDER_PATH, LAND_PATH, WORLD_H, WORLD_W, projectLonLat } from '../meta/worldMap';
 import { aircraftById } from '../sim/aircraft';
 import type { Propulsion } from '../sim/aircraft/AircraftConfig';
+import { fetchLeaderboard, loadPlayer, type LeaderboardRow } from '../meta/player';
 import { aircraftPortraitUrl } from './AircraftPortrait';
 import { MapCamera, type CameraView } from './MapCamera';
 
@@ -57,6 +58,8 @@ export class HubMenu {
   private readonly toastEl: HTMLElement;
   private readonly hangar: HTMLElement;
   private readonly hangarList: HTMLElement;
+  private readonly board: HTMLElement;
+  private readonly boardList: HTMLElement;
   private readonly svg: SVGSVGElement;
   private readonly camera: MapCamera;
   private progress: Progress;
@@ -66,6 +69,7 @@ export class HubMenu {
   private toastTimer = 0;
   private readonly onFly: (req: HubFlyRequest) => void;
   private pinEls: { el: SVGGElement; x: number; y: number }[] = [];
+  private boardReq = 0;
 
   constructor(root: HTMLElement, onFly: (req: HubFlyRequest) => void) {
     this.root = root;
@@ -77,6 +81,8 @@ export class HubMenu {
     this.toastEl = root.querySelector('[data-hub="toast"]')!;
     this.hangar = root.querySelector('[data-hub="hangar"]')!;
     this.hangarList = root.querySelector('[data-hub="hangarList"]')!;
+    this.board = root.querySelector('[data-hub="board"]')!;
+    this.boardList = root.querySelector('[data-hub="boardList"]')!;
 
     this.svg = this.mapStage.querySelector('svg')!;
     this.pinsLayer = this.svg.querySelector('[data-hub="pins"]') as unknown as SVGElement;
@@ -102,11 +108,16 @@ export class HubMenu {
     root.querySelector('[data-hub="hangarOpen"]')?.addEventListener('click', () => this.openHangar());
     root.querySelector('[data-hub="ship"]')?.addEventListener('click', () => this.openHangar());
     root.querySelector('[data-hub="hangarClose"]')?.addEventListener('click', () => this.closeHangar());
+    root.querySelector('[data-hub="boardOpen"]')?.addEventListener('click', () => this.openBoard());
+    root.querySelector('[data-hub="boardClose"]')?.addEventListener('click', () => this.closeBoard());
     root.querySelector('[data-hub="zoomIn"]')?.addEventListener('click', () => this.camera.zoomBy(1.6));
     root.querySelector('[data-hub="zoomOut"]')?.addEventListener('click', () => this.camera.zoomBy(1 / 1.6));
     root.querySelector('[data-hub="zoomHome"]')?.addEventListener('click', () => this.focusHome(true));
     this.hangar.addEventListener('click', (e) => {
       if (e.target === this.hangar) this.closeHangar();
+    });
+    this.board.addEventListener('click', (e) => {
+      if (e.target === this.board) this.closeBoard();
     });
     this.hangarList.addEventListener('click', (e) => {
       const btn = (e.target as Element).closest('[data-fleet-action]') as HTMLElement | null;
@@ -129,6 +140,7 @@ export class HubMenu {
     if (visible) {
       this.progress = loadProgress();
       this.closeHangar();
+      this.closeBoard();
       this.renderStats();
       this.renderPins();
       // Measure after the hub is laid out, then glide in from the world view.
@@ -495,6 +507,7 @@ export class HubMenu {
   }
 
   private openHangar(): void {
+    this.closeBoard();
     this.progress = loadProgress();
     this.renderHangar();
     this.hangar.classList.remove('is-hidden');
@@ -504,6 +517,63 @@ export class HubMenu {
   private closeHangar(): void {
     this.hangar.classList.add('is-hidden');
     this.hangar.setAttribute('aria-hidden', 'true');
+  }
+
+  private openBoard(): void {
+    this.closeHangar();
+    this.board.classList.remove('is-hidden');
+    this.board.setAttribute('aria-hidden', 'false');
+    this.boardList.replaceChildren();
+    const loading = document.createElement('p');
+    loading.className = 'hub-board-empty';
+    loading.textContent = 'Loading…';
+    this.boardList.appendChild(loading);
+    const req = ++this.boardReq;
+    void fetchLeaderboard(20).then((rows) => {
+      if (req !== this.boardReq) return;
+      this.renderBoard(rows);
+    });
+  }
+
+  private closeBoard(): void {
+    this.boardReq += 1;
+    this.board.classList.add('is-hidden');
+    this.board.setAttribute('aria-hidden', 'true');
+  }
+
+  private renderBoard(rows: LeaderboardRow[]): void {
+    this.boardList.replaceChildren();
+    if (!rows.length) {
+      const empty = document.createElement('p');
+      empty.className = 'hub-board-empty';
+      empty.textContent = 'No airlines on the board yet.';
+      this.boardList.appendChild(empty);
+      return;
+    }
+    const you = loadPlayer()?.airline;
+    rows.forEach((row, i) => {
+      const el = document.createElement('div');
+      el.className = `hub-board-row${you && row.airline === you ? ' is-you' : ''}`;
+
+      const rank = document.createElement('span');
+      rank.className = 'hub-board-rank';
+      rank.textContent = String(row.rank ?? i + 1);
+
+      const name = document.createElement('div');
+      name.className = 'hub-board-name';
+      const title = document.createElement('strong');
+      title.textContent = row.airline;
+      const meta = document.createElement('small');
+      meta.textContent = `${formatCreditsCompact(row.cash)} · ${row.flights} flights · ${row.crashes} crashes · ${row.losses} losses`;
+      name.append(title, meta);
+
+      const cash = document.createElement('span');
+      cash.className = 'hub-board-cash';
+      cash.textContent = formatCredits(row.score);
+
+      el.append(rank, name, cash);
+      this.boardList.appendChild(el);
+    });
   }
 
   private renderHangar(): void {

@@ -27,7 +27,20 @@ export interface CareerStats {
   cash: number;
 }
 
+/** Public GET row for the best-airlines board (cash minus crash penalties). */
+export interface LeaderboardRow {
+  rank: number;
+  airline: string;
+  flights: number;
+  crashes: number;
+  losses: number;
+  cash: number;
+  score: number;
+}
+
 let client: ConvexHttpClient | null | undefined;
+let pushInFlight = false;
+let pushAgain = false;
 
 function convexClient(): ConvexHttpClient | null {
   if (client !== undefined) return client;
@@ -96,31 +109,106 @@ export function applyPlayerStats(stats: CareerStats): void {
   }
   const next: PlayerRecord = { ...player, ...stats, updatedAt: Date.now() };
   savePlayer(next);
-  void pushPlayerToConvex(next);
+  void pushPlayerToConvex(next, 'stats');
 }
 
-/** Upsert the player row; keep a local queue if Convex is unreachable. */
-export async function pushPlayerToConvex(record: PlayerRecord): Promise<void> {
-  localStorage.setItem(PENDING_KEY, JSON.stringify(record));
+/**
+ * POST the player row to Convex.
+ * `upsert` is registration (full document). `stats` is the post-flight / cash update.
+ */
+export async function pushPlayerToConvex(
+  record: PlayerRecord,
+  mode: 'upsert' | 'stats' = 'upsert',
+): Promise<void> {
+  localStorage.setItem(PENDING_KEY, JSON.stringify({ record, mode }));
+  await drainPending();
+}
+
+async function drainPending(): Promise<void> {
   const convex = convexClient();
   if (!convex) return;
+  if (pushInFlight) {
+    pushAgain = true;
+    return;
+  }
+  pushInFlight = true;
   try {
-    await convex.mutation(api.players.upsert, record);
-    localStorage.removeItem(PENDING_KEY);
-  } catch {
-    // Stay queued until the next save.
+    do {
+      pushAgain = false;
+      const queued = readPending();
+      if (!queued) return;
+      const { record, mode } = queued;
+      try {
+        if (mode === 'stats') {
+          const id = await convex.mutation(api.players.updateStats, {
+            playerId: record.playerId,
+            flights: record.flights,
+            crashes: record.crashes,
+            losses: record.losses,
+            cash: record.cash,
+          });
+          if (!id) await convex.mutation(api.players.upsert, record);
+        } else {
+          await convex.mutation(api.players.upsert, record);
+        }
+        if (!pushAgain) localStorage.removeItem(PENDING_KEY);
+      } catch {
+        return;
+      }
+    } while (pushAgain);
+  } finally {
+    pushInFlight = false;
   }
 }
 
-/** Retry a queued upsert after a reload. */
+function readPending(): { record: PlayerRecord; mode: 'upsert' | 'stats' } | null {
+  const raw = localStorage.getItem(PENDING_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { record?: PlayerRecord; mode?: string } & Partial<PlayerRecord>;
+    if (parsed.record?.playerId) {
+      return { record: parsed.record, mode: parsed.mode === 'stats' ? 'stats' : 'upsert' };
+    }
+    if (parsed.playerId && parsed.airline && parsed.email) {
+      return { record: parsed as PlayerRecord, mode: 'upsert' };
+    }
+  } catch {
+    /* drop corrupt queue */
+  }
+  localStorage.removeItem(PENDING_KEY);
+  return null;
+}
+
+/** Retry a queued POST after a reload. */
 export function flushPendingPlayer(): void {
+  const queued = readPending();
+  if (queued) {
+    void pushPlayerToConvex(queued.record, queued.mode);
+    return;
+  }
   const player = loadPlayer();
-  if (player) void pushPlayerToConvex(player);
+  if (player) void pushPlayerToConvex(player, 'stats');
 }
 
 export function registerPlayer(airline: string, email: string, stats: CareerStats): PlayerRecord {
   const record = makePlayerRecord(airline, email, stats);
   savePlayer(record);
-  void pushPlayerToConvex(record);
+  void pushPlayerToConvex(record, 'upsert');
   return record;
+}
+
+/** GET the score-ranked leaderboard. Empty if Convex is unreachable. */
+export async function fetchLeaderboard(limit = 20): Promise<LeaderboardRow[]> {
+  const convex = convexClient();
+  if (!convex) return [];
+  try {
+    const rows = await convex.query(api.players.listLeaderboard, { limit });
+    return rows.map((row, i) => ({
+      ...row,
+      rank: row.rank ?? i + 1,
+      score: row.score ?? row.cash - row.crashes * 10_000 - row.losses * 1_000,
+    }));
+  } catch {
+    return [];
+  }
 }

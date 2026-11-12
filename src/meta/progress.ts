@@ -82,15 +82,19 @@ export function loadProgress(): Progress {
       ownedAircraft: owned,
       activeAircraft: active,
     };
-    saveProgress(next);
+    persistLocal(next);
     return next;
   } catch {
     return clone(DEFAULT);
   }
 }
 
-export function saveProgress(p: Progress): void {
+function persistLocal(p: Progress): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+}
+
+export function saveProgress(p: Progress): void {
+  persistLocal(p);
   applyPlayerStats({
     flights: p.successfulFlights,
     crashes: p.crashes,

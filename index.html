@@ -219,6 +219,7 @@
           <div class="hub-brand">
             <div class="hub-wordmark">AIRWAYS</div>
             <p class="hub-tag" data-hub="airline">World charter · earn · unlock · fly</p>
+            <button type="button" class="hub-board-btn" data-hub="boardOpen">Leaderboard</button>
           </div>
           <div class="hub-aside">
             <div class="hub-stats" aria-label="Career stats">
@@ -307,6 +308,20 @@
             </header>
             <p class="hub-hangar-balance">Balance <strong data-hub="hangarCredits">€0</strong></p>
             <div class="hub-hangar-list" data-hub="hangarList"></div>
+          </div>
+        </div>
+
+        <div class="hub-hangar is-hidden" data-hub="board" aria-hidden="true">
+          <div class="hub-hangar-panel hub-board-panel">
+            <header class="hub-hangar-head">
+              <div>
+                <div class="hub-hangar-eyebrow">Best airlines</div>
+                <h2>Leaderboard</h2>
+              </div>
+              <button type="button" class="hub-ghost" data-hub="boardClose">Close</button>
+            </header>
+            <p class="hub-hangar-balance">Score = cash − €10k / crash − €1k / loss</p>
+            <div class="hub-board-list" data-hub="boardList"></div>
           </div>
         </div>
 

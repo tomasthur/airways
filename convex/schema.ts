@@ -15,5 +15,6 @@ export default defineSchema({
   })
     .index('by_playerId', ['playerId'])
     .index('by_email', ['email'])
-    .index('by_flights', ['flights']),
+    .index('by_flights', ['flights'])
+    .index('by_cash', ['cash', 'flights']),
 });
