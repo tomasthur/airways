@@ -15,6 +15,12 @@ export const zh: Record<string, string> = {
 
   'hub.fly': '起飞',
   'hub.board': '排行榜',
+  'hub.career.reset': '重启生涯',
+  'hub.career.confirm': '这将从排行榜删除你的航空公司并返回注册。Play 购买可以恢复。',
+  'hub.career.keep': '保留航司',
+  'hub.career.erase': '删除航司',
+  'hub.career.busy': '正在删除…',
+  'hub.career.fail': '无法从服务器删除航司。请在联网后再试。',
   'hub.boardClose': '关闭',
   'hub.boardEmpty': '排行榜上还没有航司。',
   'hub.boardLoad': '加载中…',

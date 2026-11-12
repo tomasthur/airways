@@ -31,6 +31,11 @@ export class RegisterScreen {
     requestAnimationFrame(() => this.airline.focus());
   }
 
+  resetForm(): void {
+    this.form.reset();
+    this.error.textContent = '';
+  }
+
   hide(): void {
     this.root.classList.add('is-hidden');
   }

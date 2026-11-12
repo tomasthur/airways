@@ -225,7 +225,11 @@ export class Game {
     this.camera.rotation.set(CAMERA_PITCH, 0, 0);
 
     this.hud = new Hud(app, this.input);
-    this.hub = new HubMenu(document.getElementById('menu')!, (req) => this.begin(req.from, req.to));
+    this.hub = new HubMenu(document.getElementById('menu')!, (req) => this.begin(req.from, req.to), () => {
+      this.setAircraft(loadProgress().activeAircraft);
+      this.register.resetForm();
+      this.register.show();
+    });
     this.register = new RegisterScreen(document.getElementById('register')!, (player) => {
       this.hub.setAirline(player.airline);
       this.hub.maybeStartTour();

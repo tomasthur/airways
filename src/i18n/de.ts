@@ -15,6 +15,12 @@ export const de: Record<string, string> = {
 
   'hub.fly': 'Fliegen',
   'hub.board': 'Rangliste',
+  'hub.career.reset': 'Karriere neu starten',
+  'hub.career.confirm': 'Damit wird deine Airline aus der Bestenliste gelöscht und du kehrst zur Registrierung zurück. Play-Käufe lassen sich wiederherstellen.',
+  'hub.career.keep': 'Airline behalten',
+  'hub.career.erase': 'Airline löschen',
+  'hub.career.busy': 'Airline wird gelöscht…',
+  'hub.career.fail': 'Die Airline konnte nicht vom Server gelöscht werden. Versuche es erneut online.',
   'hub.boardClose': 'Schließen',
   'hub.boardEmpty': 'Noch keine Airlines auf der Tafel.',
   'hub.boardLoad': 'Laden…',

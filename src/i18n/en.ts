@@ -15,6 +15,12 @@ export const en: Record<string, string> = {
 
   'hub.fly': 'Fly',
   'hub.board': 'Leaderboard',
+  'hub.career.reset': 'Restart career',
+  'hub.career.confirm': 'This deletes your airline from the leaderboard and returns you to registration. Google Play purchases can be restored.',
+  'hub.career.keep': 'Keep airline',
+  'hub.career.erase': 'Erase airline',
+  'hub.career.busy': 'Deleting airline…',
+  'hub.career.fail': 'Could not delete the airline from the server. Try again while online.',
   'hub.boardClose': 'Close',
   'hub.boardEmpty': 'No airlines on the board yet.',
   'hub.boardLoad': 'Loading…',

@@ -93,6 +93,17 @@ export class HubTour {
     return localStorage.getItem(KEY) === 'done';
   }
 
+  /** New career: show the tour again after the next registration. */
+  resetForNewCareer(): void {
+    localStorage.removeItem(KEY);
+    if (!this.running) return;
+    this.running = false;
+    this.hooks.clearRoute();
+    this.root.classList.add('is-hidden');
+    this.root.setAttribute('aria-hidden', 'true');
+    window.removeEventListener('resize', this.onWin);
+  }
+
   maybeStart(): void {
     if (this.running || HubTour.seen()) return;
     const register = document.getElementById('register');

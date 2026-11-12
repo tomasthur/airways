@@ -243,6 +243,7 @@
               <div class="hub-wordmark">AIRWAYS</div>
               <div class="hub-brand-row">
                 <p class="hub-tag" data-hub="airline">World charter · earn · unlock · fly</p>
+                <button type="button" class="hub-career-reset is-hidden" data-hub="careerReset" data-i18n="hub.career.reset">Restart career</button>
                 <button type="button" class="hub-board-btn" data-hub="boardOpen" data-i18n="hub.board">Leaderboard</button>
               </div>
             </div>
@@ -340,6 +341,17 @@
               <button type="button" class="hub-ghost hub-hangar-restore" data-hub="hangarRestore" data-i18n="hangar.restore">Restore purchases</button>
             </p>
             <div class="hub-hangar-list" data-hub="hangarList"></div>
+          </div>
+        </div>
+
+        <div class="hub-career is-hidden" data-hub="careerConfirm" aria-hidden="true">
+          <div class="hub-career-panel">
+            <p data-i18n="hub.career.confirm">This deletes your airline from the leaderboard and returns you to registration. Google Play purchases can be restored.</p>
+            <p class="hub-career-error" data-hub="careerError" hidden></p>
+            <div class="hub-career-actions">
+              <button type="button" class="hub-ghost" data-hub="careerKeep" data-i18n="hub.career.keep">Keep airline</button>
+              <button type="button" class="hub-career-erase" data-hub="careerErase" data-i18n="hub.career.erase">Erase airline</button>
+            </div>
           </div>
         </div>
 

@@ -41,6 +41,8 @@ export interface LeaderboardRow {
 let client: ConvexHttpClient | null | undefined;
 let pushInFlight = false;
 let pushAgain = false;
+/** Bumped when a career is erased so an in-flight upsert cannot recreate the old row. */
+let careerEpoch = 0;
 
 function convexClient(): ConvexHttpClient | null {
   if (client !== undefined) return client;
@@ -138,6 +140,7 @@ async function drainPending(): Promise<void> {
       const queued = readPending();
       if (!queued) return;
       const { record, mode } = queued;
+      const epoch = careerEpoch;
       try {
         if (mode === 'stats') {
           const id = await convex.mutation(api.players.updateStats, {
@@ -150,6 +153,15 @@ async function drainPending(): Promise<void> {
           if (!id) await convex.mutation(api.players.upsert, record);
         } else {
           await convex.mutation(api.players.upsert, record);
+        }
+        if (epoch !== careerEpoch) {
+          try {
+            await convex.mutation(api.players.remove, { playerId: record.playerId });
+          } catch {
+            /* hangar wipe already owns retry */
+          }
+          localStorage.removeItem(PENDING_KEY);
+          return;
         }
         if (!pushAgain) localStorage.removeItem(PENDING_KEY);
       } catch {
@@ -195,6 +207,29 @@ export function registerPlayer(airline: string, email: string, stats: CareerStat
   savePlayer(record);
   void pushPlayerToConvex(record, 'upsert');
   return record;
+}
+
+/**
+ * Delete this device's airline from Convex, then drop the local profile.
+ * Returns false when Convex is configured but the delete did not land — keep the career so the board stays honest.
+ */
+export async function deleteCareerPlayer(): Promise<boolean> {
+  const player = loadPlayer();
+  careerEpoch += 1;
+  const epoch = careerEpoch;
+  const convex = convexClient();
+  if (player && convex) {
+    try {
+      await convex.mutation(api.players.remove, { playerId: player.playerId });
+    } catch {
+      if (careerEpoch === epoch) careerEpoch -= 1;
+      return false;
+    }
+  }
+  if (careerEpoch !== epoch) return false;
+  localStorage.removeItem(PENDING_KEY);
+  localStorage.removeItem(PROFILE_KEY);
+  return true;
 }
 
 /** GET the score-ranked leaderboard. Empty if Convex is unreachable. */

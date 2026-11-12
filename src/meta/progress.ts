@@ -103,6 +103,15 @@ export function saveProgress(p: Progress): void {
   });
 }
 
+/** Wipe the career save so a new airline starts at BTS with starter cash and the Cessna. */
+export function resetCareerProgress(): Progress {
+  localStorage.removeItem(STORAGE_KEY);
+  for (const k of LEGACY_KEYS) localStorage.removeItem(k);
+  const next = clone(DEFAULT);
+  persistLocal(next);
+  return next;
+}
+
 export function isAirportUnlocked(p: Progress, iata: string): boolean {
   return p.unlockedAirports.includes(iata);
 }

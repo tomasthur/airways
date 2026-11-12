@@ -74,6 +74,23 @@ export const updateStats = mutation({
   },
 });
 
+/**
+ * Delete one airline from the leaderboard (new career from the hangar).
+ * No-op if that playerId was never upserted.
+ */
+export const remove = mutation({
+  args: { playerId: v.string() },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('players')
+      .withIndex('by_playerId', (q) => q.eq('playerId', args.playerId))
+      .unique();
+    if (!existing) return null;
+    await ctx.db.delete(existing._id);
+    return existing._id;
+  },
+});
+
 /** GET the best airlines by career score. Email stays private. */
 export const listLeaderboard = query({
   args: { limit: v.optional(v.number()) },

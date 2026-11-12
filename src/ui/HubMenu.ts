@@ -21,13 +21,14 @@ import {
   airportStatus,
   isAirportUnlocked,
   loadProgress,
+  resetCareerProgress,
   type Progress,
 } from '../meta/progress';
 import { getRoute } from '../meta/routes';
 import { BORDER_PATH, LAND_PATH, WORLD_H, WORLD_W, projectLonLat } from '../meta/worldMap';
 import { aircraftById } from '../sim/aircraft';
 import type { Propulsion } from '../sim/aircraft/AircraftConfig';
-import { fetchLeaderboard, loadPlayer, type LeaderboardRow } from '../meta/player';
+import { deleteCareerPlayer, fetchLeaderboard, loadPlayer, type LeaderboardRow } from '../meta/player';
 import { aircraftPortraitUrl } from './AircraftPortrait';
 import { HubTour } from './HubTour';
 import { MapCamera, type CameraView } from './MapCamera';
@@ -49,6 +50,7 @@ const HOME_FIT_MAX_ZOOM = 16;
 const HOME_NEIGHBOURS = 6;
 /** Below this zoom (× world fit) secondary labels hide to keep the chart clean. */
 const LABEL_ZOOM = 5;
+const DEFAULT_AIRLINE_TAG = 'World charter · earn · unlock · fly';
 
 export interface HubFlyRequest {
   from: string;
@@ -77,6 +79,7 @@ export class HubMenu {
   private unlockTarget: string | null = null;
   private toastTimer = 0;
   private readonly onFly: (req: HubFlyRequest) => void | Promise<void>;
+  private readonly onCareerWiped: () => void;
   private pinEls: { el: SVGGElement; x: number; y: number }[] = [];
   private boardReq = 0;
   private lastBoard: LeaderboardRow[] | null = null;
@@ -84,11 +87,17 @@ export class HubMenu {
   private rewardBusy = false;
   private iapBusy = false;
   private iapRestoreBusy = false;
+  private careerBusy = false;
   private readonly tour: HubTour;
 
-  constructor(root: HTMLElement, onFly: (req: HubFlyRequest) => void | Promise<void>) {
+  constructor(
+    root: HTMLElement,
+    onFly: (req: HubFlyRequest) => void | Promise<void>,
+    onCareerWiped: () => void,
+  ) {
     this.root = root;
     this.onFly = onFly;
+    this.onCareerWiped = onCareerWiped;
     this.progress = loadProgress();
 
     this.mapStage = root.querySelector('[data-hub="map"]')!;
@@ -125,6 +134,15 @@ export class HubMenu {
     root.querySelector('[data-hub="ship"]')?.addEventListener('click', () => this.openHangar());
     root.querySelector('[data-hub="hangarClose"]')?.addEventListener('click', () => this.closeHangar());
     root.querySelector('[data-hub="hangarRestore"]')?.addEventListener('click', () => void this.restoreFleet(true));
+    root.querySelector('[data-hub="careerReset"]')?.addEventListener('click', () => {
+      if (this.tour.active) return;
+      this.toggleCareerConfirm(true);
+    });
+    root.querySelector('[data-hub="careerKeep"]')?.addEventListener('click', () => this.toggleCareerConfirm(false));
+    root.querySelector('[data-hub="careerErase"]')?.addEventListener('click', () => void this.eraseCareer());
+    root.querySelector('[data-hub="careerConfirm"]')?.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) this.toggleCareerConfirm(false);
+    });
     root.querySelector('[data-hub="boardOpen"]')?.addEventListener('click', () => this.openBoard());
     root.querySelector('[data-hub="boardClose"]')?.addEventListener('click', () => this.closeBoard());
     root.querySelector('[data-hub="zoomIn"]')?.addEventListener('click', () => this.camera.zoomBy(1.6));
@@ -142,6 +160,7 @@ export class HubMenu {
       closePanels: () => {
         this.closeHangar();
         this.closeBoard();
+        this.toggleCareerConfirm(false);
       },
     });
 
@@ -155,11 +174,18 @@ export class HubMenu {
       else if (action === 'buyEuro') void this.buyFleetEuro(id);
       else if (action === 'select') this.selectFleet(id);
     });
+    this.syncCareerReset();
   }
 
   setAirline(name: string): void {
     const el = this.root.querySelector('[data-hub="airline"]');
     if (el) el.textContent = name;
+    this.syncCareerReset();
+  }
+
+  private syncCareerReset(): void {
+    const btn = this.root.querySelector('[data-hub="careerReset"]');
+    btn?.classList.toggle('is-hidden', !loadPlayer());
   }
 
   show(visible: boolean): void {
@@ -168,6 +194,8 @@ export class HubMenu {
       this.progress = loadProgress();
       this.closeHangar();
       this.closeBoard();
+      this.toggleCareerConfirm(false);
+      this.syncCareerReset();
       this.renderStats();
       this.renderPins();
       // Measure after the hub is laid out, then glide in from the world view.
@@ -582,6 +610,7 @@ export class HubMenu {
   }
 
   private openHangar(): void {
+    this.toggleCareerConfirm(false);
     this.closeBoard();
     this.progress = loadProgress();
     this.renderHangar();
@@ -595,7 +624,62 @@ export class HubMenu {
     this.hangar.setAttribute('aria-hidden', 'true');
   }
 
+  private toggleCareerConfirm(open: boolean): void {
+    const box = this.root.querySelector('[data-hub="careerConfirm"]');
+    box?.classList.toggle('is-hidden', !open);
+    box?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if (open) {
+      this.closeHangar();
+      this.closeBoard();
+    } else {
+      this.setCareerError('');
+    }
+  }
+
+  private setCareerError(message: string): void {
+    const el = this.root.querySelector<HTMLElement>('[data-hub="careerError"]');
+    if (!el) return;
+    el.textContent = message;
+    el.hidden = !message;
+  }
+
+  private async eraseCareer(): Promise<void> {
+    if (this.careerBusy || this.tour.active) return;
+    this.careerBusy = true;
+    this.setCareerError('');
+    const erase = this.root.querySelector<HTMLButtonElement>('[data-hub="careerErase"]');
+    if (erase) {
+      erase.disabled = true;
+      erase.textContent = t('hub.career.busy');
+    }
+    const ok = await deleteCareerPlayer();
+    if (!ok) {
+      this.careerBusy = false;
+      if (erase) {
+        erase.disabled = false;
+        erase.textContent = t('hub.career.erase');
+      }
+      this.setCareerError(t('hub.career.fail'));
+      return;
+    }
+    this.progress = resetCareerProgress();
+    this.tour.resetForNewCareer();
+    this.setAirline(DEFAULT_AIRLINE_TAG);
+    this.renderStats();
+    this.renderPins();
+    this.clearSelection();
+    this.focusHome(false);
+    this.toggleCareerConfirm(false);
+    this.careerBusy = false;
+    if (erase) {
+      erase.disabled = false;
+      erase.textContent = t('hub.career.erase');
+    }
+    this.onCareerWiped();
+  }
+
   private openBoard(): void {
+    this.toggleCareerConfirm(false);
     this.closeHangar();
     this.board.classList.remove('is-hidden');
     this.board.setAttribute('aria-hidden', 'false');

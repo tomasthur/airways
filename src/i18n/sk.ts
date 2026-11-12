@@ -15,6 +15,12 @@ export const sk: Record<string, string> = {
 
   'hub.fly': 'Letieť',
   'hub.board': 'Rebríček',
+  'hub.career.reset': 'Reštartovať kariéru',
+  'hub.career.confirm': 'Týmto vymažeš leteckú spoločnosť z rebríčka a vrátiš sa na registráciu. Nákupy z Play sa dajú obnoviť.',
+  'hub.career.keep': 'Ponechať firmu',
+  'hub.career.erase': 'Vymazať firmu',
+  'hub.career.busy': 'Mazanie firmy…',
+  'hub.career.fail': 'Firmu sa nepodarilo vymazať zo servera. Skús to znova online.',
   'hub.boardClose': 'Zavrieť',
   'hub.boardEmpty': 'V rebríčku zatiaľ nie sú žiadne spoločnosti.',
   'hub.boardLoad': 'Načítava sa…',
