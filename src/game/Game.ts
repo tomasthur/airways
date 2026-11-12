@@ -159,6 +159,10 @@ export class Game {
   private beltSignTimer = 0;
   /** Once near the destination, Copilot stays on landing config even if the nose comes up. */
   private coachLanding = false;
+  /** After TOD, never ask to climb or retract gear/flaps — even if altitude makes the TOD window shrink. */
+  private arrivalCommitted = false;
+  /** Gear and take-off flaps are up. Until then, Copilot stays on climb-out even on a 3-minute hop. */
+  private climbOutComplete = false;
 
   private readonly warnings: Record<WarningKey, boolean> = {
     stall: false,
@@ -429,6 +433,8 @@ export class Game {
     this.beltSign = null;
     this.beltSignTimer = 0;
     this.coachLanding = false;
+    this.arrivalCommitted = false;
+    this.climbOutComplete = false;
     this.papiAngle = GLIDE_SLOPE_DEG;
     this.papiWhitesHeld = 2;
   }
@@ -711,24 +717,29 @@ export class Game {
     return a.rain > 0.12 || a.cloud > 0.35 || a.turbulence > 0.85;
   }
 
+  /** Planned top-of-descent distance from the aim point, from this hop's cruise height. */
+  private todRangeM(): number {
+    return this.route.layout.cruiseAltM / Math.tan(THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG));
+  }
+
   /** Level cruise, well before top of descent. */
   private inCruise(toAim: number): boolean {
-    if (this.phase !== 'airborne' || this.fm.onGround) return false;
-    const glideStart = this.fm.y / Math.tan(THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG));
-    if (toAim < glideStart + 1500) return false;
+    if (this.phase !== 'airborne' || this.fm.onGround || !this.climbOutComplete) return false;
+    if (toAim < this.todRangeM() + 1500) return false;
     return this.fm.y > this.route.layout.cruiseAltM * 0.55 && this.fm.vy < 2.8;
   }
 
   private inDescent(toAim: number): boolean {
-    if (this.phase !== 'airborne' || this.fm.onGround) return false;
-    const glideStart = this.fm.y / Math.tan(THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG));
-    return toAim < glideStart + 300;
+    if (this.phase !== 'airborne' || this.fm.onGround || !this.climbOutComplete) return false;
+    return toAim < this.todRangeM() + 400;
   }
 
   /** Last stretch to the arrival runway. Must not fire on take-off: short hops are only a few km long. */
   private onLandingApproach(toAim: number): boolean {
     if (this.coachLanding) return true;
     if (this.phase !== 'airborne' || this.fm.onGround) return false;
+    // Climb-out / go-around: keep asking gear up, not landing flaps.
+    if (!this.climbOutComplete && this.fm.vy >= 0) return false;
     const originEnd = this.route.origin.x1;
     const destX0 = this.route.dest.x0;
     if (this.fm.x < originEnd + 800) return false;
@@ -736,6 +747,27 @@ export class Game {
     const window = Math.min(2800, Math.max(1400, hop * 0.32));
     if (toAim < window || this.fm.x > destX0 - window) this.coachLanding = true;
     return this.coachLanding;
+  }
+
+  /**
+   * True once climb-out is done and we have reached TOD or short final.
+   * Latches so Copilot cannot flip back to "gear up / climb".
+   */
+  private isArrival(toAim: number): boolean {
+    if (this.arrivalCommitted) return true;
+    if (this.phase !== 'airborne' || this.fm.onGround) return false;
+    if (!this.climbOutComplete && !this.onLandingApproach(toAim)) return false;
+    if (this.inDescent(toAim) || this.onLandingApproach(toAim)) {
+      this.arrivalCommitted = true;
+      return true;
+    }
+    return false;
+  }
+
+  private noteClimbOut(): void {
+    if (this.climbOutComplete || this.phase !== 'airborne' || this.fm.onGround) return;
+    const gearUp = !this.fm.config.gear.retractable || this.fm.gearTarget < 0.5;
+    if (this.fm.y > 12 && gearUp && this.fm.flapIndex === 0) this.climbOutComplete = true;
   }
 
   private stepCabin(dt: number): void {
@@ -1003,6 +1035,7 @@ export class Game {
       if (!fm.onGround && fm.y > 3) {
         this.phase = 'airborne';
         this.takeoffFlapsAtLiftoff = fm.flapIndex;
+        this.climbOutComplete = false;
       } else if (fm.onGround && fm.x > this.route.origin.x1) {
         const city = airportByIata(this.route.from)?.city ?? this.route.from;
         this.fail(
@@ -1016,6 +1049,9 @@ export class Game {
         this.phase = 'airborne';
         this.touchdownItems = null;
         this.tailStrike = false;
+        this.coachLanding = false;
+        this.arrivalCommitted = false;
+        this.climbOutComplete = false;
         this.flash(t('flash.goAround'));
       } else if (fm.onGround) {
         if (fm.x > this.route.dest.x1) {
@@ -1039,6 +1075,8 @@ export class Game {
         }
       }
     }
+
+    this.noteClimbOut();
 
     // Past the far end with no landing — scrub the charter, not a crash.
     if (!fm.onGround && fm.x > this.route.dest.x1 + 900) {
@@ -1502,19 +1540,13 @@ export class Game {
     const fm = this.fm;
     if (this.state !== 'flying' && this.state !== 'paused') return null;
     if (this.crashed || this.phase === 'falling') return null;
+    this.noteClimbOut();
     const kmh = fm.airspeed * 3.6;
     const lim = fm.config.limits;
     const atc = this.atc.current;
 
     if (this.engineFailed && !this.engineRelit && fm.engine.state === 'off') {
       return { id: 'relight', text: t('coach.relightCut', { engine: this.engineWord }) };
-    }
-    if (atc && atc.replies.length) {
-      const label = atc.replies[0];
-      return {
-        id: 'atc',
-        text: label === t('atc.wilco') ? t('coach.tapWilcoAtc') : t('coach.tapReply', { label }),
-      };
     }
     if (this.phase === 'preflight') {
       const c = this.checklist();
@@ -1537,11 +1569,10 @@ export class Game {
       if (fm.throttleLever > 0.05) return { id: 'throttle', text: t('coach.idleStop') };
       return { id: 'brake', text: t('coach.holdBrake') };
     }
-    if (this.meal) return { id: 'yoke', text: t('coach.mealYoke') };
     if (fm.stalled) return { id: 'yoke', text: t('coach.stallPush') };
     if (fm.overspeed) return { id: 'throttle', text: t('coach.overspeed') };
-    if (this.weatherNeedsBelts() && !this.belts) return { id: 'belts', text: t('coach.beltsWx') };
 
+    // Short final first — never "gear up" once the runway is close.
     if (this.onLandingApproach(toAim)) {
       if (!this.belts) return { id: 'belts', text: t('coach.beltsDescent') };
       if (fm.gearTarget < 0.5) return { id: 'gear', text: t('coach.gearLand') };
@@ -1552,14 +1583,37 @@ export class Game {
       return null;
     }
 
-    if (this.inDescent(toAim) && !this.belts) return { id: 'belts', text: t('coach.beltsDescent') };
-    if (fm.gearTarget > 0.5 && fm.y > 15) return { id: 'gear', text: t('coach.gearClimb') };
-    if (fm.flapIndex > 0 && fm.y > 60) return { id: 'flapsUp', text: t('coach.flapsCruise') };
+    // Climb-out must finish before any descent talk, even on a 3-minute hop.
+    if (this.phase === 'airborne' && !this.climbOutComplete) {
+      if (fm.config.gear.retractable && fm.gearTarget > 0.5 && fm.y > 12) {
+        return { id: 'gear', text: t('coach.gearClimb') };
+      }
+      if (fm.flapIndex > 0 && fm.y > 18) {
+        return { id: 'flapsUp', text: t('coach.flapsCruise') };
+      }
+    }
+
+    if (this.isArrival(toAim)) {
+      if (!this.belts) return { id: 'belts', text: t('coach.beltsDescent') };
+      if (fm.throttleLever > 0.82) return { id: 'throttle', text: t('coach.descent') };
+      return null;
+    }
+
+    if (this.climbOutComplete && fm.throttleLever > 0.82) {
+      return { id: 'throttle', text: t('coach.cruise70') };
+    }
+
+    if (this.weatherNeedsBelts() && !this.belts) return { id: 'belts', text: t('coach.beltsWx') };
+    if (this.meal) return { id: 'yoke', text: t('coach.mealYoke') };
+    if (atc && atc.replies.length) {
+      const label = atc.replies[0];
+      return {
+        id: 'atc',
+        text: label === t('atc.wilco') ? t('coach.tapWilcoAtc') : t('coach.tapReply', { label }),
+      };
+    }
     if (this.belts && this.beltCruiseOnS > 8 && this.inCruise(toAim) && !this.weatherNeedsBelts()) {
       return { id: 'belts', text: t('coach.beltsOffCruise') };
-    }
-    if (this.inCruise(toAim) && fm.throttleLever > 0.82) {
-      return { id: 'throttle', text: t('coach.cruise70') };
     }
     return null;
   }
@@ -1677,8 +1731,8 @@ export class Game {
     if (fm.air.cloud > 0.3 && fm.air.turbulence > 1.2 && kmh > turbulenceKmh) {
       return t('hint.turbSlow', { spd: turbulenceKmh });
     }
-    const glideStart = fm.y / Math.tan(THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG));
-    const descending = toAim < glideStart + 200;
+    const glideStart = this.todRangeM();
+    const descending = this.climbOutComplete && (toAim < glideStart + 400 || this.isArrival(toAim));
     if (this.onLandingApproach(toAim)) {
       if (fm.gearTarget < 0.5) return t('hint.gearLanding');
       if (fm.flapsTarget < 1) return t('hint.flapsLanding', { deg: maxFlapDeg(fm.config) });
@@ -1686,8 +1740,8 @@ export class Game {
       return t('hint.finalPapi');
     }
     if (!descending) {
-      if (fm.gearTarget > 0.5 && fm.y > 15) return t('hint.posClimb');
-      if (fm.flapIndex > 0 && fm.y > 60) return t('hint.retractFlaps');
+      if (fm.gearTarget > 0.5 && fm.y > 12) return t('hint.posClimb');
+      if (fm.flapIndex > 0 && fm.y > 18) return t('hint.retractFlaps');
       const target = this.atc.assignedAltitude ?? cruiseAlt;
       if (fm.y < target - 60) return t(this.atc.assignedAltitude !== null ? 'hint.climbAtc' : 'hint.climbTo', { alt: target });
       if (this.atc.assignedAltitude !== null && fm.y > target + 80) return t('hint.descendAtc', { alt: target });
