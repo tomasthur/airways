@@ -85,26 +85,161 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  background: linear-gradient(#3d74c0, #a9c8e2 70%, #dbe8ef);
-  font-size: 15px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 42%, rgba(36, 92, 140, 0.35), transparent 62%),
+    radial-gradient(ellipse 40% 30% at 78% 18%, rgba(80, 220, 255, 0.12), transparent 55%),
+    #050b12;
   z-index: 50;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.55s ease, visibility 0.55s ease;
 }
 
-.spinner {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
-  animation: spin 0.8s linear infinite;
+#loading.is-hidden {
+  display: flex !important;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
-@keyframes spin {
+.loading-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  padding: 24px;
+  width: min(560px, 86vw);
+}
+
+.loading-glow {
+  position: absolute;
+  inset: 18% -8% auto;
+  height: 58%;
+  background: radial-gradient(ellipse at center, rgba(90, 210, 255, 0.22), transparent 68%);
+  filter: blur(18px);
+  pointer-events: none;
+  animation: loadingPulse 2.8s ease-in-out infinite;
+}
+
+.loading-mark-wrap {
+  position: relative;
+  width: min(420px, 78vw);
+  overflow: hidden;
+  animation: loadingMarkIn 1.05s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.loading-mark {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.45));
+}
+
+.loading-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 36%,
+    rgba(255, 255, 255, 0.08) 44%,
+    rgba(170, 235, 255, 0.38) 50%,
+    rgba(255, 255, 255, 0.08) 56%,
+    transparent 64%
+  );
+  transform: translateX(-130%);
+  animation: loadingShimmer 2.6s ease-in-out 0.7s infinite;
+  pointer-events: none;
+}
+
+.loading-bar {
+  width: min(220px, 52vw);
+  height: 2px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  animation: loadingFade 0.6s ease 0.35s both;
+}
+
+.loading-bar span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7ad7ff, #e8fbff 55%, #5ee0ff);
+  animation: loadingBar 1.35s ease-in-out infinite;
+}
+
+.loading-copy {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(210, 228, 240, 0.62);
+  animation: loadingFade 0.7s ease 0.5s both;
+}
+
+@keyframes loadingMarkIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.92);
+    filter: blur(8px);
+  }
   to {
-    transform: rotate(360deg);
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes loadingShimmer {
+  to {
+    transform: translateX(130%);
+  }
+}
+
+@keyframes loadingBar {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}
+
+@keyframes loadingPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes loadingFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-glow,
+  .loading-mark-wrap,
+  .loading-shimmer,
+  .loading-bar span,
+  .loading-copy {
+    animation: none;
+  }
+  .loading-mark-wrap,
+  .loading-copy,
+  .loading-bar {
+    opacity: 1;
   }
 }
 
@@ -1509,7 +1644,7 @@ button {
   z-index: 2;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: clamp(4px, 1.2vh, 8px);
   min-width: 0;
   pointer-events: none;
 }
@@ -1518,7 +1653,7 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: stretch;
-  gap: 8px 16px;
+  gap: clamp(4px, 1.2vh, 8px) clamp(8px, 2vw, 16px);
   min-width: 0;
 }
 
@@ -1526,7 +1661,7 @@ button {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 8px;
+  gap: clamp(4px, 1vh, 8px);
   min-width: 0;
   overflow: hidden;
 }
@@ -1534,7 +1669,7 @@ button {
 .hub-wordmark {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(28px, 6vw, 52px);
+  font-size: clamp(20px, 4.6vw, 52px);
   letter-spacing: 0.04em;
   line-height: 1;
   color: #fff;
@@ -1555,7 +1690,7 @@ button {
   margin: 0;
   min-width: 0;
   flex: 0 1 auto;
-  font-size: 14px;
+  font-size: clamp(11px, 1.6vw, 14px);
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1.2;
@@ -1568,13 +1703,13 @@ button {
 .hub-board-btn {
   flex: 0 0 auto;
   margin: 0;
-  padding: 4px 10px;
+  padding: clamp(2px, 0.6vh, 4px) clamp(7px, 1.2vw, 10px);
   border-radius: 999px;
   border: 1px solid rgba(126, 200, 255, 0.35);
   background: rgba(126, 200, 255, 0.1);
   color: var(--hub-cyan);
   font: inherit;
-  font-size: 11px;
+  font-size: clamp(9px, 1.2vw, 11px);
   letter-spacing: 0.1em;
   line-height: 1.2;
   text-transform: uppercase;
@@ -1626,9 +1761,9 @@ button {
 }
 
 .hub-ship-art {
-  flex: 0 0 112px;
-  width: 112px;
-  height: 58px;
+  flex: 0 0 clamp(72px, 12vw, 112px);
+  width: clamp(72px, 12vw, 112px);
+  height: clamp(38px, 6.5vh, 58px);
   border-radius: 12px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.06);
@@ -1660,7 +1795,7 @@ button {
 
 .hub-ship strong {
   display: block;
-  font-size: 15px;
+  font-size: clamp(12px, 1.8vw, 15px);
   font-weight: 700;
   line-height: 1.2;
   overflow: hidden;
@@ -1683,10 +1818,10 @@ button {
 
 .hub-stats {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   align-items: stretch;
-  gap: 6px;
+  gap: clamp(3px, 0.7vw, 6px);
   flex: 0 1 auto;
   max-width: min(100%, 420px);
   min-width: 0;
@@ -1694,9 +1829,9 @@ button {
 }
 
 .hub-stat {
-  min-width: 52px;
-  padding: 7px 8px 6px;
-  border-radius: 14px;
+  min-width: 0;
+  padding: clamp(4px, 1vh, 7px) clamp(5px, 0.9vw, 8px) clamp(3px, 0.8vh, 6px);
+  border-radius: clamp(10px, 1.6vw, 14px);
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   text-align: center;
@@ -1707,7 +1842,7 @@ button {
 .hub-stat span {
   display: block;
   font-family: var(--font-display);
-  font-size: 18px;
+  font-size: clamp(11px, 1.7vw, 18px);
   font-weight: 700;
   line-height: 1.1;
 }
@@ -1715,7 +1850,7 @@ button {
 .hub-stat small {
   display: block;
   margin-top: 2px;
-  font-size: 9px;
+  font-size: clamp(7px, 0.95vw, 9px);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1727,18 +1862,18 @@ button {
 
 .hub-stat--cash span {
   color: #9fd6a8;
-  font-size: 15px;
+  font-size: clamp(11px, 1.5vw, 15px);
 }
 
 .hub-hangar-btn {
   flex: 0 0 auto;
-  padding: 8px 12px;
-  border-radius: 14px;
+  padding: clamp(5px, 1vh, 8px) clamp(8px, 1.2vw, 12px);
+  border-radius: clamp(10px, 1.6vw, 14px);
   border: 1px solid rgba(126, 200, 255, 0.35);
   background: rgba(126, 200, 255, 0.1);
   color: var(--hub-cyan);
   font: inherit;
-  font-size: 11px;
+  font-size: clamp(9px, 1.15vw, 11px);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   cursor: pointer;
@@ -2277,6 +2412,11 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: linear-gradient(165deg, #152636 0%, #0c1822 100%);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  touch-action: pan-y;
+}
+
+.hub-hangar-panel button {
+  touch-action: manipulation;
 }
 
 .hub-hangar-head {
@@ -2302,6 +2442,10 @@ button {
 }
 
 .hub-hangar-balance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin: 0 0 14px;
   font-size: 13px;
   color: var(--muted);
@@ -2310,6 +2454,12 @@ button {
 .hub-hangar-balance strong {
   color: #9fd6a8;
   font-weight: 700;
+}
+
+.hub-hangar-restore {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  font-size: 11px;
 }
 
 .hub-hangar-list {
@@ -2499,6 +2649,7 @@ button {
 .hub-fleet-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -2507,6 +2658,11 @@ button {
   font-size: 13px;
   animation: none;
   box-shadow: none;
+}
+
+.hub-fleet-btn--cash {
+  background: linear-gradient(180deg, #7ee0a8, #3cb87a 55%, #2a9a64);
+  color: #062014;
 }
 
 .hub-fleet-btn:disabled {
@@ -2634,77 +2790,24 @@ button {
   margin-left: auto;
 }
 
-/* Phone landscape / short viewports: brand and stats must not share one crowded row. */
+/* Phone: tighter chrome, same left/right layout. */
 @media (max-height: 520px), (max-width: 900px) {
-  .hub-chrome {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-  .hub-brand {
-    flex: 0 0 auto;
-  }
-  .hub-wordmark {
-    font-size: clamp(22px, 5vw, 34px);
-  }
-  .hub-brand-row {
-    gap: 8px;
-  }
-  .hub-tag {
-    font-size: 12px;
-  }
-  .hub-board-btn {
-    padding: 3px 9px;
-    font-size: 10px;
-  }
-  .hub-aside {
-    width: 100%;
+  .hub {
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-inline: max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-right));
   }
   .hub-actions {
-    justify-content: flex-end;
+    gap: 4px;
   }
   .hub-ship {
-    padding-top: 8px;
+    gap: 8px;
+    padding-top: 6px;
   }
-  .hub-ship-art {
-    flex-basis: 88px;
-    width: 88px;
-    height: 46px;
+  .hub-ship small {
+    font-size: 8px;
   }
-  .hub-ship strong {
-    font-size: 13px;
-  }
-  .hub-stats {
-    width: 100%;
-    max-width: none;
-    justify-content: flex-start;
-    flex-wrap: nowrap;
-    gap: 5px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .hub-stats::-webkit-scrollbar {
-    display: none;
-  }
-  .hub-stat {
-    flex: 0 0 auto;
-    min-width: 48px;
-    padding: 5px 7px;
-  }
-  .hub-stat span {
-    font-size: 14px;
-  }
-  .hub-stat--cash span {
-    font-size: 13px;
-  }
-  .hub-actions .hub-hangar-btn {
-    margin-left: 0;
-  }
-  .hub-corner-money.hub-hangar-btn {
-    margin-left: 0;
-    align-self: auto;
+  .hub-ship-go {
+    font-size: 9px;
   }
 }
 
@@ -2750,16 +2853,6 @@ button {
 }
 
 @media (orientation: portrait) and (max-width: 700px) {
-  .hub-chrome {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .hub-stats {
-    width: 100%;
-    max-width: none;
-    justify-content: flex-start;
-  }
   .hub-dock {
     grid-template-columns: 1fr;
     gap: 10px;

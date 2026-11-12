@@ -15,4 +15,8 @@ android/.idea
 android/*.iml
 *.apk
 *.aab
+*.jks
+*.keystore
+android/keystore.properties
+android/keystore/
 .capacitor

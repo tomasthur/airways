@@ -1,5 +1,6 @@
 import { adsAvailable, AD_REWARD_CREDITS, showRewarded } from '../ads/admob';
 import { t } from '../i18n';
+import { aircraftPriceLabel, purchaseAircraft, restoreAircraftPurchases, type IapFail } from '../iap/playBilling';
 import { AIRPORTS, airportByIata, type Airport } from '../meta/airports';
 import {
   buyAircraft,
@@ -81,6 +82,8 @@ export class HubMenu {
   private lastBoard: LeaderboardRow[] | null = null;
   private flyBusy = false;
   private rewardBusy = false;
+  private iapBusy = false;
+  private iapRestoreBusy = false;
   private readonly tour: HubTour;
 
   constructor(root: HTMLElement, onFly: (req: HubFlyRequest) => void | Promise<void>) {
@@ -121,6 +124,7 @@ export class HubMenu {
     root.querySelector('[data-hub="hangarOpen"]')?.addEventListener('click', () => this.openHangar());
     root.querySelector('[data-hub="ship"]')?.addEventListener('click', () => this.openHangar());
     root.querySelector('[data-hub="hangarClose"]')?.addEventListener('click', () => this.closeHangar());
+    root.querySelector('[data-hub="hangarRestore"]')?.addEventListener('click', () => void this.restoreFleet(true));
     root.querySelector('[data-hub="boardOpen"]')?.addEventListener('click', () => this.openBoard());
     root.querySelector('[data-hub="boardClose"]')?.addEventListener('click', () => this.closeBoard());
     root.querySelector('[data-hub="zoomIn"]')?.addEventListener('click', () => this.camera.zoomBy(1.6));
@@ -148,6 +152,7 @@ export class HubMenu {
       const action = btn.dataset.fleetAction;
       if (!id || !action) return;
       if (action === 'buy') this.buyFleet(id);
+      else if (action === 'buyEuro') void this.buyFleetEuro(id);
       else if (action === 'select') this.selectFleet(id);
     });
   }
@@ -582,6 +587,7 @@ export class HubMenu {
     this.renderHangar();
     this.hangar.classList.remove('is-hidden');
     this.hangar.setAttribute('aria-hidden', 'false');
+    void this.restoreFleet(false);
   }
 
   private closeHangar(): void {
@@ -748,6 +754,13 @@ export class HubMenu {
         buy.disabled = need > 0;
         buy.textContent = need > 0 ? t('hangar.need', { n: formatCredits(need) }) : t('hangar.buy', { n: formatCredits(craft.price) });
         actions.appendChild(buy);
+        const euro = document.createElement('button');
+        euro.type = 'button';
+        euro.className = 'hub-fly hub-fleet-btn hub-fleet-btn--cash';
+        euro.dataset.fleetAction = 'buyEuro';
+        euro.dataset.fleetId = craft.id;
+        euro.textContent = t('hangar.buyEuro', { n: aircraftPriceLabel(craft.id) });
+        actions.appendChild(euro);
       }
 
       body.append(head, type, blurb, meta, actions);
@@ -762,11 +775,59 @@ export class HubMenu {
       this.toast(result.reason);
       return;
     }
-    this.progress = result.progress;
+    this.onFleetUnlocked(id);
+  }
+
+  private async buyFleetEuro(id: string): Promise<void> {
+    if (this.iapBusy) {
+      this.toast(t('hangar.iap.busy'));
+      return;
+    }
+    this.iapBusy = true;
+    this.toast(t('hangar.iap.opening'));
+    try {
+      const result = await purchaseAircraft(id);
+      if (!result.ok) {
+        this.toast(this.iapFailCopy(result.reason));
+        return;
+      }
+      this.onFleetUnlocked(id);
+    } finally {
+      this.iapBusy = false;
+    }
+  }
+
+  private async restoreFleet(fromButton: boolean): Promise<void> {
+    if (this.iapRestoreBusy) return;
+    this.iapRestoreBusy = true;
+    try {
+      const granted = await restoreAircraftPurchases();
+      this.progress = loadProgress();
+      this.renderStats();
+      this.renderHangar();
+      if (this.selected) this.selectDestination(this.selected);
+      if (fromButton) {
+        this.toast(granted.length ? t('hangar.restored') : t('hangar.restored.none'));
+      }
+    } finally {
+      this.iapRestoreBusy = false;
+    }
+  }
+
+  private onFleetUnlocked(id: string): void {
+    this.progress = loadProgress();
     this.renderStats();
     this.renderHangar();
     if (this.selected) this.selectDestination(this.selected);
     this.toast(t('hub.acquired', { name: fleetById(id).shortName }));
+  }
+
+  private iapFailCopy(reason: IapFail): string {
+    if (reason === 'web') return t('hangar.iap.web');
+    if (reason === 'unavailable') return t('hangar.iap.unavailable');
+    if (reason === 'cancelled') return t('hangar.iap.cancel');
+    if (reason === 'pending') return t('hangar.iap.pending');
+    return t('hangar.iap.fail');
   }
 
   private selectFleet(id: string): void {

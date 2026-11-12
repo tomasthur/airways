@@ -16,7 +16,17 @@
   </head>
   <body>
     <div id="app">
-      <div id="loading" class="loading"><div class="spinner"></div><span data-i18n="boot.painting">Painting the Danube…</span></div>
+      <div id="loading" class="loading" aria-busy="true">
+        <div class="loading-stage">
+          <div class="loading-glow" aria-hidden="true"></div>
+          <div class="loading-mark-wrap">
+            <img class="loading-mark" src="./airways_title.png" alt="AIRWAYS" />
+            <span class="loading-shimmer" aria-hidden="true"></span>
+          </div>
+          <div class="loading-bar" aria-hidden="true"><span></span></div>
+          <span class="loading-copy" data-i18n="boot.painting">Preparing departure…</span>
+        </div>
+      </div>
 
       <div id="register" class="register is-hidden" data-register="root">
         <div class="register-card">
@@ -325,7 +335,10 @@
               </div>
               <button type="button" class="hub-ghost" data-hub="hangarClose" data-i18n="hangar.close">Close</button>
             </header>
-            <p class="hub-hangar-balance"><span data-i18n="hangar.balance">Balance</span> <strong data-hub="hangarCredits">€0</strong></p>
+            <p class="hub-hangar-balance">
+              <span><span data-i18n="hangar.balance">Balance</span> <strong data-hub="hangarCredits">€0</strong></span>
+              <button type="button" class="hub-ghost hub-hangar-restore" data-hub="hangarRestore" data-i18n="hangar.restore">Restore purchases</button>
+            </p>
             <div class="hub-hangar-list" data-hub="hangarList"></div>
           </div>
         </div>

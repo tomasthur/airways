@@ -41,6 +41,7 @@ if (result.status !== 0) process.exit(result.status ?? 1);
 
 const apk = path.join(androidDir, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
 console.log(`\nAPK ready: ${apk}`);
+console.log('Debug build — AdMob serves Google test ads, not live inventory.');
 if (fs.existsSync(apk)) {
   const mb = (fs.statSync(apk).size / (1024 * 1024)).toFixed(2);
   console.log(`Size: ${mb} MB`);

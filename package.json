@@ -15,13 +15,15 @@
     "test:flight": "node scripts/regression/flights.mjs",
     "perf:android": "node scripts/perf/android-baseline.mjs",
     "cap:sync": "npm run build && npx cap sync android",
-    "android:apk": "npm run cap:sync && node scripts/android-apk.mjs"
+    "android:apk": "npm run cap:sync && node scripts/android-apk.mjs",
+    "android:aab": "npm run cap:sync && node scripts/android-aab.mjs"
   },
   "dependencies": {
     "@capacitor-community/admob": "^7.2.0",
     "@capacitor/android": "^7.4.4",
     "@capacitor/app": "^7.1.0",
     "@capacitor/core": "^7.4.4",
+    "@capgo/native-purchases": "^7.19.3",
     "convex": "^1.49.0",
     "three": "^0.187.0",
     "topojson-client": "^3.1.0",

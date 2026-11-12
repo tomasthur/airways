@@ -22,6 +22,7 @@ import { plannedLoad } from '../sim/LoadSheet';
 import { Weather } from '../sim/Weather';
 import { buildReport, evaluateTouchdown, failureReport, onRunway, type ScoreItem } from '../sim/Landing';
 import { initAds, showInterstitialThen } from '../ads/admob';
+import { initIap } from '../iap/playBilling';
 import { acquireWakeLock, bindNativeLifecycle, isNativePlatform, releaseWakeLock } from '../native';
 import { FlightControls } from '../ui/FlightControls';
 import { HubMenu } from '../ui/HubMenu';
@@ -180,6 +181,7 @@ export class Game {
   private readonly app: HTMLElement;
 
   constructor(app: HTMLElement) {
+    const bootAt = performance.now();
     this.app = app;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.toneMapping = THREE.NeutralToneMapping;
@@ -270,6 +272,7 @@ export class Game {
       },
     });
     void initAds();
+    void initIap();
 
     this.applyQuality();
     this.resize();
@@ -281,7 +284,8 @@ export class Game {
     this.hud.setMuted(false);
     this.hud.setCopilot(this.copilot);
     onLangChange(() => this.onLanguageChange());
-    this.hud.show('loading', false);
+    const hold = Math.max(0, 1600 - (performance.now() - bootAt));
+    window.setTimeout(() => this.hud.show('loading', false), hold);
     this.hud.show('hud', true);
     this.hub.show(true);
     const player = loadPlayer();

@@ -2,13 +2,14 @@ import { AIRPORTS, STARTER_IATAS } from './airports';
 import { applyPlayerStats } from './player';
 import { getRoute } from './routes';
 
-const STORAGE_KEY = 'airways.progress.v3';
+const STORAGE_KEY = 'airways.progress.v4';
+/** v3 held the 100M test balance — do not migrate it into the career save. */
 const LEGACY_KEYS = ['airways.progress.v2', 'airways.progress.v1'];
 
 /** Kept here (not in economy) to avoid a circular import with progress ↔ economy. */
 export const STARTER_AIRCRAFT_ID = 'c172rg';
-/** Temporary testing balance so the full fleet and airport unlocks are buyable. */
-export const STARTING_CREDITS = 100_000_000;
+/** New airline cash. Earn from flights, ads, or Play unlocks. */
+export const STARTING_CREDITS = 0;
 
 export interface Progress {
   /** Airport where the aircraft currently sits. */
@@ -77,8 +78,7 @@ export function loadProgress(): Progress {
       successfulFlights: parsed.successfulFlights ?? 0,
       crashes: parsed.crashes ?? 0,
       deaths: parsed.deaths ?? 0,
-      // Top up older saves that still sit below the current testing starting balance.
-      credits: typeof parsed.credits === 'number' ? Math.max(parsed.credits, STARTING_CREDITS) : STARTING_CREDITS,
+      credits: typeof parsed.credits === 'number' ? Math.max(0, parsed.credits) : STARTING_CREDITS,
       ownedAircraft: owned,
       activeAircraft: active,
     };

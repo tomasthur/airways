@@ -207,6 +207,20 @@ export function buyAircraft(p: Progress, aircraftId: string): { ok: true; progre
   return { ok: true, progress: next };
 }
 
+/** Unlock from a paid Play purchase — never deducts in-game credits. */
+export function grantPurchasedAircraft(aircraftId: string): Progress {
+  const p = loadProgress();
+  const craft = fleetById(aircraftId);
+  if (craft.price <= 0 || p.ownedAircraft.includes(aircraftId)) return p;
+  const next: Progress = {
+    ...p,
+    ownedAircraft: [...p.ownedAircraft, aircraftId],
+    activeAircraft: aircraftId,
+  };
+  saveProgress(next);
+  return next;
+}
+
 export function selectAircraft(p: Progress, aircraftId: string): { ok: true; progress: Progress } | { ok: false; reason: string } {
   if (!p.ownedAircraft.includes(aircraftId)) return { ok: false, reason: t('econ.notOwned') };
   const next: Progress = { ...p, activeAircraft: aircraftId };

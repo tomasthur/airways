@@ -10,8 +10,21 @@ import { isNativePlatform } from '../native';
 /** Cash granted only after a completed rewarded ad. */
 export const AD_REWARD_CREDITS = 5000;
 
-const INTERSTITIAL_ID = 'ca-app-pub-3047265778113232/8544667322';
-const REWARDED_ID = 'ca-app-pub-3047265778113232/4074939277';
+/** Live AdMob units. Used by signed release / Play builds. */
+const PROD = {
+  interstitial: 'ca-app-pub-3047265778113232/8544667322',
+  rewarded: 'ca-app-pub-3047265778113232/4074939277',
+};
+
+/** Google sample units — always return labeled test creatives. */
+const TEST = {
+  interstitial: 'ca-app-pub-3940256099942544/1033173712',
+  rewarded: 'ca-app-pub-3940256099942544/5224354917',
+};
+
+let interstitialId = PROD.interstitial;
+let rewardedId = PROD.rewarded;
+let testAds = false;
 
 const INTERSTITIAL_WAIT_MS = 90_000;
 const REWARD_WAIT_MS = 120_000;
@@ -32,7 +45,11 @@ export async function initAds(): Promise<void> {
   if (!isNativePlatform() || started) return;
   started = true;
   try {
-    await AdMob.initialize();
+    testAds = await detectTestAds();
+    interstitialId = testAds ? TEST.interstitial : PROD.interstitial;
+    rewardedId = testAds ? TEST.rewarded : PROD.rewarded;
+    await AdMob.initialize({ initializeForTesting: testAds });
+    if (testAds) console.info('[airways] AdMob Google test units');
     canRequestAds = true;
     try {
       const info = await AdMob.requestConsentInfo();
@@ -120,7 +137,7 @@ export async function showRewarded(): Promise<boolean> {
 function preloadInterstitial(): Promise<boolean> {
   if (!isNativePlatform() || !canRequestAds) return Promise.resolve(false);
   if (preparingInterstitial) return preparingInterstitial;
-  preparingInterstitial = AdMob.prepareInterstitial({ adId: INTERSTITIAL_ID })
+  preparingInterstitial = AdMob.prepareInterstitial({ adId: interstitialId })
     .then(() => {
       interstitialReady = true;
       return true;
@@ -138,7 +155,7 @@ function preloadInterstitial(): Promise<boolean> {
 function preloadRewarded(): Promise<boolean> {
   if (!isNativePlatform() || !canRequestAds) return Promise.resolve(false);
   if (preparingRewarded) return preparingRewarded;
-  preparingRewarded = AdMob.prepareRewardVideoAd({ adId: REWARDED_ID })
+  preparingRewarded = AdMob.prepareRewardVideoAd({ adId: rewardedId })
     .then(() => {
       rewardedReady = true;
       return true;
@@ -151,6 +168,24 @@ function preloadRewarded(): Promise<boolean> {
       preparingRewarded = null;
     });
   return preparingRewarded;
+}
+
+/**
+ * Debug APKs ship `ads-mode.json` from the Android debug source set.
+ * Release APKs do not, so they keep the live AdMob units.
+ */
+async function detectTestAds(): Promise<boolean> {
+  for (const url of ['ads-mode.json', '/ads-mode.json']) {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) continue;
+      const data = (await res.json()) as { testAds?: boolean };
+      if (data.testAds === true) return true;
+    } catch {
+      /* try the next path */
+    }
+  }
+  return false;
 }
 
 async function listenClose(
