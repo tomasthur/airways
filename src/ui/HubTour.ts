@@ -9,6 +9,7 @@ type StepId =
   | 'career'
   | 'copilot'
   | 'hangar'
+  | 'money'
   | 'ship'
   | 'map'
   | 'zoom'
@@ -30,10 +31,11 @@ interface Step {
 const STEPS: Step[] = [
   { id: 'welcome', selectors: ['.hub-brand'], pad: 8, radius: '18px' },
   { id: 'board', selectors: ['[data-hub="boardOpen"]'], pad: 6, radius: '16px' },
-  { id: 'lang', selectors: ['.hub-brand .lang-switch'], pad: 8, radius: '18px' },
+  { id: 'lang', selectors: ['.hub-corner-lang'], pad: 6, radius: '16px' },
   { id: 'career', selectors: ['.hub-stat'], pad: 6, radius: '16px' },
   { id: 'copilot', selectors: ['.hub-hangar-btn[data-copilot]'], pad: 6, radius: '16px' },
   { id: 'hangar', selectors: ['[data-hub="hangarOpen"]'], pad: 6, radius: '16px' },
+  { id: 'money', selectors: ['[data-hub="moreMoney"]'], pad: 6, radius: '16px' },
   { id: 'ship', selectors: ['[data-hub="ship"]'], pad: 6, radius: '16px' },
   { id: 'map', selectors: ['[data-hub="map"]'], pad: 4, radius: '20px' },
   { id: 'zoom', selectors: ['.hub-map-tools'], pad: 8, radius: '16px' },

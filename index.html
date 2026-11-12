@@ -35,11 +35,17 @@
             <p class="register-error" data-register="error" role="alert"></p>
             <button type="submit" class="register-go" data-i18n="register.submit">Start flying</button>
           </form>
-          <div class="lang-switch" role="group" data-i18n-aria="lang.label">
-            <button type="button" data-lang="en">EN</button>
-            <button type="button" data-lang="de">DE</button>
-            <button type="button" data-lang="sk">SK</button>
-            <button type="button" data-lang="zh">中文</button>
+          <div class="lang-dd lang-dd--down" data-lang-dd>
+            <button type="button" class="lang-dd-btn" data-lang-toggle aria-haspopup="listbox" aria-expanded="false" data-i18n-aria="lang.label">
+              <span data-lang-current>EN</span>
+              <span class="lang-dd-caret" aria-hidden="true"></span>
+            </button>
+            <div class="lang-dd-menu" role="listbox">
+              <button type="button" role="option" data-lang="en">EN</button>
+              <button type="button" role="option" data-lang="de">DE</button>
+              <button type="button" role="option" data-lang="sk">SK</button>
+              <button type="button" role="option" data-lang="zh">中文</button>
+            </div>
           </div>
         </div>
       </div>
@@ -222,35 +228,36 @@
       <div id="menu" class="hub is-hidden" data-hub="root">
         <div class="hub-glow" aria-hidden="true"></div>
         <header class="hub-top">
-          <div class="hub-brand">
-            <div class="hub-wordmark">AIRWAYS</div>
-            <p class="hub-tag" data-hub="airline">World charter · earn · unlock · fly</p>
-            <button type="button" class="hub-board-btn" data-hub="boardOpen" data-i18n="hub.board">Leaderboard</button>
-            <div class="lang-switch" role="group" data-i18n-aria="lang.label">
-              <button type="button" data-lang="en">EN</button>
-              <button type="button" data-lang="de">DE</button>
-              <button type="button" data-lang="sk">SK</button>
-              <button type="button" data-lang="zh">中文</button>
+          <div class="hub-chrome">
+            <div class="hub-brand">
+              <div class="hub-wordmark">AIRWAYS</div>
+              <div class="hub-brand-row">
+                <p class="hub-tag" data-hub="airline">World charter · earn · unlock · fly</p>
+                <button type="button" class="hub-board-btn" data-hub="boardOpen" data-i18n="hub.board">Leaderboard</button>
+              </div>
+            </div>
+            <div class="hub-aside">
+              <div class="hub-stats" data-i18n-aria="hub.statsAria">
+                <div class="hub-stat hub-stat--cash"><span data-hub="statCredits">€0</span><small data-i18n="hub.stat.cash">Cash</small></div>
+                <div class="hub-stat"><span data-hub="statFlights">—</span><small data-i18n="hub.stat.flights">Flights</small></div>
+                <div class="hub-stat"><span data-hub="statCrashes">—</span><small data-i18n="hub.stat.crashes">Crashes</small></div>
+                <div class="hub-stat"><span data-hub="statDeaths">—</span><small data-i18n="hub.stat.losses">Losses</small></div>
+                <div class="hub-stat hub-stat--home"><span data-hub="statHome">BTS</span><small data-i18n="hub.base">Base</small></div>
+              </div>
+              <div class="hub-actions">
+                <button type="button" class="hub-hangar-btn" data-action="copilot" data-copilot data-i18n="hud.copilotOn">Copilot on</button>
+                <button type="button" class="hub-hangar-btn" data-hub="hangarOpen" data-i18n="hub.nav.hangar">Hangar</button>
+              </div>
             </div>
           </div>
-          <div class="hub-aside">
-            <div class="hub-stats" data-i18n-aria="hub.statsAria">
-              <div class="hub-stat hub-stat--cash"><span data-hub="statCredits">€0</span><small data-i18n="hub.stat.cash">Cash</small></div>
-              <div class="hub-stat"><span data-hub="statFlights">—</span><small data-i18n="hub.stat.flights">Flights</small></div>
-              <div class="hub-stat"><span data-hub="statCrashes">—</span><small data-i18n="hub.stat.crashes">Crashes</small></div>
-              <div class="hub-stat"><span data-hub="statDeaths">—</span><small data-i18n="hub.stat.losses">Losses</small></div>
-              <div class="hub-stat hub-stat--home"><span data-hub="statHome">BTS</span><small data-i18n="hub.base">Base</small></div>
-              <button type="button" class="hub-hangar-btn" data-action="copilot" data-copilot data-i18n="hud.copilotOn">Copilot on</button>
-              <button type="button" class="hub-hangar-btn" data-hub="hangarOpen" data-i18n="hub.nav.hangar">Hangar</button>
-            </div>
-            <button type="button" class="hub-ship" data-hub="ship" data-i18n-title="hub.openHangar" title="Open hangar">
-              <span class="hub-ship-art"><img data-hub="shipArt" alt="" /></span>
-              <span>
-                <small data-i18n="hub.selected">Selected</small>
-                <strong data-hub="shipName">Cessna 172RG</strong>
-              </span>
-            </button>
-          </div>
+          <button type="button" class="hub-ship" data-hub="ship" data-i18n-title="hub.openHangar" title="Open hangar">
+            <span class="hub-ship-art"><img data-hub="shipArt" alt="" /></span>
+            <span class="hub-ship-copy">
+              <small data-i18n="hub.selected">Current aircraft</small>
+              <strong data-hub="shipName">Cessna 172RG</strong>
+            </span>
+            <span class="hub-ship-go" data-i18n="hub.changeHangar">Change in hangar</span>
+          </button>
         </header>
 
                 <div class="hub-map" data-hub="map">
@@ -339,16 +346,36 @@
 
         <div class="hub-toast" data-hub="toast" role="status"></div>
 
+        <div class="lang-dd hub-corner-lang" data-lang-dd>
+          <button type="button" class="lang-dd-btn" data-lang-toggle aria-haspopup="listbox" aria-expanded="false" data-i18n-aria="lang.label">
+            <span data-lang-current>EN</span>
+            <span class="lang-dd-caret" aria-hidden="true"></span>
+          </button>
+          <div class="lang-dd-menu" role="listbox">
+            <button type="button" role="option" data-lang="en">EN</button>
+            <button type="button" role="option" data-lang="de">DE</button>
+            <button type="button" role="option" data-lang="sk">SK</button>
+            <button type="button" role="option" data-lang="zh">中文</button>
+          </div>
+        </div>
+        <button type="button" class="hub-hangar-btn hub-hangar-btn--money hub-corner-money" data-hub="moreMoney" data-i18n="hub.moreMoney" data-i18n-title="hub.moreMoney.hint" title="Watch a short ad and earn €5,000 for your airline.">More Money</button>
+
         <div class="hub-tour is-hidden" data-hub="tour" aria-hidden="true">
           <div class="hub-tour-spot is-hidden" data-hub="tourSpot"></div>
           <div class="hub-tour-card" data-hub="tourCard">
             <div class="hub-tour-head">
               <p class="hub-tour-kicker" data-hub="tourStep"></p>
-              <div class="lang-switch hub-tour-langs" role="group" data-i18n-aria="lang.label">
-                <button type="button" data-lang="en">EN</button>
-                <button type="button" data-lang="de">DE</button>
-                <button type="button" data-lang="sk">SK</button>
-                <button type="button" data-lang="zh">中文</button>
+              <div class="lang-dd lang-dd--down hub-tour-langs" data-lang-dd>
+                <button type="button" class="lang-dd-btn" data-lang-toggle aria-haspopup="listbox" aria-expanded="false" data-i18n-aria="lang.label">
+                  <span data-lang-current>EN</span>
+                  <span class="lang-dd-caret" aria-hidden="true"></span>
+                </button>
+                <div class="lang-dd-menu" role="listbox">
+                  <button type="button" role="option" data-lang="en">EN</button>
+                  <button type="button" role="option" data-lang="de">DE</button>
+                  <button type="button" role="option" data-lang="sk">SK</button>
+                  <button type="button" role="option" data-lang="zh">中文</button>
+                </div>
               </div>
             </div>
             <h2 data-hub="tourTitle"></h2>

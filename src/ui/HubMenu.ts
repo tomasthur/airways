@@ -1,3 +1,4 @@
+import { adsAvailable, AD_REWARD_CREDITS, showRewarded } from '../ads/admob';
 import { t } from '../i18n';
 import { AIRPORTS, airportByIata, type Airport } from '../meta/airports';
 import {
@@ -9,6 +10,7 @@ import {
   fleetById,
   formatCredits,
   formatCreditsCompact,
+  grantAdReward,
   isWithinRange,
   rangeBlockedMessage,
   selectAircraft,
@@ -73,13 +75,15 @@ export class HubMenu {
   /** Locked airport offered for purchase in the dock. */
   private unlockTarget: string | null = null;
   private toastTimer = 0;
-  private readonly onFly: (req: HubFlyRequest) => void;
+  private readonly onFly: (req: HubFlyRequest) => void | Promise<void>;
   private pinEls: { el: SVGGElement; x: number; y: number }[] = [];
   private boardReq = 0;
   private lastBoard: LeaderboardRow[] | null = null;
+  private flyBusy = false;
+  private rewardBusy = false;
   private readonly tour: HubTour;
 
-  constructor(root: HTMLElement, onFly: (req: HubFlyRequest) => void) {
+  constructor(root: HTMLElement, onFly: (req: HubFlyRequest) => void | Promise<void>) {
     this.root = root;
     this.onFly = onFly;
     this.progress = loadProgress();
@@ -113,6 +117,7 @@ export class HubMenu {
     root.querySelector('[data-hub="unlock"]')?.addEventListener('click', () => this.unlockSelected());
     root.querySelector('[data-hub="clear"]')?.addEventListener('click', () => this.clearSelection());
     root.querySelector('[data-hub="random"]')?.addEventListener('click', () => this.pickRandom());
+    root.querySelector('[data-hub="moreMoney"]')?.addEventListener('click', () => void this.moreMoney());
     root.querySelector('[data-hub="hangarOpen"]')?.addEventListener('click', () => this.openHangar());
     root.querySelector('[data-hub="ship"]')?.addEventListener('click', () => this.openHangar());
     root.querySelector('[data-hub="hangarClose"]')?.addEventListener('click', () => this.closeHangar());
@@ -223,10 +228,40 @@ export class HubMenu {
     this.toast(t('hub.filed', { from: this.progress.homeAirport, to: pick.iata }));
   }
 
-  private fly(): void {
-    if (this.tour.active) return;
+  private async fly(): Promise<void> {
+    if (this.tour.active || this.flyBusy) return;
     if (!this.canFly() || !this.selected) return;
-    this.onFly({ from: this.progress.homeAirport, to: this.selected });
+    this.flyBusy = true;
+    this.root.classList.add('is-departing');
+    if (adsAvailable()) this.toast(t('hub.ad.loading'));
+    try {
+      await this.onFly({ from: this.progress.homeAirport, to: this.selected });
+    } finally {
+      this.flyBusy = false;
+      this.root.classList.remove('is-departing');
+    }
+  }
+
+  private async moreMoney(): Promise<void> {
+    if (this.tour.active || this.rewardBusy) return;
+    if (!adsAvailable()) {
+      this.toast(t('hub.moreMoney.web'));
+      return;
+    }
+    this.rewardBusy = true;
+    this.toast(t('hub.moreMoney.loading'));
+    try {
+      const watched = await showRewarded();
+      if (!watched) {
+        this.toast(t('hub.moreMoney.missed'));
+        return;
+      }
+      this.progress = grantAdReward(AD_REWARD_CREDITS);
+      this.renderStats();
+      this.toast(t('hub.moreMoney.paid', { n: formatCredits(AD_REWARD_CREDITS) }));
+    } finally {
+      this.rewardBusy = false;
+    }
   }
 
   private onAirport(iata: string): void {

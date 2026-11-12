@@ -4,4 +4,5 @@
     <string name="title_activity_main">AIRWAYS</string>
     <string name="package_name">com.tomasthur.airways</string>
     <string name="custom_url_scheme">com.tomasthur.airways</string>
+    <string name="admob_app_id">ca-app-pub-3047265778113232~5383976505</string>
 </resources>

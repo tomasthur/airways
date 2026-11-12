@@ -21,6 +21,7 @@ import { fullThrust, maxFlapDeg } from '../sim/aircraft/AircraftConfig';
 import { plannedLoad } from '../sim/LoadSheet';
 import { Weather } from '../sim/Weather';
 import { buildReport, evaluateTouchdown, failureReport, onRunway, type ScoreItem } from '../sim/Landing';
+import { initAds, showInterstitialThen } from '../ads/admob';
 import { acquireWakeLock, bindNativeLifecycle, isNativePlatform, releaseWakeLock } from '../native';
 import { FlightControls } from '../ui/FlightControls';
 import { HubMenu } from '../ui/HubMenu';
@@ -268,6 +269,7 @@ export class Game {
         return false;
       },
     });
+    void initAds();
 
     this.applyQuality();
     this.resize();
@@ -885,7 +887,7 @@ export class Game {
     );
   }
 
-  private begin(from: string, to: string): void {
+  private async begin(from: string, to: string): Promise<void> {
     if (!hasPlayer()) {
       this.register.show();
       return;
@@ -896,6 +898,7 @@ export class Game {
       this.hub.show(true);
       return;
     }
+    await showInterstitialThen();
     this.setAircraft(progress.activeAircraft);
     if (localStorage.getItem(CP_KEY) === null && localStorage.getItem(LEGACY_AP_KEY) === null && progress.successfulFlights === 0) {
       this.setCopilotEnabled(true);

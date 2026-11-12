@@ -161,34 +161,98 @@ button {
   color: var(--muted);
 }
 
-.lang-switch {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 12px;
+.lang-dd {
+  position: relative;
+  display: inline-block;
   pointer-events: auto;
 }
 
-.lang-switch button {
-  min-width: 40px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.05);
+.lang-dd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 72px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 195, 92, 0.55);
+  background: rgba(10, 20, 32, 0.82);
+  color: var(--accent);
+  font: 700 12px/1 var(--font);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.lang-dd-caret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  opacity: 0.75;
+  transition: transform 0.15s ease;
+}
+
+.lang-dd.is-open .lang-dd-caret {
+  transform: rotate(180deg);
+}
+
+.lang-dd-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 6;
+  display: none;
+  min-width: 100%;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(10, 18, 28, 0.96);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.lang-dd--down .lang-dd-menu {
+  bottom: auto;
+  top: calc(100% + 6px);
+}
+
+.lang-dd.is-open .lang-dd-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lang-dd-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--muted);
-  font: 700 11px/1 var(--font);
+  font: 700 12px/1 var(--font);
   letter-spacing: 0.08em;
+  text-align: left;
   cursor: pointer;
 }
 
-.lang-switch button.is-on {
+.lang-dd-menu button.is-on {
   border-color: rgba(255, 195, 92, 0.7);
   background: rgba(255, 195, 92, 0.16);
   color: var(--accent);
 }
 
-.hub-brand .lang-switch {
-  margin-top: 10px;
+.lang-dd-menu button.is-on::after {
+  content: "✓";
+  font-size: 11px;
+}
+
+.register-card .lang-dd {
+  margin-top: 14px;
 }
 
 .register-form {
@@ -1444,16 +1508,26 @@ button {
   position: relative;
   z-index: 2;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   min-width: 0;
   pointer-events: none;
 }
 
-.hub-brand {
+.hub-chrome {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px 16px;
   min-width: 0;
-  flex: 1 1 auto;
+}
+
+.hub-brand {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -1470,12 +1544,21 @@ button {
   white-space: nowrap;
 }
 
+.hub-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .hub-tag {
-  display: block;
-  margin: 5px 0 0;
+  margin: 0;
+  min-width: 0;
+  flex: 0 1 auto;
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.02em;
+  line-height: 1.2;
   color: rgba(230, 238, 245, 0.82);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1483,16 +1566,17 @@ button {
 }
 
 .hub-board-btn {
-  display: inline-block;
-  margin-top: 10px;
-  padding: 7px 12px;
-  border-radius: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
   border: 1px solid rgba(126, 200, 255, 0.35);
   background: rgba(126, 200, 255, 0.1);
   color: var(--hub-cyan);
   font: inherit;
   font-size: 11px;
   letter-spacing: 0.1em;
+  line-height: 1.2;
   text-transform: uppercase;
   cursor: pointer;
   pointer-events: auto;
@@ -1505,41 +1589,50 @@ button {
 .hub-aside {
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   align-items: flex-end;
   gap: 8px;
   min-width: 0;
   pointer-events: auto;
 }
 
+.hub-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .hub-ship {
   display: flex;
   align-items: center;
-  gap: 10px;
-  max-width: min(100%, 340px);
-  padding: 2px 12px 2px 2px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
-  background: rgba(8, 16, 26, 0.55);
+  gap: 12px;
+  width: 100%;
+  margin: 2px 0 0;
+  padding: 10px 4px 2px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
   pointer-events: auto;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 .hub-ship:hover {
-  border-color: rgba(126, 200, 255, 0.4);
-  background: rgba(12, 24, 36, 0.72);
+  background: linear-gradient(180deg, rgba(126, 200, 255, 0.06), transparent 70%);
 }
 
 .hub-ship-art {
-  flex: 0 0 92px;
-  width: 92px;
-  height: 52px;
-  border-radius: 10px;
+  flex: 0 0 112px;
+  width: 112px;
+  height: 58px;
+  border-radius: 12px;
   overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .hub-ship-art img {
@@ -1547,15 +1640,15 @@ button {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  transform: scale(1.72);
+  transform: scale(1.55);
   transform-origin: center;
 }
 
-.hub-ship span {
+.hub-ship-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
 .hub-ship small {
@@ -1567,11 +1660,24 @@ button {
 
 .hub-ship strong {
   display: block;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hub-ship-go {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-right: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hub-cyan);
+  opacity: 0.8;
   white-space: nowrap;
 }
 
@@ -1626,7 +1732,6 @@ button {
 
 .hub-hangar-btn {
   flex: 0 0 auto;
-  align-self: stretch;
   padding: 8px 12px;
   border-radius: 14px;
   border: 1px solid rgba(126, 200, 255, 0.35);
@@ -1649,6 +1754,41 @@ button {
   border-color: rgba(255, 195, 92, 0.55);
   background: rgba(255, 195, 92, 0.16);
   color: var(--accent);
+}
+
+.hub-hangar-btn--money {
+  border-color: rgba(159, 214, 168, 0.45);
+  background: rgba(159, 214, 168, 0.14);
+  color: #9fd6a8;
+}
+
+.hub-hangar-btn--money:hover {
+  background: rgba(159, 214, 168, 0.22);
+}
+
+.hub-corner-lang {
+  position: absolute;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 5;
+}
+
+.hub-corner-money {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 5;
+  margin: 0;
+}
+
+.hub.has-route .hub-corner-lang,
+.hub.has-route .hub-corner-money {
+  bottom: max(96px, calc(env(safe-area-inset-bottom) + 84px));
+}
+
+.hub.is-departing [data-hub="fly"] {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .hub-map {
@@ -2462,10 +2602,10 @@ button {
   flex-shrink: 0;
 }
 
-.hub-tour-langs button {
-  min-width: 34px;
-  padding: 5px 8px;
-  font-size: 10px;
+.hub-tour-langs .lang-dd-btn {
+  min-width: 58px;
+  padding: 6px 10px;
+  font-size: 11px;
 }
 
 .hub-tour-card h2 {
@@ -2496,7 +2636,8 @@ button {
 
 /* Phone landscape / short viewports: brand and stats must not share one crowded row. */
 @media (max-height: 520px), (max-width: 900px) {
-  .hub-top {
+  .hub-chrome {
+    display: flex;
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
@@ -2507,30 +2648,32 @@ button {
   .hub-wordmark {
     font-size: clamp(22px, 5vw, 34px);
   }
+  .hub-brand-row {
+    gap: 8px;
+  }
   .hub-tag {
-    display: block;
-    margin-top: 2px;
     font-size: 12px;
   }
   .hub-board-btn {
-    margin-top: 8px;
-    padding: 6px 10px;
+    padding: 3px 9px;
     font-size: 10px;
   }
   .hub-aside {
     width: 100%;
   }
+  .hub-actions {
+    justify-content: flex-end;
+  }
   .hub-ship {
-    max-width: min(100%, 280px);
-    padding: 2px 10px 2px 2px;
+    padding-top: 8px;
   }
   .hub-ship-art {
-    flex-basis: 84px;
-    width: 84px;
+    flex-basis: 88px;
+    width: 88px;
     height: 46px;
   }
   .hub-ship strong {
-    font-size: 12px;
+    font-size: 13px;
   }
   .hub-stats {
     width: 100%;
@@ -2556,9 +2699,12 @@ button {
   .hub-stat--cash span {
     font-size: 13px;
   }
-  .hub-hangar-btn {
-    margin-left: auto;
-    align-self: stretch;
+  .hub-actions .hub-hangar-btn {
+    margin-left: 0;
+  }
+  .hub-corner-money.hub-hangar-btn {
+    margin-left: 0;
+    align-self: auto;
   }
 }
 
@@ -2604,7 +2750,8 @@ button {
 }
 
 @media (orientation: portrait) and (max-width: 700px) {
-  .hub-top {
+  .hub-chrome {
+    display: flex;
     flex-direction: column;
     gap: 10px;
   }

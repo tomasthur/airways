@@ -172,6 +172,14 @@ export function settleSuccess(
   return { progress: next, payout };
 }
 
+/** Soft cash from a completed rewarded ad — never call unless the player watched. */
+export function grantAdReward(amount: number): Progress {
+  const p = loadProgress();
+  const next: Progress = { ...p, credits: p.credits + amount };
+  saveProgress(next);
+  return next;
+}
+
 export function settleCrash(p: Progress): { progress: Progress; bill: number } {
   const bill = crashRepairBill(p.activeAircraft);
   const next: Progress = {
