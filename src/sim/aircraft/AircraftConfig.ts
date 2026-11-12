@@ -199,6 +199,11 @@ export interface AircraftConfig {
     elevatorRatePerS: number;
     /** How quickly the pitch-hold assist closes the pitch-rate error (1/s). */
     pitchHoldGain: number;
+    /**
+     * Extra round-out help in the last few metres (ATR and heavier). 0 = unchanged
+     * cruise / approach physics. Light types omit this.
+     */
+    flareBoost?: number;
   };
 
   ground: {

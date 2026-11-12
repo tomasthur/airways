@@ -32,7 +32,7 @@ export const ATR72 = defineAircraft({
   runwayM: 2400,
   padTimeS: 85,
   vneKmh: 600,
-  maxTouchdownVsMs: 3.8,
+  maxTouchdownVsMs: 4.1,
   limitLoadG: 2.6,
   heft: 0.45,
   visual: {

@@ -33,7 +33,7 @@ export const A388 = defineAircraft({
   runwayM: 3800,
   padTimeS: 100,
   vneKmh: 1020,
-  maxTouchdownVsMs: 3,
+  maxTouchdownVsMs: 3.3,
   limitLoadG: 2.5,
   speedBrake: true,
   heft: 1,

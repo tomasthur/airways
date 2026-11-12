@@ -33,7 +33,7 @@ export const DH8D = defineAircraft({
   runwayM: 2400,
   padTimeS: 85,
   vneKmh: 670,
-  maxTouchdownVsMs: 3.8,
+  maxTouchdownVsMs: 4.1,
   limitLoadG: 2.5,
   speedBrake: true,
   heft: 0.5,

@@ -151,6 +151,8 @@ export function defineAircraft(s: AircraftSpec): AircraftConfig {
       maxPitchRate: lerp(0.32, 0.15, h),
       elevatorRatePerS: lerp(4, 2.6, h),
       pitchHoldGain: lerp(6, 4, h),
+      // ATR 72 (heft 0.45) and up only — a little extra flare, not a handling rewrite.
+      flareBoost: h >= 0.4 ? lerp(0.08, 0.12, Math.min(1, (h - 0.4) / 0.6)) : 0,
     },
     ground: { rollFriction: s.propulsion === 'jet' ? 0.02 : 0.025, brakeFriction: 0.42, bellyFriction: 0.6 },
     ...(s.speedBrake

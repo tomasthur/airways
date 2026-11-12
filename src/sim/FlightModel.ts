@@ -279,7 +279,11 @@ export class FlightModel {
     const sb = C.speedBrake;
     const sbPos = sb ? this.speedBrake : 0;
     if (sb) cl += sb.dCl * sbPos;
-    const ge = this.y < A.groundEffectHeightM ? 1 + A.groundEffectLiftGain * (1 - this.y / A.groundEffectHeightM) : 1;
+    const flareBoost = C.controls.flareBoost ?? 0;
+    const inFlare =
+      flareBoost > 0 && !this.onGround && this.vy < 1 && this.y < Math.min(10, A.groundEffectHeightM * 0.4);
+    const geGain = A.groundEffectLiftGain * (inFlare ? 1 + flareBoost * 0.5 : 1);
+    const ge = this.y < A.groundEffectHeightM ? 1 + geGain * (1 - this.y / A.groundEffectHeightM) : 1;
     cl *= ge;
     this.stallMargin = (stallAlpha - alpha) / stallAlpha;
     const wasStalled = this.stalled;
@@ -339,14 +343,16 @@ export class FlightModel {
 
     let elevatorCmd: number;
     const stick = clamp(input.pitch, -1, 1);
+    const pitchRateCmd = C.controls.maxPitchRate * (inFlare ? 1 + flareBoost : 1);
+    const elevatorRate = C.controls.elevatorRatePerS * (inFlare ? 1 + flareBoost : 1);
     const holdActive = this.assists.pitchHold && !this.stalled && (!this.onGround || stick > 0.05) && qSc > 50;
     if (holdActive) {
-      const wanted = C.inertia.iyyKgM2 * C.controls.pitchHoldGain * (stick * C.controls.maxPitchRate - this.pitchRate);
+      const wanted = C.inertia.iyyKgM2 * C.controls.pitchHoldGain * (stick * pitchRateCmd - this.pitchRate);
       elevatorCmd = (wanted - groundMoment - qSc * cmFree) / (qSc * A.cmElevator);
     } else {
       elevatorCmd = stick + (this.assists.pitchHold ? 0 : this.trim);
     }
-    this.elevator = approach(this.elevator, clamp(elevatorCmd, -1, 1), C.controls.elevatorRatePerS * dt);
+    this.elevator = approach(this.elevator, clamp(elevatorCmd, -1, 1), elevatorRate * dt);
 
     const moment = qSc * (cmFree + A.cmElevator * this.elevator) + groundMoment;
     this.pitchRate += (moment / C.inertia.iyyKgM2) * dt;

@@ -33,7 +33,7 @@ export const A320 = defineAircraft({
   runwayM: 3000,
   padTimeS: 90,
   vneKmh: 888,
-  maxTouchdownVsMs: 3.5,
+  maxTouchdownVsMs: 3.8,
   limitLoadG: 2.5,
   speedBrake: true,
   heft: 0.68,

@@ -33,7 +33,7 @@ export const B777 = defineAircraft({
   runwayM: 3600,
   padTimeS: 95,
   vneKmh: 996,
-  maxTouchdownVsMs: 3,
+  maxTouchdownVsMs: 3.3,
   limitLoadG: 2.5,
   speedBrake: true,
   heft: 0.92,

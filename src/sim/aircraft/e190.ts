@@ -32,7 +32,7 @@ export const E190 = defineAircraft({
   runwayM: 2800,
   padTimeS: 90,
   vneKmh: 816,
-  maxTouchdownVsMs: 3.5,
+  maxTouchdownVsMs: 3.8,
   limitLoadG: 2.5,
   speedBrake: true,
   heft: 0.6,
