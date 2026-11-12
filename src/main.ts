@@ -1,5 +1,8 @@
 import './style.css';
+import { initI18n, t } from './i18n';
 import { Game } from './game/Game';
+
+initI18n();
 
 const app = document.getElementById('app')!;
 
@@ -12,7 +15,7 @@ requestAnimationFrame(() =>
     } catch (err) {
       console.error(err);
       const loading = document.getElementById('loading');
-      if (loading) loading.innerHTML = `<span>Could not start WebGL: ${(err as Error).message}</span>`;
+      if (loading) loading.innerHTML = `<span>${t('boot.webgl', { msg: (err as Error).message })}</span>`;
     }
   }, 30),
 );

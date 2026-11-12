@@ -12,29 +12,35 @@
     <link rel="apple-touch-icon" href="./icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Noto+Sans+SC:wght@500;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="app">
-      <div id="loading" class="loading"><div class="spinner"></div><span>Painting the Danube…</span></div>
+      <div id="loading" class="loading"><div class="spinner"></div><span data-i18n="boot.painting">Painting the Danube…</span></div>
 
       <div id="register" class="register is-hidden" data-register="root">
         <div class="register-card">
           <div class="register-wordmark">AIRWAYS</div>
-          <p class="register-tag">Found your airline</p>
-          <p class="register-lead">Name the carrier and leave an email. We’ll keep your flights, crashes and cash on the world board.</p>
+          <p class="register-tag" data-i18n="register.tag">Found your airline</p>
+          <p class="register-lead" data-i18n="register.lead">Name the carrier and leave an email. We’ll keep your flights, crashes and cash on the world board.</p>
           <form class="register-form" novalidate>
             <label class="register-field">
-              <span>Airline name</span>
-              <input name="airline" type="text" maxlength="40" autocomplete="organization" autocapitalize="words" placeholder="e.g. Danube Air" required />
+              <span data-i18n="register.airline">Airline name</span>
+              <input name="airline" type="text" maxlength="40" autocomplete="organization" autocapitalize="words" data-i18n-placeholder="register.placeholder.airline" placeholder="e.g. Danube Air" required />
             </label>
             <label class="register-field">
-              <span>Email</span>
-              <input name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@airline.com" required />
+              <span data-i18n="register.email">Email</span>
+              <input name="email" type="email" autocomplete="email" inputmode="email" data-i18n-placeholder="register.placeholder.email" placeholder="you@airline.com" required />
             </label>
             <p class="register-error" data-register="error" role="alert"></p>
-            <button type="submit" class="register-go">Start flying</button>
+            <button type="submit" class="register-go" data-i18n="register.submit">Start flying</button>
           </form>
+          <div class="lang-switch" role="group" data-i18n-aria="lang.label">
+            <button type="button" data-lang="en">EN</button>
+            <button type="button" data-lang="de">DE</button>
+            <button type="button" data-lang="sk">SK</button>
+            <button type="button" data-lang="zh">中文</button>
+          </div>
         </div>
       </div>
 
@@ -74,16 +80,16 @@
               <span class="cabin-tag" data-ref="cabinTag">CABIN</span>
               <span class="cabin-text" data-ref="cabinText"></span>
             </div>
-            <button type="button" class="is-hidden" data-action="engineStart" data-ref="cabinStart">Relight</button>
+            <button type="button" class="is-hidden" data-action="engineStart" data-ref="cabinStart" data-i18n="hud.relight">Relight</button>
             <div class="cabin-timer-track"><i data-ref="cabinTimer"></i></div>
           </div>
         </div>
 
         <section class="toolbar">
           <button type="button" data-action="quality" data-ref="quality">High</button>
-          <button type="button" data-action="mute" data-ref="mute">Sound on</button>
-          <button type="button" data-action="copilot" data-copilot>Copilot on</button>
-          <button type="button" data-action="pause">Pause</button>
+          <button type="button" data-action="mute" data-ref="mute" data-i18n="hud.soundOn">Sound on</button>
+          <button type="button" data-action="copilot" data-copilot data-i18n="hud.copilotOn">Copilot on</button>
+          <button type="button" data-action="pause" data-i18n="hud.pause">Pause</button>
         </section>
 
         <div class="landmark" data-ref="landmark"><div class="lm-title" data-ref="lmTitle"></div><div class="lm-sub" data-ref="lmSub"></div></div>
@@ -97,7 +103,7 @@
             <path d="M24 44l22-16" stroke-width="4.2" />
             <rect x="32" y="32" width="11" height="8" rx="1.4" transform="rotate(-36 37.5 36)" fill="currentColor" stroke="none" />
           </svg>
-          <b data-ref="beltSignText">FASTEN SEATBELTS</b>
+          <b data-ref="beltSignText" data-i18n="hud.seatbelts">FASTEN SEATBELTS</b>
         </div>
 
         <div class="warnings">
@@ -113,39 +119,39 @@
 
         <div class="hint" data-ref="hint"></div>
 
-        <section class="panel checklist is-hidden" data-ref="checklist" aria-label="Pre-flight checklist">
-          <div class="cl-head"><span>Pre-flight</span><span class="cl-load" data-ref="clLoad"></span></div>
-          <div class="cl-row" data-cl="door"><i></i><span>Cabin door</span><b data-ref="clDoor"></b><button type="button" data-action="door" data-ref="clDoorBtn">Open</button></div>
-          <div class="cl-row" data-cl="boarding"><i></i><span>Passengers</span><b data-ref="clBoarding"></b></div>
-          <div class="cl-row" data-cl="lights"><i></i><span>Beacon &amp; nav lights</span><b data-ref="clLights"></b><button type="button" data-action="lights" data-ref="clLightsBtn">On</button></div>
-          <div class="cl-row" data-cl="flaps"><i></i><span data-ref="clFlapsLabel">Flaps take-off 10°</span><b data-ref="clFlaps"></b><button type="button" data-action="flapsTakeoff">Set</button></div>
-          <div class="cl-row" data-cl="belts"><i></i><span>Seatbelt sign</span><b data-ref="clBelts"></b><button type="button" data-action="belts" data-ref="clBeltsBtn">On</button></div>
-          <div class="cl-row" data-cl="engine"><i></i><span data-ref="clEngineLabel">Engine</span><b data-ref="clEngine"></b><button type="button" data-action="engineStart" data-ref="clEngineBtn">Start</button></div>
+        <section class="panel checklist is-hidden" data-ref="checklist" data-i18n-aria="hud.checklistAria">
+          <div class="cl-head"><span data-i18n="hud.preflight">Pre-flight</span><span class="cl-load" data-ref="clLoad"></span></div>
+          <div class="cl-row" data-cl="door"><i></i><span data-i18n="hud.cl.door">Cabin door</span><b data-ref="clDoor"></b><button type="button" data-action="door" data-ref="clDoorBtn">Open</button></div>
+          <div class="cl-row" data-cl="boarding"><i></i><span data-i18n="hud.cl.pax">Passengers</span><b data-ref="clBoarding"></b></div>
+          <div class="cl-row" data-cl="lights"><i></i><span data-i18n="hud.cl.lights">Beacon &amp; nav lights</span><b data-ref="clLights"></b><button type="button" data-action="lights" data-ref="clLightsBtn">On</button></div>
+          <div class="cl-row" data-cl="flaps"><i></i><span data-ref="clFlapsLabel">Flaps take-off 10°</span><b data-ref="clFlaps"></b><button type="button" data-action="flapsTakeoff" data-i18n="hud.cl.set">Set</button></div>
+          <div class="cl-row" data-cl="belts"><i></i><span data-i18n="hud.cl.belts">Seatbelt sign</span><b data-ref="clBelts"></b><button type="button" data-action="belts" data-ref="clBeltsBtn">On</button></div>
+          <div class="cl-row" data-cl="engine"><i></i><span data-ref="clEngineLabel">Engine</span><b data-ref="clEngine"></b><button type="button" data-action="engineStart" data-ref="clEngineBtn" data-i18n="hud.cl.start">Start</button></div>
         </section>
 
         <div class="panel papi" data-ref="papi">
           <div class="papi-lights"><i></i><i></i><i></i><i></i></div>
-          <div class="papi-label" data-ref="papiLabel">ON GLIDE PATH</div>
+          <div class="papi-label" data-ref="papiLabel" data-i18n="papi.onPath">ON GLIDE PATH</div>
         </div>
 
         <section class="panel instruments">
           <div class="inst">
-            <label>Speed</label>
+            <label data-i18n="hud.inst.speed">Speed</label>
             <div class="val"><b data-ref="speed">0</b><small>km/h</small></div>
             <div class="bar speed-bar"><div class="bar-fill" data-ref="speedBar"></div></div>
           </div>
           <div class="inst">
-            <label>Alt</label>
+            <label data-i18n="hud.inst.alt">Alt</label>
             <div class="val"><b data-ref="alt">0</b><small>m</small></div>
             <div class="sub" data-ref="altSub">AGL</div>
           </div>
           <div class="inst">
-            <label>VS</label>
+            <label data-i18n="hud.inst.vs">VS</label>
             <div class="val"><b data-ref="vs">0.0</b><small>m/s</small></div>
             <div class="vsi"><div class="vsi-needle" data-ref="vsNeedle"></div></div>
           </div>
           <div class="inst">
-            <label>Power</label>
+            <label data-i18n="hud.inst.power">Power</label>
             <div class="val"><b data-ref="power">0</b><small>%</small></div>
             <div class="bar"><div class="bar-fill power" data-ref="powerBar"></div></div>
           </div>
@@ -156,23 +162,23 @@
           </div>
         </section>
 
-        <section class="controls" aria-label="On-screen flight controls">
+        <section class="controls" data-i18n-aria="hud.controlsAria">
           <div class="ctl-group config">
-            <span class="ctl-label">Config</span>
-            <div class="cfg-readouts" aria-label="Flaps and gear">
+            <span class="ctl-label" data-i18n="hud.config">Config</span>
+            <div class="cfg-readouts" data-i18n-aria="hud.cfgAria">
               <div class="cfg-read">
-                <label>Flaps</label>
+                <label data-i18n="hud.flaps">Flaps</label>
                 <div class="state-val" data-ref="flaps">UP</div>
               </div>
               <div class="cfg-read">
-                <label>Gear</label>
+                <label data-i18n="hud.gear">Gear</label>
                 <div class="state-val" data-ref="gear">DOWN</div>
               </div>
             </div>
             <div class="ctl-grid">
-              <button type="button" class="ctl wide" data-action="flapsDown">Flaps ▼</button>
-              <button type="button" class="ctl wide" data-action="flapsUp">Flaps ▲</button>
-              <button type="button" class="ctl wide" data-action="gear">Gear</button>
+              <button type="button" class="ctl wide" data-action="flapsDown" data-i18n="hud.flapsDown">Flaps ▼</button>
+              <button type="button" class="ctl wide" data-action="flapsUp" data-i18n="hud.flapsUp">Flaps ▲</button>
+              <button type="button" class="ctl wide" data-action="gear" data-i18n="hud.gearBtn">Gear</button>
               <button type="button" class="ctl wide is-hidden" data-action="belts" data-ref="beltsBtn">
                 <svg class="belt-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
                   <path d="M2 12h6l2 3h4l2-3h6" />
@@ -183,8 +189,8 @@
             </div>
           </div>
           <div class="ctl-group">
-            <span class="ctl-label">Yoke</span>
-            <div class="yoke" data-ref="yoke" aria-label="Yoke: drag down to pull, up to push, sideways to bank">
+            <span class="ctl-label" data-i18n="hud.yoke">Yoke</span>
+            <div class="yoke" data-ref="yoke" data-i18n-aria="hud.yokeAria">
               <svg class="yoke-wheel" data-ref="yokeWheel" viewBox="-60 -42 120 84" aria-hidden="true">
                 <path d="M-50 -30 C-56 -8 -46 12 -26 13 L26 13 C46 12 56 -8 50 -30" fill="none" stroke="rgba(20,26,32,0.85)" stroke-width="11" stroke-linecap="round" />
                 <path d="M-50 -30 C-56 -8 -46 12 -26 13 L26 13 C46 12 56 -8 50 -30" fill="none" stroke="rgba(235,240,245,0.9)" stroke-width="7" stroke-linecap="round" />
@@ -195,18 +201,18 @@
           </div>
         </section>
 
-        <section class="throttle" aria-label="Throttle lever">
-          <span class="ctl-label">Throttle</span>
+        <section class="throttle" data-i18n-aria="hud.throttleAria">
+          <span class="ctl-label" data-i18n="hud.throttle">Throttle</span>
           <div class="throttle-track" data-ref="throttleTrack">
             <div class="throttle-fill" data-ref="throttleFill"></div>
             <div class="throttle-knob" data-ref="throttleKnob"></div>
           </div>
           <span class="throttle-val" data-ref="throttleVal">0%</span>
           <div class="throttle-pedals">
-            <button type="button" class="brake-pedal" data-hold="brake" data-ref="brakePedal" aria-label="Wheel brakes">
+            <button type="button" class="brake-pedal" data-hold="brake" data-ref="brakePedal" data-i18n="hud.brake" data-i18n-aria="hud.brakeAria">
               Brake
             </button>
-            <button type="button" class="brake-pedal speed-brake is-hidden" data-hold="speedBrake" data-ref="speedBrakePedal" aria-label="Speed brake">
+            <button type="button" class="brake-pedal speed-brake is-hidden" data-hold="speedBrake" data-ref="speedBrakePedal" data-i18n="hud.spdBrk" data-i18n-aria="hud.spdBrkAria">
               Spd brk
             </button>
           </div>
@@ -219,22 +225,28 @@
           <div class="hub-brand">
             <div class="hub-wordmark">AIRWAYS</div>
             <p class="hub-tag" data-hub="airline">World charter · earn · unlock · fly</p>
-            <button type="button" class="hub-board-btn" data-hub="boardOpen">Leaderboard</button>
+            <button type="button" class="hub-board-btn" data-hub="boardOpen" data-i18n="hub.board">Leaderboard</button>
+            <div class="lang-switch" role="group" data-i18n-aria="lang.label">
+              <button type="button" data-lang="en">EN</button>
+              <button type="button" data-lang="de">DE</button>
+              <button type="button" data-lang="sk">SK</button>
+              <button type="button" data-lang="zh">中文</button>
+            </div>
           </div>
           <div class="hub-aside">
-            <div class="hub-stats" aria-label="Career stats">
-              <div class="hub-stat hub-stat--cash"><span data-hub="statCredits">€0</span><small>Cash</small></div>
-              <div class="hub-stat"><span data-hub="statFlights">—</span><small>Flights</small></div>
-              <div class="hub-stat"><span data-hub="statCrashes">—</span><small>Crashes</small></div>
-              <div class="hub-stat"><span data-hub="statDeaths">—</span><small>Losses</small></div>
-              <div class="hub-stat hub-stat--home"><span data-hub="statHome">BTS</span><small>Base</small></div>
-              <button type="button" class="hub-hangar-btn" data-action="copilot" data-copilot>Copilot on</button>
-              <button type="button" class="hub-hangar-btn" data-hub="hangarOpen">Hangar</button>
+            <div class="hub-stats" data-i18n-aria="hub.statsAria">
+              <div class="hub-stat hub-stat--cash"><span data-hub="statCredits">€0</span><small data-i18n="hub.stat.cash">Cash</small></div>
+              <div class="hub-stat"><span data-hub="statFlights">—</span><small data-i18n="hub.stat.flights">Flights</small></div>
+              <div class="hub-stat"><span data-hub="statCrashes">—</span><small data-i18n="hub.stat.crashes">Crashes</small></div>
+              <div class="hub-stat"><span data-hub="statDeaths">—</span><small data-i18n="hub.stat.losses">Losses</small></div>
+              <div class="hub-stat hub-stat--home"><span data-hub="statHome">BTS</span><small data-i18n="hub.base">Base</small></div>
+              <button type="button" class="hub-hangar-btn" data-action="copilot" data-copilot data-i18n="hud.copilotOn">Copilot on</button>
+              <button type="button" class="hub-hangar-btn" data-hub="hangarOpen" data-i18n="hub.nav.hangar">Hangar</button>
             </div>
-            <button type="button" class="hub-ship" data-hub="ship" title="Open hangar">
+            <button type="button" class="hub-ship" data-hub="ship" data-i18n-title="hub.openHangar" title="Open hangar">
               <span class="hub-ship-art"><img data-hub="shipArt" alt="" /></span>
               <span>
-                <small>Selected</small>
+                <small data-i18n="hub.selected">Selected</small>
                 <strong data-hub="shipName">Cessna 172RG</strong>
               </span>
             </button>
@@ -242,7 +254,7 @@
         </header>
 
                 <div class="hub-map" data-hub="map">
-          <svg class="hub-svg" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid slice" aria-label="World route map">
+          <svg class="hub-svg" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid slice" data-i18n-aria="hub.mapAria">
             <defs>
               <linearGradient id="hubLand" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="720">
                 <stop offset="0%" stop-color="#3a5a6c" />
@@ -264,15 +276,15 @@
             <path class="hub-route" data-hub="route" />
             <g data-hub="pins"></g>
           </svg>
-          <div class="hub-map-tools" aria-label="Map controls">
-            <button type="button" class="hub-map-btn" data-hub="zoomIn" title="Zoom in">+</button>
-            <button type="button" class="hub-map-btn" data-hub="zoomOut" title="Zoom out">−</button>
-            <button type="button" class="hub-map-btn" data-hub="zoomHome" title="Center on base">◎</button>
+          <div class="hub-map-tools" data-i18n-aria="hub.mapTools">
+            <button type="button" class="hub-map-btn" data-hub="zoomIn" data-i18n-title="hub.zoomIn" title="Zoom in">+</button>
+            <button type="button" class="hub-map-btn" data-hub="zoomOut" data-i18n-title="hub.zoomOut" title="Zoom out">−</button>
+            <button type="button" class="hub-map-btn" data-hub="zoomHome" data-i18n-title="hub.zoomHome" title="Center on base">◎</button>
           </div>
           <div class="hub-haze" aria-hidden="true"></div>
         </div>
 
-        <p class="hub-hint">Drag to pan · scroll to zoom · tap a city · or <button type="button" class="hub-link" data-hub="random">surprise me</button></p>
+        <p class="hub-hint"><span data-i18n="hub.hint">Drag to pan · pinch to zoom · tap a city · or</span> <button type="button" class="hub-link" data-hub="random" data-i18n="hub.surprise">surprise me</button></p>
 
 <div class="hub-dock is-hidden" data-hub="dock">
           <div class="hub-dock-route">
@@ -287,7 +299,7 @@
             <small class="hub-dock-pay" data-hub="dockPay">Charter ~€0</small>
           </div>
           <div class="hub-dock-actions">
-            <button type="button" class="hub-ghost" data-hub="clear">Clear</button>
+            <button type="button" class="hub-ghost" data-hub="clear" data-i18n="hub.clear">Clear</button>
             <button type="button" class="hub-fly hub-unlock is-hidden" data-hub="unlock">
               <span data-hub="unlockLabel">Unlock</span>
             </button>
@@ -301,12 +313,12 @@
           <div class="hub-hangar-panel">
             <header class="hub-hangar-head">
               <div>
-                <div class="hub-hangar-eyebrow">Fleet</div>
-                <h2>Hangar</h2>
+                <div class="hub-hangar-eyebrow" data-i18n="hangar.fleet">Fleet</div>
+                <h2 data-i18n="hangar.title">Hangar</h2>
               </div>
-              <button type="button" class="hub-ghost" data-hub="hangarClose">Close</button>
+              <button type="button" class="hub-ghost" data-hub="hangarClose" data-i18n="hangar.close">Close</button>
             </header>
-            <p class="hub-hangar-balance">Balance <strong data-hub="hangarCredits">€0</strong></p>
+            <p class="hub-hangar-balance"><span data-i18n="hangar.balance">Balance</span> <strong data-hub="hangarCredits">€0</strong></p>
             <div class="hub-hangar-list" data-hub="hangarList"></div>
           </div>
         </div>
@@ -315,33 +327,55 @@
           <div class="hub-hangar-panel hub-board-panel">
             <header class="hub-hangar-head">
               <div>
-                <div class="hub-hangar-eyebrow">Best airlines</div>
-                <h2>Leaderboard</h2>
+                <div class="hub-hangar-eyebrow" data-i18n="board.eyebrow">Best airlines</div>
+                <h2 data-i18n="hub.board">Leaderboard</h2>
               </div>
-              <button type="button" class="hub-ghost" data-hub="boardClose">Close</button>
+              <button type="button" class="hub-ghost" data-hub="boardClose" data-i18n="hub.boardClose">Close</button>
             </header>
-            <p class="hub-hangar-balance">Score = cash − €10k / crash − €1k / loss</p>
+            <p class="hub-hangar-balance" data-i18n="board.formula">Score = cash − €10k / crash − €1k / loss</p>
             <div class="hub-board-list" data-hub="boardList"></div>
           </div>
         </div>
 
         <div class="hub-toast" data-hub="toast" role="status"></div>
+
+        <div class="hub-tour is-hidden" data-hub="tour" aria-hidden="true">
+          <div class="hub-tour-spot is-hidden" data-hub="tourSpot"></div>
+          <div class="hub-tour-card" data-hub="tourCard">
+            <div class="hub-tour-head">
+              <p class="hub-tour-kicker" data-hub="tourStep"></p>
+              <div class="lang-switch hub-tour-langs" role="group" data-i18n-aria="lang.label">
+                <button type="button" data-lang="en">EN</button>
+                <button type="button" data-lang="de">DE</button>
+                <button type="button" data-lang="sk">SK</button>
+                <button type="button" data-lang="zh">中文</button>
+              </div>
+            </div>
+            <h2 data-hub="tourTitle"></h2>
+            <p data-hub="tourBody"></p>
+            <div class="hub-tour-actions">
+              <button type="button" class="hub-ghost" data-hub="tourSkip">Skip</button>
+              <button type="button" class="hub-ghost" data-hub="tourBack">Back</button>
+              <button type="button" class="hub-fly" data-hub="tourNext">Next</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div id="pause" class="overlay is-hidden">
         <div class="card small">
-          <h2>Paused</h2>
+          <h2 data-i18n="pause.title">Paused</h2>
           <div class="row">
-            <button type="button" class="primary" data-action="pause">Resume</button>
-            <button type="button" data-action="copilot" data-copilot>Copilot on</button>
-            <button type="button" data-action="restart">Restart</button>
+            <button type="button" class="primary" data-action="pause" data-i18n="pause.resume">Resume</button>
+            <button type="button" data-action="copilot" data-copilot data-i18n="hud.copilotOn">Copilot on</button>
+            <button type="button" data-action="restart" data-i18n="pause.restart">Restart</button>
           </div>
         </div>
       </div>
 
       <div id="report" class="overlay is-hidden">
         <div class="card report">
-          <div class="eyebrow" data-ref="reportEyebrow">Landing report</div>
+          <div class="eyebrow" data-ref="reportEyebrow" data-i18n="hud.reportLanding">Landing report</div>
           <h2 data-ref="reportTitle"></h2>
           <p class="report-msg" data-ref="reportMsg"></p>
           <div class="score" data-ref="reportScoreWrap">
@@ -351,7 +385,7 @@
           <table class="items" data-ref="reportItems"></table>
           <div class="report-money is-hidden" data-ref="reportMoney"></div>
           <div class="stats" data-ref="reportStats"></div>
-          <button type="button" class="primary" data-action="restart" data-ref="reportButton">Back to map</button>
+          <button type="button" class="primary" data-action="restart" data-ref="reportButton" data-i18n="hud.reportBack">Back to map</button>
         </div>
       </div>
       <div id="coach" class="coach is-hidden" aria-hidden="true">

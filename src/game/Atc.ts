@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { StormCell, Weather } from '../sim/Weather';
 
 export interface AtcMessage {
@@ -82,7 +83,11 @@ export class Atc {
 
   private windText(): string {
     const w = this.weather!;
-    return `wind ${w.windDir.toString().padStart(3, '0')}° ${w.windKt} knots`;
+    return t('atc.windText', { dir: w.windDir.toString().padStart(3, '0'), kt: w.windKt });
+  }
+
+  private replies(kind: 'wilco' | 'roger' = 'wilco'): string[] {
+    return kind === 'roger' ? [t('atc.roger')] : [t('atc.wilco'), t('atc.unable')];
   }
 
   update(dt: number, c: AtcContext): void {
@@ -104,8 +109,8 @@ export class Atc {
 
     if (c.phase === 'takeoff' && c.engineRunning) {
       this.say('takeoff', {
-        station: `${c.originCity} Tower`,
-        text: `${this.callsign}, ${this.windText()}, runway ${c.originRunway}, cleared for take-off.`,
+        station: t('atc.tower', { city: c.originCity }),
+        text: t('atc.takeoffCall', { callsign: this.callsign, wind: this.windText(), rwy: c.originRunway }),
         replies: [],
         ttl: 7,
       });
@@ -120,8 +125,8 @@ export class Atc {
         if (!this.said.has('tod-release')) {
           this.said.add('tod-release');
           this.queue.push({
-            station: 'Wien Radar',
-            text: `${this.callsign}, descend at your discretion for runway ${c.destRunway}.`,
+            station: t('atc.radar'),
+            text: t('atc.descendDisc', { callsign: this.callsign, rwy: c.destRunway }),
             replies: [],
             ttl: 6,
           });
@@ -133,9 +138,12 @@ export class Atc {
 
     if (c.y > 120) {
       const stormsAhead = w.storms.filter((s) => w.stormX(s, c.time) > c.x);
+      const wx = stormsAhead.length
+        ? t(stormsAhead.length === 1 ? 'atc.stormOne' : 'atc.stormMany')
+        : t('atc.noWx');
       this.say('radar', {
-        station: 'Wien Radar',
-        text: `${this.callsign}, radar contact. ${stormsAhead.length ? `${stormsAhead.length === 1 ? 'A thunderstorm is' : 'Thunderstorms are'} active along your route, expect a weather advisory.` : 'No significant weather, light turbulence.'} Climb to ${this.cruiseAlt} m.`,
+        station: t('atc.radar'),
+        text: t('atc.radarContactWx', { callsign: this.callsign, wx, alt: this.cruiseAlt }),
         replies: [],
         ttl: 8,
       });
@@ -154,8 +162,10 @@ export class Atc {
       if (!this.said.has(id) && entry - c.x < Math.max(7500, c.groundSpeed * 45) && entry - c.x > 600) this.adviseStorm(id, cell, entry, exit, c);
       if (this.advisories.has(cell) && c.x > exit + 250) {
         this.say(`clear-${cell.x0}`, {
-          station: 'Wien Radar',
-          text: `${this.callsign}, you are clear of the weather. ${c.toAim > 6000 ? `Climb or descend at your discretion, plan your descent for ${c.destCity}.` : `Descend at your discretion for runway ${c.destRunway}.`}`,
+          station: t('atc.radar'),
+          text: c.toAim > 6000
+            ? t('atc.clearWxClimb', { callsign: this.callsign, city: c.destCity })
+            : t('atc.clearWxDown', { callsign: this.callsign, rwy: c.destRunway }),
           replies: [],
           ttl: 7,
         });
@@ -170,13 +180,13 @@ export class Atc {
     const holdUntil = a !== null ? a / GLIDE_SLOPE + DESCENT_PAD_M : 0;
     if (a !== null && this.deviationTimer > 35 && c.time - this.lastDeviationCall > 45 && c.toAim > holdUntil) {
       this.lastDeviationCall = c.time;
-      this.queue.push({ station: 'Wien Radar', text: `${this.callsign}, check altitude – assigned ${a} m.`, replies: [], ttl: 6 });
+      this.queue.push({ station: t('atc.radar'), text: t('atc.checkAlt', { callsign: this.callsign, alt: a }), replies: [], ttl: 6 });
     }
 
     if (c.toAim < 6800) {
       this.say('landing', {
-        station: `${c.destCity} Tower`,
-        text: `${this.callsign}, ${c.destCity} Tower, ${this.windText()}, runway ${c.destRunway}, cleared to land.`,
+        station: t('atc.tower', { city: c.destCity }),
+        text: t('atc.landCall', { callsign: this.callsign, city: c.destCity, wind: this.windText(), rwy: c.destRunway }),
         replies: [],
         ttl: 8,
       });
@@ -186,12 +196,14 @@ export class Atc {
 
   private adviseStorm(id: string, cell: StormCell, entry: number, exit: number, c: AtcContext): void {
     const km = ((entry - c.x) / 1000).toFixed(1);
-    const sev = cell.severity === 'severe' ? 'Severe' : cell.severity === 'moderate' ? 'Moderate' : 'Light';
-    const desc = `${sev} thunderstorm ${km} km ahead, base ${cell.base} m, tops ${cell.top} m.`;
+    const desc = t(
+      cell.severity === 'severe' ? 'atc.stormSev' : cell.severity === 'moderate' ? 'atc.stormMod' : 'atc.stormLight',
+      { km, base: cell.base, top: cell.top },
+    );
 
     if (c.y > cell.top + 100) {
       this.advisories.set(cell, 'info');
-      this.say(id, { station: 'Wien Radar', text: `${this.callsign}, ${desc} You are above the tops – maintain altitude.`, replies: [], ttl: 8 });
+      this.say(id, { station: t('atc.radar'), text: t('atc.aboveTops', { callsign: this.callsign, desc }), replies: [], ttl: 8 });
       return;
     }
 
@@ -211,31 +223,36 @@ export class Atc {
         this.advisories.set(cell, 'accepted');
       } else {
         this.advisories.set(cell, 'declined');
-        this.queue.push({ station: 'Wien Radar', text: `${this.callsign}, roger, at your discretion. Expect ${cell.severity} turbulence in the cell.`, replies: [], ttl: 6 });
+        this.queue.push({
+          station: t('atc.radar'),
+          text: t('atc.rogerDisc', { callsign: this.callsign, sev: t(`atc.sev.${cell.severity}`) }),
+          replies: [],
+          ttl: 6,
+        });
       }
     };
 
     if (canOver) {
       this.say(id, {
-        station: 'Wien Radar',
-        text: `${this.callsign}, ${desc} Recommend climb to ${over} m to stay above it.`,
-        replies: ['Wilco', 'Unable'],
+        station: t('atc.radar'),
+        text: t('atc.climbOver', { callsign: this.callsign, desc, alt: over }),
+        replies: this.replies(),
         ttl: 14,
         onReply: respond(over),
       });
     } else if (canUnder) {
       this.say(id, {
-        station: 'Wien Radar',
-        text: `${this.callsign}, ${desc} You cannot top it in time – recommend descend to ${under} m below the base, expect rain and turbulence.`,
-        replies: ['Wilco', 'Unable'],
+        station: t('atc.radar'),
+        text: t('atc.descendUnder', { callsign: this.callsign, desc, alt: under }),
+        replies: this.replies(),
         ttl: 14,
         onReply: respond(under),
       });
     } else {
       this.say(id, {
-        station: 'Wien Radar',
-        text: `${this.callsign}, ${desc} No safe altitude available in time – reduce speed below ${this.turbulenceKmh} km/h and expect severe turbulence and downdrafts.`,
-        replies: ['Roger'],
+        station: t('atc.radar'),
+        text: t('atc.noSafeAlt', { callsign: this.callsign, desc, spd: this.turbulenceKmh }),
+        replies: this.replies('roger'),
         ttl: 12,
         onReply: () => this.advisories.set(cell, 'declined'),
       });

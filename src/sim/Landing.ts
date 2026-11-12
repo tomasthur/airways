@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { Touchdown } from './FlightModel';
 import type { Runway } from '../config';
 import type { AircraftConfig } from './aircraft/AircraftConfig';
@@ -44,18 +45,18 @@ export function evaluateTouchdown(td: Touchdown, rw: Runway, cfg: AircraftConfig
   const vref = L.vrefKmh;
   const sd = Math.max(1, (rw.x1 - rw.x0) / 2200);
 
-  if (vs > L.maxTouchdownVsMs) return { crash: `Touchdown at ${vs.toFixed(1)} m/s was too hard – the landing gear collapsed.`, items: [] };
-  if (td.gear < 0.95) return { crash: 'Gear-up landing! The aircraft slid down the runway on its belly.', items: [] };
-  if (td.pitch < -0.05 && vs > 1.5) return { crash: 'Nose-first touchdown – the nose gear collapsed.', items: [] };
+  if (vs > L.maxTouchdownVsMs) return { crash: t('land.crashHard', { vs: vs.toFixed(1) }), items: [] };
+  if (td.gear < 0.95) return { crash: t('land.crashGearUp'), items: [] };
+  if (td.pitch < -0.05 && vs > 1.5) return { crash: t('land.crashNose'), items: [] };
   if (airKmh < minApproach - 8 && vs > 2.2) {
     return {
-      crash: `Stall on final – ${airKmh.toFixed(0)} km/h is too slow${td.flaps < 0.2 ? ' without landing flaps' : ''}. The wing stalled and you dropped onto the runway.`,
+      crash: t(td.flaps < 0.2 ? 'land.crashStallFlaps' : 'land.crashStall', { spd: airKmh.toFixed(0) }),
       items: [],
     };
   }
   if (airKmh < minApproach - 18) {
     return {
-      crash: `You stalled short of a safe landing speed (${airKmh.toFixed(0)} km/h). Keep about ${minApproach} km/h until the flare.`,
+      crash: t('land.crashSlow', { spd: airKmh.toFixed(0), min: minApproach }),
       items: [],
     };
   }
@@ -84,10 +85,10 @@ export function evaluateTouchdown(td: Touchdown, rw: Runway, cfg: AircraftConfig
   return {
     crash: null,
     items: [
-      { label: 'Touchdown rate', value: `${vs.toFixed(2)} m/s`, score: Math.round(vsScore), max: 40 },
-      { label: 'Touchdown speed', value: `${kmh.toFixed(0)} km/h`, score: Math.round(speedScore), max: 25 },
-      { label: 'Runway alignment', value: `${dist.toFixed(0)} m past threshold`, score: Math.round(alignScore), max: 25 },
-      { label: 'Landing gear', value: 'Down & locked', score: 10, max: 10 },
+      { label: t('land.tdRate'), value: `${vs.toFixed(2)} m/s`, score: Math.round(vsScore), max: 40 },
+      { label: t('land.tdSpeed'), value: `${kmh.toFixed(0)} km/h`, score: Math.round(speedScore), max: 25 },
+      { label: t('land.align'), value: t('land.alignVal', { m: dist.toFixed(0) }), score: Math.round(alignScore), max: 25 },
+      { label: t('land.gearLocked'), value: t('land.gearDownLocked'), score: 10, max: 10 },
     ],
   };
 }
@@ -99,19 +100,19 @@ export function buildReport(
   welcome?: { title: string; message: string },
 ): LandingReport {
   const list = items.slice();
-  if (overran) list.push({ label: 'Runway excursion', value: 'Rolled past the runway end', score: -15, max: 0 });
-  if (tailStrike) list.push({ label: 'Tail strike', value: 'Nose too high at touchdown', score: -10, max: 0 });
+  if (overran) list.push({ label: t('land.excursion'), value: t('land.excursionVal'), score: -15, max: 0 });
+  if (tailStrike) list.push({ label: t('land.tail'), value: t('land.tailVal'), score: -10, max: 0 });
   const total = Math.max(0, Math.min(100, list.reduce((s, i) => s + i.score, 0)));
   let grade: string;
-  if (total >= 90) grade = 'Butter! Captain material.';
-  else if (total >= 75) grade = 'Smooth landing.';
-  else if (total >= 55) grade = 'Firm, but safe.';
-  else if (total >= 35) grade = 'Hard landing – passengers noticed.';
-  else grade = 'Everyone walked away. Barely.';
+  if (total >= 90) grade = t('land.grade.butter');
+  else if (total >= 75) grade = t('land.grade.smooth');
+  else if (total >= 55) grade = t('land.grade.firm');
+  else if (total >= 35) grade = t('land.grade.hard');
+  else grade = t('land.grade.barely');
   return {
     success: true,
-    title: welcome?.title ?? 'Welcome',
-    message: welcome?.message ?? 'Flight OM-BTV has landed.',
+    title: welcome?.title ?? t('land.welcome'),
+    message: welcome?.message ?? t('land.landed', { reg: 'OM-BTV' }),
     total,
     grade,
     items: list,

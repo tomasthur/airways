@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { loadProgress } from '../meta/progress';
 import { registerPlayer, type PlayerRecord } from '../meta/player';
 
@@ -42,17 +43,17 @@ export class RegisterScreen {
     const airline = this.airline.value.trim();
     const email = this.email.value.trim();
     if (airline.length < 2) {
-      this.error.textContent = 'Give your airline a name (at least 2 letters).';
+      this.error.textContent = t('register.error.short');
       this.airline.focus();
       return;
     }
     if (airline.length > 40) {
-      this.error.textContent = 'Keep the airline name under 40 characters.';
+      this.error.textContent = t('register.error.long');
       this.airline.focus();
       return;
     }
     if (!EMAIL.test(email)) {
-      this.error.textContent = 'Enter a valid email so we can find your airline later.';
+      this.error.textContent = t('register.error.email');
       this.email.focus();
       return;
     }

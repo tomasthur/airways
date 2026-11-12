@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+
 /**
  * Map real hop distance → target flight time → side-view corridor for the flown aircraft.
  * Authored scenery stays on the reference layout (origin pad 0–2000, destination pad
@@ -124,6 +126,5 @@ export function aimPointX(L: CorridorLayout): number {
 /** Short label for hub / HUD, e.g. "~5 min". */
 export function formatFlightMinutes(km: number): string {
   const m = targetFlightSec(km) / 60;
-  if (m < 2) return `~${m.toFixed(1)} min`;
-  return `~${Math.round(m)} min`;
+  return t('hub.duration', { m: m < 2 ? m.toFixed(1) : Math.round(m) });
 }

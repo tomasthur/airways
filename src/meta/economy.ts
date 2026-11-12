@@ -1,6 +1,7 @@
 /**
  * Charter economy: distance-based fares, landing quality, fleet seat multipliers.
  */
+import { t } from '../i18n';
 import { airportByIata } from './airports';
 import {
   isAirportUnlocked,
@@ -71,7 +72,7 @@ export function isWithinRange(fromIata: string, toIata: string, aircraftId: stri
 export function rangeBlockedMessage(fromIata: string, toIata: string, aircraftId: string): string {
   const craft = fleetById(aircraftId);
   const km = Math.round(distanceKm(fromIata, toIata));
-  return `${km} km is too far for the ${craft.shortName} (range ${craft.rangeKm} km)`;
+  return t('econ.rangeFar', { km, name: craft.shortName, range: craft.rangeKm });
 }
 
 /** Great-circle (haversine) distance in km; correct across the date line. */
@@ -183,10 +184,10 @@ export function settleCrash(p: Progress): { progress: Progress; bill: number } {
 
 export function buyAircraft(p: Progress, aircraftId: string): { ok: true; progress: Progress } | { ok: false; reason: string } {
   const craft = fleetById(aircraftId);
-  if (p.ownedAircraft.includes(aircraftId)) return { ok: false, reason: 'Already in your fleet' };
-  if (craft.price <= 0) return { ok: false, reason: 'Not for sale' };
+  if (p.ownedAircraft.includes(aircraftId)) return { ok: false, reason: t('econ.alreadyFleet') };
+  if (craft.price <= 0) return { ok: false, reason: t('econ.notForSale') };
   if (p.credits < craft.price) {
-    return { ok: false, reason: `Need ${formatCredits(craft.price - p.credits)} more` };
+    return { ok: false, reason: t('econ.needMore', { n: formatCredits(craft.price - p.credits) }) };
   }
   const next: Progress = {
     ...p,
@@ -199,7 +200,7 @@ export function buyAircraft(p: Progress, aircraftId: string): { ok: true; progre
 }
 
 export function selectAircraft(p: Progress, aircraftId: string): { ok: true; progress: Progress } | { ok: false; reason: string } {
-  if (!p.ownedAircraft.includes(aircraftId)) return { ok: false, reason: 'Not owned' };
+  if (!p.ownedAircraft.includes(aircraftId)) return { ok: false, reason: t('econ.notOwned') };
   const next: Progress = { ...p, activeAircraft: aircraftId };
   saveProgress(next);
   return { ok: true, progress: next };
@@ -211,11 +212,11 @@ export function buyAirportUnlock(
   iata: string,
 ): { ok: true; progress: Progress } | { ok: false; reason: string } {
   const ap = airportByIata(iata);
-  if (!ap) return { ok: false, reason: 'Unknown airport' };
-  if (isAirportUnlocked(p, iata)) return { ok: false, reason: 'Already cleared' };
-  if (ap.unlockCost <= 0) return { ok: false, reason: 'Already in the starter network' };
+  if (!ap) return { ok: false, reason: t('econ.unknownAirport') };
+  if (isAirportUnlocked(p, iata)) return { ok: false, reason: t('econ.alreadyCleared') };
+  if (ap.unlockCost <= 0) return { ok: false, reason: t('econ.starterNet') };
   if (p.credits < ap.unlockCost) {
-    return { ok: false, reason: `Need ${formatCredits(ap.unlockCost - p.credits)} more` };
+    return { ok: false, reason: t('econ.needMore', { n: formatCredits(ap.unlockCost - p.credits) }) };
   }
   const next: Progress = {
     ...p,

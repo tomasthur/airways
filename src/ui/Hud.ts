@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { LandingReport } from '../sim/Landing';
 import type { HoldAction, Input, PressAction } from '../game/Input';
 import { Coach, type CoachCue } from './Coach';
@@ -141,10 +142,17 @@ export class Hud {
 
     const flapsMoving = Math.abs(d.flapsDeg - d.flapsTargetDeg) > 0.3;
     const flapsDown = d.flapsTargetDeg > 0;
-    this.text('flaps', flapsMoving ? `${d.flapsTargetDeg > d.flapsDeg ? 'EXT' : 'RET'} ${d.flapsTargetDeg}°` : flapsDown ? `DOWN ${d.flapsTargetDeg}°` : 'UP');
+    this.text(
+      'flaps',
+      flapsMoving
+        ? t(d.flapsTargetDeg > d.flapsDeg ? 'hud.flapsExt' : 'hud.flapsRet', { deg: d.flapsTargetDeg })
+        : flapsDown
+          ? t('hud.flapsDownState', { deg: d.flapsTargetDeg })
+          : t('hud.up'),
+    );
     this.cls(this.ref('flaps'), 'flapsCls', `state-val${flapsMoving ? ' transit' : flapsDown ? ' on' : ''}`);
     const gearMoving = Math.abs(d.gear - d.gearTarget) > 0.01;
-    this.text('gear', gearMoving ? 'TRANSIT' : d.gear > 0.5 ? 'DOWN' : 'UP');
+    this.text('gear', gearMoving ? t('hud.transit') : d.gear > 0.5 ? t('hud.down') : t('hud.up'));
     this.cls(this.ref('gear'), 'gearCls', `state-val${gearMoving ? ' transit' : d.gear > 0.5 ? ' on' : ''}`);
 
     const p = Math.max(0, Math.min(1, d.progress));
@@ -152,7 +160,9 @@ export class Hud {
     this.style('trackPlane', 'left', `${(p * 100).toFixed(2)}%`);
     this.text(
       'distance',
-      d.distanceKm > 0.05 ? `${d.destCode} ${d.distanceKm.toFixed(1)} km` : `${d.destCode} runway ${d.destRunway}`,
+      d.distanceKm > 0.05
+        ? t('hud.distKm', { code: d.destCode, km: d.distanceKm.toFixed(1) })
+        : t('hud.distRwy', { code: d.destCode, rwy: d.destRunway }),
     );
     this.text('phase', d.phase);
   }
@@ -166,8 +176,8 @@ export class Hud {
     hasSpeedBrake = false,
   ): void {
     this.speedMaxKmh = speedMaxKmh;
-    this.ref('clFlapsLabel').textContent = `Flaps take-off ${takeoffFlapDeg}°`;
-    this.ref('clEngineLabel').textContent = engineCount > 1 ? 'Engines' : 'Engine';
+    this.ref('clFlapsLabel').textContent = t('hud.flapsTakeoff', { deg: takeoffFlapDeg });
+    this.ref('clEngineLabel').textContent = engineCount > 1 ? t('word.engines') : t('word.engine');
     this.ref('chtLabel').textContent = tempLabel;
     this.ref('chtWarn').textContent = tempLabel;
     this.ref('speedBrakePedal').classList.toggle('is-hidden', !hasSpeedBrake);
@@ -180,17 +190,22 @@ export class Hud {
     this.text('routeToCode', toCode);
   }
 
+  refreshLang(): void {
+    this.cache.clear();
+    this.landmarkKey = '';
+  }
+
   setQuality(label: string): void {
-    this.text('quality', `Quality: ${label}`);
+    this.text('quality', t('hud.qualityLine', { label }));
   }
 
   setMuted(muted: boolean): void {
-    this.text('mute', muted ? 'Sound off' : 'Sound on');
+    this.text('mute', muted ? t('hud.soundOff') : t('hud.soundOn'));
   }
 
   setCopilot(on: boolean): void {
     this.root.querySelectorAll<HTMLElement>('[data-copilot]').forEach((el) => {
-      el.textContent = on ? 'Copilot on' : 'Copilot off';
+      el.textContent = on ? t('hud.copilotOn') : t('hud.copilotOff');
       el.classList.toggle('is-on', on);
     });
     if (!on) this.coach.clear();
@@ -223,7 +238,8 @@ export class Hud {
     this.cls(panel, 'papiCls', `panel papi${visible ? '' : ' is-hidden'}`);
     if (!visible) return;
     this.papiLights.forEach((el, i) => this.cls(el, `papi${i}`, i < whites ? 'white' : ''));
-    const label = whites >= 4 ? 'TOO HIGH' : whites === 3 ? 'SLIGHTLY HIGH' : whites === 2 ? 'ON GLIDE PATH' : whites === 1 ? 'SLIGHTLY LOW' : 'TOO LOW';
+    const label =
+      whites >= 4 ? t('papi.tooHigh') : whites === 3 ? t('papi.slightlyHigh') : whites === 2 ? t('papi.onPath') : whites === 1 ? t('papi.slightlyLow') : t('papi.tooLow');
     this.text('papiLabel', label);
   }
 
@@ -276,11 +292,11 @@ export class Hud {
     this.text('clDoor', c.door);
     this.text('clDoorBtn', c.doorButton);
     this.text('clBoarding', c.boarding);
-    this.text('clLights', c.lights ? 'ON' : 'OFF');
-    this.text('clLightsBtn', c.lights ? 'Off' : 'On');
+    this.text('clLights', c.lights ? t('hud.on') : t('hud.off'));
+    this.text('clLightsBtn', c.lights ? t('hud.off') : t('hud.on'));
     this.text('clFlaps', c.flaps);
-    this.text('clBelts', c.belts ? 'ON' : 'OFF');
-    this.text('clBeltsBtn', c.belts ? 'Off' : 'On');
+    this.text('clBelts', c.belts ? t('hud.on') : t('hud.off'));
+    this.text('clBeltsBtn', c.belts ? t('hud.off') : t('hud.on'));
     this.text('clEngine', c.engine);
     (this.ref('clDoorBtn') as HTMLButtonElement).disabled = !c.doorEnabled;
     (this.ref('clEngineBtn') as HTMLButtonElement).disabled = !c.engineEnabled;
@@ -313,14 +329,14 @@ export class Hud {
   setFlightBelts(show: boolean, on: boolean): void {
     const btn = this.ref('beltsBtn');
     this.cls(btn, 'beltsBtn', `ctl wide${show ? '' : ' is-hidden'}${on ? ' lit' : ''}`);
-    this.text('beltsBtnLabel', on ? 'ON' : 'OFF');
+    this.text('beltsBtnLabel', on ? t('hud.on') : t('hud.off'));
   }
 
   /** Overhead FASTEN SEATBELTS plaque; null hides it. */
   setBeltSign(mode: 'on' | 'off' | null): void {
     const el = this.ref('beltSign');
     this.cls(el, 'beltSign', `belt-sign${mode ? ` ${mode}` : ' is-hidden'}`);
-    if (mode) this.text('beltSignText', mode === 'on' ? 'FASTEN SEATBELTS' : 'SEATBELTS OFF');
+    if (mode) this.text('beltSignText', mode === 'on' ? t('hud.seatbelts') : t('hud.seatbeltsOff'));
   }
 
   setCabin(view: CabinCallView | null): void {
@@ -338,7 +354,7 @@ export class Hud {
   }
 
   showReport(r: LandingReport, stats: string, money = ''): void {
-    this.ref('reportEyebrow').textContent = r.success ? 'Landing report' : 'Flight ended';
+    this.ref('reportEyebrow').textContent = r.success ? t('hud.reportLanding') : t('hud.reportEnded');
     this.ref('reportTitle').textContent = r.title;
     this.ref('reportMsg').textContent = r.message;
     this.ref('reportScoreWrap').classList.toggle('is-hidden', !r.success);
@@ -361,7 +377,7 @@ export class Hud {
     moneyEl.classList.toggle('is-hidden', !money);
     moneyEl.classList.toggle('gain', money.startsWith('+'));
     moneyEl.classList.toggle('loss', money.startsWith('−') || money.startsWith('-'));
-    this.ref('reportButton').textContent = 'Back to map';
+    this.ref('reportButton').textContent = t('hud.reportBack');
     this.show('report', true);
   }
 }

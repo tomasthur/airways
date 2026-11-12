@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { AIRPORTS, airportByIata, type Airport } from '../meta/airports';
 import {
   buyAircraft,
@@ -25,9 +26,14 @@ import { aircraftById } from '../sim/aircraft';
 import type { Propulsion } from '../sim/aircraft/AircraftConfig';
 import { fetchLeaderboard, loadPlayer, type LeaderboardRow } from '../meta/player';
 import { aircraftPortraitUrl } from './AircraftPortrait';
+import { HubTour } from './HubTour';
 import { MapCamera, type CameraView } from './MapCamera';
 
-const PROPULSION_LABEL: Record<Propulsion, string> = { piston: 'piston prop', turboprop: 'turboprop', jet: 'turbofan' };
+const PROPULSION_KEY: Record<Propulsion, string> = {
+  piston: 'hangar.prop.piston',
+  turboprop: 'hangar.prop.turboprop',
+  jet: 'hangar.prop.turbofan',
+};
 
 /** Screen-pixel nudges so BTS/VIE (55 km apart) stay separately tappable. */
 const PIN_NUDGE: Record<string, { x: number; y: number }> = {
@@ -70,6 +76,8 @@ export class HubMenu {
   private readonly onFly: (req: HubFlyRequest) => void;
   private pinEls: { el: SVGGElement; x: number; y: number }[] = [];
   private boardReq = 0;
+  private lastBoard: LeaderboardRow[] | null = null;
+  private readonly tour: HubTour;
 
   constructor(root: HTMLElement, onFly: (req: HubFlyRequest) => void) {
     this.root = root;
@@ -119,6 +127,15 @@ export class HubMenu {
     this.board.addEventListener('click', (e) => {
       if (e.target === this.board) this.closeBoard();
     });
+    this.tour = new HubTour(root, {
+      openSampleRoute: () => this.openTourRoute(),
+      clearRoute: () => this.clearSelection(),
+      closePanels: () => {
+        this.closeHangar();
+        this.closeBoard();
+      },
+    });
+
     this.hangarList.addEventListener('click', (e) => {
       const btn = (e.target as Element).closest('[data-fleet-action]') as HTMLElement | null;
       if (!btn) return;
@@ -147,6 +164,7 @@ export class HubMenu {
       requestAnimationFrame(() => {
         this.camera.fitBox(0, 0, WORLD_W, WORLD_H, { animate: false, pad: 0 });
         this.focusHome(true);
+        window.setTimeout(() => this.maybeStartTour(), 700);
       });
       // Coming back from a hop: drop the old destination so only the base glows
       // amber and the player picks a new route from scratch.
@@ -163,16 +181,32 @@ export class HubMenu {
     );
   }
 
+  maybeStartTour(): void {
+    requestAnimationFrame(() => requestAnimationFrame(() => this.tour.maybeStart()));
+  }
+
   tryFlyFromKeyboard(): boolean {
+    if (this.tour.active) return false;
     if (this.selected && this.isOpenDestination(this.selected) && !this.inRange(this.selected)) {
       this.toast(rangeBlockedMessage(this.progress.homeAirport, this.selected, this.progress.activeAircraft));
       return false;
     }
     if (!this.canFly()) {
-      this.toast('Pick an open airport on the map — or tap Surprise me');
+      this.toast(t('hub.pickAirport'));
       return false;
     }
     this.fly();
+    return true;
+  }
+
+  /** File the nearest in-range hop so Fly / Clear are on screen for the tour. */
+  private openTourRoute(): boolean {
+    const home = this.progress.homeAirport;
+    const pick = AIRPORTS.find(
+      (a) => a.iata !== home && airportStatus(this.progress, a.iata) === 'open' && this.inRange(a.iata),
+    );
+    if (!pick) return false;
+    this.selectDestination(pick.iata);
     return true;
   }
 
@@ -181,15 +215,16 @@ export class HubMenu {
       (a) => airportStatus(this.progress, a.iata) === 'open' && this.inRange(a.iata),
     );
     if (!open.length) {
-      this.toast('No in-range destinations for this aircraft');
+      this.toast(t('hub.noDest'));
       return;
     }
     const pick = open[Math.floor(Math.random() * open.length)];
     this.selectDestination(pick.iata);
-    this.toast(`Filed at random · ${this.progress.homeAirport} → ${pick.iata}`);
+    this.toast(t('hub.filed', { from: this.progress.homeAirport, to: pick.iata }));
   }
 
   private fly(): void {
+    if (this.tour.active) return;
     if (!this.canFly() || !this.selected) return;
     this.onFly({ from: this.progress.homeAirport, to: this.selected });
   }
@@ -200,7 +235,7 @@ export class HubMenu {
     if (!ap) return;
 
     if (status === 'home') {
-      this.toast(`You are here · ${ap.city}`);
+      this.toast(t('hub.youAreHere', { city: ap.city }));
       return;
     }
     if (!isAirportUnlocked(this.progress, iata)) {
@@ -213,7 +248,7 @@ export class HubMenu {
     }
   }
 
-  private showUnlockOffer(ap: Airport): void {
+  private showUnlockOffer(ap: Airport, announce = true): void {
     this.unlockTarget = ap.iata;
     this.selected = null;
     this.routePath.setAttribute('d', '');
@@ -226,12 +261,12 @@ export class HubMenu {
     this.root.classList.add('has-route');
     this.setText('dockFrom', '—');
     this.setText('dockTo', ap.iata);
-    this.setText('dockTitle', `Unlock ${ap.city}`);
+    this.setText('dockTitle', t('hub.unlockCity', { city: ap.city }));
     this.setText('dockBrief', ap.lockHint ?? ap.brief ?? '');
-    this.setText('dockMeta', `Tier ${ap.tier} · ${ap.region}`);
-    this.setText('dockPay', `Clearance ${formatCredits(ap.unlockCost)}`);
-    this.setText('unlockLabel', `Unlock ${formatCredits(ap.unlockCost)}`);
-    this.setText('flyLabel', 'Fly');
+    this.setText('dockMeta', t('hub.tier', { n: ap.tier, region: ap.region }));
+    this.setText('dockPay', t('hub.clearance', { n: formatCredits(ap.unlockCost) }));
+    this.setText('unlockLabel', t('hub.unlockCost', { n: formatCredits(ap.unlockCost) }));
+    this.setText('flyLabel', t('hub.fly'));
     const flyBtn = this.root.querySelector<HTMLButtonElement>('[data-hub="fly"]');
     const unlockBtn = this.root.querySelector<HTMLButtonElement>('[data-hub="unlock"]');
     if (flyBtn) {
@@ -242,8 +277,8 @@ export class HubMenu {
       unlockBtn.classList.remove('is-hidden');
       unlockBtn.disabled = this.progress.credits < ap.unlockCost;
     }
-    if (this.progress.credits < ap.unlockCost) {
-      this.toast(`Need ${formatCredits(ap.unlockCost - this.progress.credits)} more for ${ap.city}`);
+    if (announce && this.progress.credits < ap.unlockCost) {
+      this.toast(t('hub.needUnlock', { n: formatCredits(ap.unlockCost - this.progress.credits), city: ap.city }));
     }
   }
 
@@ -258,7 +293,7 @@ export class HubMenu {
     this.progress = result.progress;
     this.renderStats();
     this.renderPins();
-    this.toast(`Cleared · ${airportByIata(iata)?.city ?? iata}`);
+    this.toast(t('hub.cleared', { city: airportByIata(iata)?.city ?? iata }));
     this.selectDestination(iata);
   }
 
@@ -286,11 +321,11 @@ export class HubMenu {
     this.setText('dockMeta', this.routeMeta(home, dest));
     if (reachable) {
       const pay = estimatePayout(home.iata, dest.iata, this.progress.activeAircraft);
-      this.setText('dockPay', `Charter ~${formatCredits(pay)}`);
-      this.setText('flyLabel', `Fly to ${dest.city}`);
+      this.setText('dockPay', t('hub.charterPay', { n: formatCredits(pay) }));
+      this.setText('flyLabel', t('hub.flyTo', { city: dest.city }));
     } else {
       this.setText('dockPay', rangeBlockedMessage(home.iata, dest.iata, craft.id));
-      this.setText('flyLabel', 'Out of range');
+      this.setText('flyLabel', t('hub.outOfRange'));
     }
     const flyBtn = this.root.querySelector<HTMLButtonElement>('[data-hub="fly"]');
     const unlockBtn = this.root.querySelector<HTMLButtonElement>('[data-hub="unlock"]');
@@ -503,7 +538,7 @@ export class HubMenu {
       img.alt = craft.name;
     }
     const btn = this.root.querySelector<HTMLButtonElement>('[data-hub="ship"]');
-    if (btn) btn.title = `Hangar · ${craft.name}`;
+    if (btn) btn.title = t('hub.shipTitle', { name: craft.name });
   }
 
   private openHangar(): void {
@@ -526,7 +561,7 @@ export class HubMenu {
     this.boardList.replaceChildren();
     const loading = document.createElement('p');
     loading.className = 'hub-board-empty';
-    loading.textContent = 'Loading…';
+    loading.textContent = t('hub.boardLoad');
     this.boardList.appendChild(loading);
     const req = ++this.boardReq;
     void fetchLeaderboard(20).then((rows) => {
@@ -541,12 +576,24 @@ export class HubMenu {
     this.board.setAttribute('aria-hidden', 'true');
   }
 
+  refreshLang(): void {
+    this.tour.refresh();
+    this.renderStats();
+    if (this.hangarList.childElementCount) this.renderHangar();
+    if (!this.board.classList.contains('is-hidden') && this.lastBoard) this.renderBoard(this.lastBoard);
+    if (this.unlockTarget) {
+      const ap = airportByIata(this.unlockTarget);
+      if (ap) this.showUnlockOffer(ap, false);
+    } else if (this.selected) this.selectDestination(this.selected);
+  }
+
   private renderBoard(rows: LeaderboardRow[]): void {
+    this.lastBoard = rows;
     this.boardList.replaceChildren();
     if (!rows.length) {
       const empty = document.createElement('p');
       empty.className = 'hub-board-empty';
-      empty.textContent = 'No airlines on the board yet.';
+      empty.textContent = t('hub.boardEmpty');
       this.boardList.appendChild(empty);
       return;
     }
@@ -564,7 +611,12 @@ export class HubMenu {
       const title = document.createElement('strong');
       title.textContent = row.airline;
       const meta = document.createElement('small');
-      meta.textContent = `${formatCreditsCompact(row.cash)} · ${row.flights} flights · ${row.crashes} crashes · ${row.losses} losses`;
+      meta.textContent = t('board.rowMeta', {
+        cash: formatCreditsCompact(row.cash),
+        flights: row.flights,
+        crashes: row.crashes,
+        losses: row.losses,
+      });
       name.append(title, meta);
 
       const cash = document.createElement('span');
@@ -600,25 +652,29 @@ export class HubMenu {
       const name = document.createElement('strong');
       name.textContent = craft.name;
       const tag = document.createElement('span');
-      tag.textContent = active ? 'Active' : owned ? 'Owned' : formatCredits(craft.price);
+      tag.textContent = active ? t('hangar.active') : owned ? t('hangar.owned') : formatCredits(craft.price);
       head.append(name, tag);
 
       const cfg = aircraftById(craft.id);
       const type = document.createElement('small');
       type.className = 'hub-fleet-type';
-      type.textContent = `${cfg.engineCount}× ${PROPULSION_LABEL[cfg.propulsion]} · ${cfg.registration}`;
+      type.textContent = t('hangar.engines', {
+        n: cfg.engineCount,
+        prop: t(PROPULSION_KEY[cfg.propulsion]),
+        reg: cfg.registration,
+      });
 
       const blurb = document.createElement('p');
-      blurb.textContent = craft.blurb;
+      blurb.textContent = t(`hangar.blurb.${craft.id}`);
 
       const meta = document.createElement('div');
       meta.className = 'hub-fleet-specs';
       const specs: [string, string][] = [
-        ['Seats', craft.seats.toString()],
-        ['Cruise', `${cfg.performance.cruiseKmh} km/h`],
-        ['Range', `${craft.rangeKm.toLocaleString('en-US')} km`],
-        ['Runway', `${cfg.performance.runwayM.toLocaleString('en-US')} m`],
-        ['Fare', `×${craft.seatsMult.toFixed(2)}`],
+        [t('hangar.spec.seats'), craft.seats.toString()],
+        [t('hangar.spec.cruise'), `${cfg.performance.cruiseKmh} km/h`],
+        [t('hangar.spec.range'), `${craft.rangeKm.toLocaleString('en-US')} km`],
+        [t('hangar.spec.runway'), `${cfg.performance.runwayM.toLocaleString('en-US')} m`],
+        [t('hangar.spec.fare'), `×${craft.seatsMult.toFixed(2)}`],
       ];
       for (const [label, value] of specs) {
         const cell = document.createElement('span');
@@ -639,12 +695,12 @@ export class HubMenu {
           select.className = 'hub-fly hub-fleet-btn';
           select.dataset.fleetAction = 'select';
           select.dataset.fleetId = craft.id;
-          select.textContent = 'Select';
+          select.textContent = t('hangar.select');
           actions.appendChild(select);
         } else {
           const note = document.createElement('span');
           note.className = 'hub-fleet-note';
-          note.textContent = 'Flying this ship';
+          note.textContent = t('hangar.flying');
           actions.appendChild(note);
         }
       } else {
@@ -655,7 +711,7 @@ export class HubMenu {
         buy.dataset.fleetAction = 'buy';
         buy.dataset.fleetId = craft.id;
         buy.disabled = need > 0;
-        buy.textContent = need > 0 ? `Need ${formatCredits(need)} more` : `Buy ${formatCredits(craft.price)}`;
+        buy.textContent = need > 0 ? t('hangar.need', { n: formatCredits(need) }) : t('hangar.buy', { n: formatCredits(craft.price) });
         actions.appendChild(buy);
       }
 
@@ -675,7 +731,7 @@ export class HubMenu {
     this.renderStats();
     this.renderHangar();
     if (this.selected) this.selectDestination(this.selected);
-    this.toast(`Acquired · ${fleetById(id).shortName}`);
+    this.toast(t('hub.acquired', { name: fleetById(id).shortName }));
   }
 
   private selectFleet(id: string): void {
@@ -688,7 +744,7 @@ export class HubMenu {
     this.renderStats();
     this.renderHangar();
     if (this.selected) this.selectDestination(this.selected);
-    this.toast(`Active · ${fleetById(id).shortName}`);
+    this.toast(t('hub.activeShip', { name: fleetById(id).shortName }));
   }
 
   private setText(ref: string, value: string): void {
