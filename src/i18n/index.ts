@@ -1,5 +1,6 @@
 import { de } from './de';
 import { en } from './en';
+import { lmDe, lmEn, lmSk, lmZh } from './lm';
 import { sk } from './sk';
 import { zh } from './zh';
 
@@ -13,7 +14,12 @@ export const LANGS: { id: Lang; label: string; html: string }[] = [
 ];
 
 const KEY = 'airways.lang';
-const TABLES: Record<Lang, Record<string, string>> = { en, de, sk, zh };
+const TABLES: Record<Lang, Record<string, string>> = {
+  en: { ...en, ...lmEn },
+  de: { ...de, ...lmDe },
+  sk: { ...sk, ...lmSk },
+  zh: { ...zh, ...lmZh },
+};
 
 let lang: Lang = 'en';
 const listeners = new Set<() => void>();
@@ -34,6 +40,26 @@ export function t(key: string, vars?: Record<string, string | number>): string {
 
 export function hasT(key: string): boolean {
   return Boolean((TABLES[lang] ?? en)[key] || en[key]);
+}
+
+/** Translate HUD geography captions; English source strings are the keys. */
+export function locLandmark(raw: string): string {
+  if (!raw) return '';
+  const exact = `lm.${raw}`;
+  if (hasT(exact)) return t(exact);
+  const leaving = /^Leaving (.+)$/.exec(raw);
+  if (leaving) return t('lm.leaving', { city: locLandmark(leaving[1]) });
+  const over = /^Over (.+)$/.exec(raw);
+  if (over) return t('lm.over', { city: locLandmark(over[1]) });
+  const passing = /^Passing (.+)$/.exec(raw);
+  if (passing) return t('lm.passing', { city: locLandmark(passing[1]) });
+  const km = /^(\d+) km off the wing$/.exec(raw);
+  if (km) return t('lm.kmOffWing', { n: km[1] });
+  const valley = /^(.+) valley$/.exec(raw);
+  if (valley) return t('lm.namedValley', { name: locLandmark(valley[1]) });
+  const dotted = /^(.+) · (.+)$/.exec(raw);
+  if (dotted) return `${locLandmark(dotted[1])} · ${locLandmark(dotted[2])}`;
+  return raw;
 }
 
 export function getLang(): Lang {

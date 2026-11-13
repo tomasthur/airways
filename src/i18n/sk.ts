@@ -7,6 +7,7 @@ export const sk: Record<string, string> = {
   'register.hint': 'Ukáže sa v hub-e, v rebríčku a na každej správe z pristátia.',
   'register.placeholder': 'Názov spoločnosti',
   'register.submit': 'Začať lietať',
+  'legal.privacy': 'Ochrana súkromia',
   'register.busy': 'Otvára sa…',
   'register.error.empty': 'Daj svojej spoločnosti názov.',
   'register.error.offline': 'Server je nedostupný. Skontroluj pripojenie a skús znova.',

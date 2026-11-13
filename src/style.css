@@ -461,6 +461,20 @@ button {
   transform: scale(0.98);
 }
 
+.register-privacy,
+.pause-privacy {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 12px;
+}
+
+.register-privacy a,
+.pause-privacy a {
+  color: var(--muted, #8aa0b5);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* ---------- HUD ---------- */
 /* Zone layout (mobile-first): left rail = throttle, bottom centre = gauges,
    right rail = config/yoke. Nothing absolute-stacks on top of another zone. */

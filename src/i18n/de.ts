@@ -7,6 +7,7 @@ export const de: Record<string, string> = {
   'register.hint': 'Steht im Hub, auf der Rangliste und auf jedem Landebericht.',
   'register.placeholder': 'Name der Airline',
   'register.submit': 'Ab ins Cockpit',
+  'legal.privacy': 'Datenschutz',
   'register.busy': 'Öffnen…',
   'register.error.empty': 'Gib deiner Airline einen Namen.',
   'register.error.offline': 'Server nicht erreichbar. Verbindung prüfen und nochmal versuchen.',

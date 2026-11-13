@@ -7,6 +7,7 @@ export const zh: Record<string, string> = {
   'register.hint': '会显示在主菜单、排行榜和每次落地报告上。',
   'register.placeholder': '航司名称',
   'register.submit': '开始飞行',
+  'legal.privacy': '隐私政策',
   'register.busy': '正在开启…',
   'register.error.empty': '请为航司起个名字。',
   'register.error.offline': '无法连接服务器。请检查网络后重试。',

@@ -7,6 +7,7 @@ export const en: Record<string, string> = {
   'register.hint': 'Shown on the hub, the leaderboard, and every landing report.',
   'register.placeholder': 'Airline name',
   'register.submit': 'Start flying',
+  'legal.privacy': 'Privacy policy',
   'register.busy': 'Opening…',
   'register.error.empty': 'Give your airline a name.',
   'register.error.offline': 'Could not reach the server. Check the connection and try again.',

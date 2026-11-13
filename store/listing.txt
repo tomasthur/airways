@@ -1,0 +1,116 @@
+AIRWAYS — Google Play store listing
+Paste into Play Console → Grow → Store presence → Main store listing.
+Default language: English (United States). Then add Slovak, German, Chinese.
+
+══════════════════════════════════════
+APP NAME  (max 30)
+══════════════════════════════════════
+EN: AIRWAYS
+SK: AIRWAYS
+DE: AIRWAYS
+ZH: AIRWAYS
+
+══════════════════════════════════════
+SHORT DESCRIPTION  (max 80)
+══════════════════════════════════════
+EN: Fly visual hops, build your airline, and grow a fleet from Cessna to A380.
+SK: Lietaj vizuálne lety, buduj aerolinku a rozširuj flotilu od Cessny po A380.
+DE: Fliege Sichtflüge, baue deine Airline – von der Cessna bis zum A380.
+ZH: 目视飞行、建立航司，机队从塞斯纳一路升到空客A380。
+
+══════════════════════════════════════
+FULL DESCRIPTION  (max 4000)
+══════════════════════════════════════
+EN:
+AIRWAYS is a visual-flight airline career. Name your carrier, start at Bratislava, and fly real hops across a living map.
+
+You sit in a 3D cockpit with a full preflight checklist, throttle, yoke, gear, flaps, lights and brakes. Copilot can take the busy work. Coach can talk you through the first flights. Then you fly it yourself — climb, cruise, PAPI, and a landing that actually scores.
+
+Earn charter credits on every hop. Unlock cities. Buy the next aircraft in the hangar, from a Cessna 172RG up through turboprops and jets to the Airbus A380. Pay with in-game cash or a one-time Google Play unlock. A €2.99 Remove ads pass skips the full-screen ad before each flight; the optional More Money rewarded video stays if you still want extra cash.
+
+Features
+• Career hub with a pan-and-zoom world map
+• Named airline on a live leaderboard
+• Fleet: Cessna 172RG, Piper Seneca, King Air 350, ATR 72, Dash 8 Q400, Embraer E190, A320neo, 787-9, 777-300ER, A380
+• Day and night visual flying, weather and ATC
+• Preflight checklist, copilot and on-screen coach
+• English, Slovak, German and Chinese
+
+Start small. Keep the rubber on the centerline. Build an airline.
+
+SK:
+AIRWAYS je vizuálna letecká kariéra. Pomenuj si spoločnosť, začni v Bratislave a lietaj skutočné hops po živej mape.
+
+Sedíš v 3D kokpite s predletovou checklistou, plynom, riadením, podvozkom, klapkami, svetlami a brzdami. Copilot vie zobrať rutinú. Coach ťa prevedie prvými letmi. Potom to letíš sám — stúpanie, cestovný let, PAPI a pristátie, ktoré sa naozaj hodnotí.
+
+Za každý hop získaš charter kredity. Odomykáš mestá. V hangári kupuješ ďalšie lietadlá, od Cessny 172RG cez turbovrtuľové a tryskové až po Airbus A380. Platíš hernými peniazmi alebo jednorazovým odomknutím cez Google Play. Pass Bez reklám za 2,99 € preskočí celoobrazovkovú reklamu pred letom; odmena Viac peňazí ostáva, ak chceš extra cash.
+
+Funkcie
+• Kariérny hub s mapou sveta
+• Vlastná aerolinka na živom rebríčku
+• Flotila: Cessna 172RG, Piper Seneca, King Air 350, ATR 72, Dash 8 Q400, Embraer E190, A320neo, 787-9, 777-300ER, A380
+• Deň aj noc, počasie a ATC
+• Predletová checklista, copilot a kouč
+• Slovenčina, angličtina, nemčina a čínština
+
+Začni v malom. Drž os dráhy. Postav aerolinku.
+
+DE:
+AIRWAYS ist eine Sichtflug-Airline-Karriere. Taufe deine Gesellschaft, starte in Bratislava und fliege echte Hops auf einer lebenden Karte.
+
+Du sitzt im 3D-Cockpit mit Preflight-Checkliste, Schub, Sidestick, Fahrwerk, Klappen, Licht und Bremsen. Der Copilot übernimmt die Routine. Der Coach führt dich durch die ersten Flüge. Danach fliegst du selbst – Steigflug, Reiseflug, PAPI und eine Landung, die wirklich bewertet wird.
+
+Jeder Hop bringt Charter-Credits. Städte schaltest du frei. Im Hangar kaufst du das nächste Flugzeug, von der Cessna 172RG über Turboprops und Jets bis zum Airbus A380. Bezahlen geht mit Spielgeld oder als einmaliges Google-Play-Freischalten. Remove ads für 2,99 € überspringt die Vollbildwerbung vor dem Flug; Mehr Geld bleibt als optionales Reward-Video.
+
+Funktionen
+• Karriere-Hub mit Weltkarte
+• Eigene Airline auf einem Live-Leaderboard
+• Flotte: Cessna 172RG, Piper Seneca, King Air 350, ATR 72, Dash 8 Q400, Embraer E190, A320neo, 787-9, 777-300ER, A380
+• Tag und Nacht, Wetter und ATC
+• Preflight-Checkliste, Copilot und Coach
+• Deutsch, Englisch, Slowakisch und Chinesisch
+
+Klein starten. Auf der Mittellinie bleiben. Eine Airline bauen.
+
+ZH:
+AIRWAYS 是一款目视飞行的航空公司生涯。为你的航司命名，从布拉迪斯拉发起飞，在活的世界地图上飞真实航段。
+
+你坐在 3D 驾驶舱里，有完整的起飞前检查单、油门、驾驶杆、起落架、襟翼、灯光和刹车。副驾驶可以接手例行操作。教练会带你飞完前几班。之后你自己飞——爬升、巡航、PAPI，以及一次真正计分的着陆。
+
+每段航程赚取包机积分。解锁城市。在机库购买下一架飞机，从塞斯纳 172RG 到涡桨、喷气，直到空客 A380。可用游戏内现金，或通过 Google Play 一次性解锁。2.99 欧元的去广告可跳过每次起飞前的全屏广告；如需额外现金，奖励视频“更多资金”仍然保留。
+
+特色
+• 可拖动缩放的世界地图生涯枢纽
+• 以自己的航司名登上实时排行榜
+• 机队：Cessna 172RG、Piper Seneca、King Air 350、ATR 72、Dash 8 Q400、Embraer E190、A320neo、787-9、777-300ER、A380
+• 昼夜目视飞行、天气与ATC
+• 起飞前检查单、副驾驶与教练
+• 中文、英语、斯洛伐克语、德语
+
+从小做起。压住跑道中线。打造一家航空公司。
+
+══════════════════════════════════════
+GRAPHICS — upload from store/graphics/
+══════════════════════════════════════
+Hi-res icon:     icon-512.png          512 × 512 PNG
+Feature graphic: feature-graphic.png   1024 × 500 PNG (no transparency)
+Phone screenshots (landscape 1920 × 1080 PNG, at least 2, ideally 4):
+  01-hub.png       World map + selected hop
+  02-hangar.png    Fleet hangar
+  03-flight.png    In-flight HUD / world
+  04-cockpit.png   Checklist / cockpit if captured
+
+Tablet 7" / 10" screenshots: reuse the same landscape shots.
+
+══════════════════════════════════════
+CATEGORY
+══════════════════════════════════════
+App category: Game
+Tags: Simulation, Casual
+Stores: Google Play (default)
+
+Contact email: thur.tomas@gmail.com
+Privacy policy URL: host store/privacy.html publicly, then paste that URL.
+  Fast path: GitHub repo → Settings → Pages → Deploy from branch, folder /docs
+  (privacy.html is also copied to docs/privacy.html)
+  Expected URL: https://tomasthur.github.io/airways/privacy.html

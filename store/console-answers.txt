@@ -1,0 +1,100 @@
+AIRWAYS — Play Console form answers
+Fill these under Policy / App content and the production release. Tick what matches the app today.
+
+──────────────────────────────────────
+ADS
+──────────────────────────────────────
+Does this app contain ads?  YES
+(AdMob interstitial before fly + optional rewarded More Money)
+
+──────────────────────────────────────
+DATA SAFETY
+──────────────────────────────────────
+Does your app collect or share any of the required user data types?  YES
+
+Collected AND shared (third party):
+• Personal info → Email address
+  Collected: YES  Shared: YES (Convex leaderboard backend)
+  Required: YES (registration)
+  Purpose: App functionality, Account management, Developer communications
+• Personal info → Name
+  Treat airline name as User-generated content / Name
+  Collected: YES  Shared: YES (public leaderboard shows the airline name)
+  Required: YES
+  Purpose: App functionality
+• App activity → Other user-generated content (airline name on the board)
+  Same as above
+• Device or other IDs → Advertising ID
+  Collected: YES  Shared: YES (Google AdMob)
+  Required: not required to use the game; used for ads
+  Purpose: Advertising or marketing
+• Financial → Purchase history
+  Collected: YES (Play Billing on device / Play)  Shared: YES (Google Play)
+  Optional (IAP)
+  Purpose: App functionality
+
+NOT collected: location (precise), contacts, photos, audio, health, calendar.
+
+Security:
+• Data is encrypted in transit: YES
+• Users can request deletion: YES
+  In-app: Restart career
+  Web/email: thur.tomas@gmail.com (also the privacy policy)
+
+Account deletion (because registration creates an airline row):
+• In-app: Hub → Restart career
+• URL: same privacy page, plus mailto:thur.tomas@gmail.com
+
+──────────────────────────────────────
+TARGET AUDIENCE AND CONTENT
+──────────────────────────────────────
+Target age group: 13–15 AND 16–17 AND 18+   (do NOT tick Under 13)
+Appeal to children: NO
+News app: NO
+COVID: NO
+Political: NO
+Government: NO
+
+──────────────────────────────────────
+CONTENT RATING  (IARC questionnaire)
+──────────────────────────────────────
+Violence: No
+Sexuality: No
+Language: No
+Controlled substances: No
+Gambling / simulated gambling: No
+User interaction: Users can interact  (leaderboard names) — not a social network
+Digital purchases: YES (Google Play IAP)
+Location sharing: No
+Unrestricted internet: No (in-game, not a browser)
+
+Expected rating: PEGI 3 / Everyone, with In-app purchases + Contains ads.
+
+──────────────────────────────────────
+FINANCIAL FEATURES
+──────────────────────────────────────
+Not a bank, wallet, or crypto app.
+Only Google Play in-app products (aircraft SKUs + remove_ads).
+
+──────────────────────────────────────
+GOVERNMENT / WAR / HEALTH
+──────────────────────────────────────
+None of these.
+
+──────────────────────────────────────
+STORE LISTING GRAPHICS CHECKLIST
+──────────────────────────────────────
+[ ] 512×512 icon
+[ ] 1024×500 feature graphic
+[ ] ≥2 phone screenshots (use the 1920×1080 set; 4 is better)
+[ ] Privacy policy URL live
+[ ] Data safety submitted
+[ ] Ads declared
+[ ] Content rating complete
+[ ] Production release uploaded (AAB versionCode 8 / 0.1.2)
+
+──────────────────────────────────────
+PRODUCTION RELEASE NOTES
+──────────────────────────────────────
+EN: First public release. Airline career, visual hops, hangar fleet, Google Play unlocks, and an optional Remove ads pass.
+SK: Prvé verejné vydanie. Kariéra aerolinky, vizuálne lety, hangár, odomknutia cez Google Play a voliteľný pass Bez reklám.

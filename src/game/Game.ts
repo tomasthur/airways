@@ -30,7 +30,7 @@ import { Hud, type ChecklistView, type WarningKey } from '../ui/Hud';
 import type { CoachCue } from '../ui/Coach';
 import { RegisterScreen } from '../ui/RegisterScreen';
 import { flushPendingPlayer, hasPlayer, loadPlayer } from '../meta/player';
-import { onLangChange, t } from '../i18n';
+import { locLandmark, onLangChange, t } from '../i18n';
 import { Atc } from './Atc';
 import { Input, type PressAction } from './Input';
 
@@ -1505,7 +1505,7 @@ export class Game {
 
     const camX = this.camera.position.x;
     const lm = flying || this.state === 'menu' ? this.route.landmarks.find((l) => camX >= l.x0 && camX <= l.x1) : undefined;
-    this.hud.setLandmark(lm?.title ?? '', lm?.subtitle ?? '');
+    this.hud.setLandmark(locLandmark(lm?.title ?? ''), locLandmark(lm?.subtitle ?? ''));
 
     const cue = this.copilot && (flying || this.state === 'paused') ? this.coachCue(toAim) : null;
     this.hud.setCoach(cue);
