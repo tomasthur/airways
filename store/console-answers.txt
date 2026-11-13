@@ -96,5 +96,5 @@ STORE LISTING GRAPHICS CHECKLIST
 ──────────────────────────────────────
 PRODUCTION RELEASE NOTES
 ──────────────────────────────────────
-EN: First public release. Airline career, visual hops, hangar fleet, Google Play unlocks, and an optional Remove ads pass.
+EN: First public release. Airline career, visual flights, hangar fleet, Google Play unlocks, and an optional Remove ads pass.
 SK: Prvé verejné vydanie. Kariéra aerolinky, vizuálne lety, hangár, odomknutia cez Google Play a voliteľný pass Bez reklám.

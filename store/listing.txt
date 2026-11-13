@@ -13,7 +13,7 @@ ZH: AIRWAYS
 ══════════════════════════════════════
 SHORT DESCRIPTION  (max 80)
 ══════════════════════════════════════
-EN: Fly visual hops, build your airline, and grow a fleet from Cessna to A380.
+EN: Fly visual flights, build your airline, and grow a fleet from Cessna to A380.
 SK: Lietaj vizuálne lety, buduj aerolinku a rozširuj flotilu od Cessny po A380.
 DE: Fliege Sichtflüge, baue deine Airline – von der Cessna bis zum A380.
 ZH: 目视飞行、建立航司，机队从塞斯纳一路升到空客A380。
@@ -22,11 +22,11 @@ ZH: 目视飞行、建立航司，机队从塞斯纳一路升到空客A380。
 FULL DESCRIPTION  (max 4000)
 ══════════════════════════════════════
 EN:
-AIRWAYS is a visual-flight airline career. Name your carrier, start at Bratislava, and fly real hops across a living map.
+AIRWAYS is a visual-flight airline career. Name your carrier, start at Bratislava, and fly real flights across a living map.
 
 You sit in a 3D cockpit with a full preflight checklist, throttle, yoke, gear, flaps, lights and brakes. Copilot can take the busy work. Coach can talk you through the first flights. Then you fly it yourself — climb, cruise, PAPI, and a landing that actually scores.
 
-Earn charter credits on every hop. Unlock cities. Buy the next aircraft in the hangar, from a Cessna 172RG up through turboprops and jets to the Airbus A380. Pay with in-game cash or a one-time Google Play unlock. A €2.99 Remove ads pass skips the full-screen ad before each flight; the optional More Money rewarded video stays if you still want extra cash.
+Earn charter credits on every flight. Unlock cities. Buy the next aircraft in the hangar, from a Cessna 172RG up through turboprops and jets to the Airbus A380. Pay with in-game cash or a one-time Google Play unlock. A €2.99 Remove ads pass skips the full-screen ad before each flight; the optional More Money rewarded video stays if you still want extra cash.
 
 Features
 • Career hub with a pan-and-zoom world map
@@ -39,11 +39,11 @@ Features
 Start small. Keep the rubber on the centerline. Build an airline.
 
 SK:
-AIRWAYS je vizuálna letecká kariéra. Pomenuj si spoločnosť, začni v Bratislave a lietaj skutočné hops po živej mape.
+AIRWAYS je vizuálna letecká kariéra. Pomenuj si spoločnosť, začni v Bratislave a lietaj skutočné lety po živej mape.
 
 Sedíš v 3D kokpite s predletovou checklistou, plynom, riadením, podvozkom, klapkami, svetlami a brzdami. Copilot vie zobrať rutinú. Coach ťa prevedie prvými letmi. Potom to letíš sám — stúpanie, cestovný let, PAPI a pristátie, ktoré sa naozaj hodnotí.
 
-Za každý hop získaš charter kredity. Odomykáš mestá. V hangári kupuješ ďalšie lietadlá, od Cessny 172RG cez turbovrtuľové a tryskové až po Airbus A380. Platíš hernými peniazmi alebo jednorazovým odomknutím cez Google Play. Pass Bez reklám za 2,99 € preskočí celoobrazovkovú reklamu pred letom; odmena Viac peňazí ostáva, ak chceš extra cash.
+Za každý let získaš charter kredity. Odomykáš mestá. V hangári kupuješ ďalšie lietadlá, od Cessny 172RG cez turbovrtuľové a tryskové až po Airbus A380. Platíš hernými peniazmi alebo jednorazovým odomknutím cez Google Play. Pass Bez reklám za 2,99 € preskočí celoobrazovkovú reklamu pred letom; odmena Viac peňazí ostáva, ak chceš extra cash.
 
 Funkcie
 • Kariérny hub s mapou sveta
@@ -56,11 +56,11 @@ Funkcie
 Začni v malom. Drž os dráhy. Postav aerolinku.
 
 DE:
-AIRWAYS ist eine Sichtflug-Airline-Karriere. Taufe deine Gesellschaft, starte in Bratislava und fliege echte Hops auf einer lebenden Karte.
+AIRWAYS ist eine Sichtflug-Airline-Karriere. Taufe deine Gesellschaft, starte in Bratislava und fliege echte Flüge auf einer lebenden Karte.
 
 Du sitzt im 3D-Cockpit mit Preflight-Checkliste, Schub, Sidestick, Fahrwerk, Klappen, Licht und Bremsen. Der Copilot übernimmt die Routine. Der Coach führt dich durch die ersten Flüge. Danach fliegst du selbst – Steigflug, Reiseflug, PAPI und eine Landung, die wirklich bewertet wird.
 
-Jeder Hop bringt Charter-Credits. Städte schaltest du frei. Im Hangar kaufst du das nächste Flugzeug, von der Cessna 172RG über Turboprops und Jets bis zum Airbus A380. Bezahlen geht mit Spielgeld oder als einmaliges Google-Play-Freischalten. Remove ads für 2,99 € überspringt die Vollbildwerbung vor dem Flug; Mehr Geld bleibt als optionales Reward-Video.
+Jeder Flug bringt Charter-Credits. Städte schaltest du frei. Im Hangar kaufst du das nächste Flugzeug, von der Cessna 172RG über Turboprops und Jets bis zum Airbus A380. Bezahlen geht mit Spielgeld oder als einmaliges Google-Play-Freischalten. Remove ads für 2,99 € überspringt die Vollbildwerbung vor dem Flug; Mehr Geld bleibt als optionales Reward-Video.
 
 Funktionen
 • Karriere-Hub mit Weltkarte
@@ -95,7 +95,7 @@ GRAPHICS — upload from store/graphics/
 Hi-res icon:     icon-512.png          512 × 512 PNG
 Feature graphic: feature-graphic.png   1024 × 500 PNG (no transparency)
 Phone screenshots (landscape 1920 × 1080 PNG, at least 2, ideally 4):
-  01-hub.png       World map + selected hop
+  01-hub.png       World map + selected flight
   02-hangar.png    Fleet hangar
   03-flight.png    In-flight HUD / world
   04-cockpit.png   Checklist / cockpit if captured
