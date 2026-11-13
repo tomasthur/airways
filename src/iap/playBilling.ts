@@ -3,10 +3,11 @@
  * Web / missing Play store: no-ops that never grant the plane.
  */
 import { NativePurchases, PURCHASE_TYPE, type Transaction } from '@capgo/native-purchases';
+import { adsRemoved, grantAdsRemoved } from '../meta/adsPass';
 import { grantPurchasedAircraft } from '../meta/economy';
 import { loadProgress } from '../meta/progress';
 import { isNativePlatform } from '../native';
-import { AIRCRAFT_EUR, AIRCRAFT_SKUS, aircraftIdFromSku, aircraftSku } from './catalog';
+import { AIRCRAFT_EUR, AIRCRAFT_SKUS, REMOVE_ADS_EUR, REMOVE_ADS_SKU, aircraftIdFromSku, aircraftSku } from './catalog';
 
 export type IapFail = 'web' | 'unavailable' | 'cancelled' | 'pending' | 'fail';
 export type IapResult = { ok: true } | { ok: false; reason: IapFail };
@@ -45,6 +46,10 @@ export function aircraftPriceLabel(aircraftId: string): string {
   return prices.get(sku) ?? AIRCRAFT_EUR[aircraftId] ?? '';
 }
 
+export function removeAdsPriceLabel(): string {
+  return prices.get(REMOVE_ADS_SKU) ?? REMOVE_ADS_EUR;
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => reject(new Error('timeout')), ms);
@@ -72,7 +77,7 @@ export async function initIap(): Promise<void> {
       if (!billingOk) return;
       const { products } = await withTimeout(
         NativePurchases.getProducts({
-          productIdentifiers: AIRCRAFT_SKUS,
+          productIdentifiers: [...AIRCRAFT_SKUS, REMOVE_ADS_SKU],
           productType: PURCHASE_TYPE.INAPP,
         }),
         8000,
@@ -116,7 +121,34 @@ export async function purchaseAircraft(aircraftId: string): Promise<IapResult> {
   }
 }
 
-/** Unlock any Play-owned aircraft missing from local save. Returns newly granted ids. */
+export async function purchaseRemoveAds(): Promise<IapResult> {
+  if (!isNativePlatform()) return { ok: false, reason: 'web' };
+  if (adsRemoved()) return { ok: true };
+  await initIap();
+  if (!billingOk) return { ok: false, reason: 'unavailable' };
+  try {
+    const tx = await withTimeout(
+      NativePurchases.purchaseProduct({
+        productIdentifier: REMOVE_ADS_SKU,
+        productType: PURCHASE_TYPE.INAPP,
+        isConsumable: false,
+      }),
+      120_000,
+    );
+    if (!isPaid(tx)) return { ok: false, reason: 'pending' };
+    grantAdsRemoved();
+    return { ok: true };
+  } catch (err) {
+    if (isAlreadyOwned(err)) {
+      grantAdsRemoved();
+      return { ok: true };
+    }
+    if (isCancel(err)) return { ok: false, reason: 'cancelled' };
+    return { ok: false, reason: 'fail' };
+  }
+}
+
+/** Unlock Play-owned aircraft and ad removal missing from local save. */
 export async function restoreAircraftPurchases(): Promise<string[]> {
   if (!isNativePlatform()) return [];
   await initIap();
@@ -137,6 +169,10 @@ export async function restoreAircraftPurchases(): Promise<string[]> {
   const granted: string[] = [];
   for (const tx of purchases) {
     if (!isPaid(tx)) continue;
+    if (tx.productIdentifier === REMOVE_ADS_SKU) {
+      grantAdsRemoved();
+      continue;
+    }
     const id = aircraftIdFromSku(tx.productIdentifier);
     if (!id || owned.has(id)) continue;
     grantPurchasedAircraft(id);

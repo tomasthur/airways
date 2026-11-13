@@ -2427,6 +2427,32 @@ button {
   font-weight: 700;
 }
 
+.hub-hangar-ads {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #7ee0a8, #3cb87a 55%, #2a9a64);
+  color: #062014;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.hub-hangar-ads:hover {
+  filter: brightness(1.06);
+}
+
+.hub-hangar-ads.is-owned,
+.hub-hangar-ads:disabled {
+  background: rgba(159, 214, 168, 0.14);
+  border: 1px solid rgba(159, 214, 168, 0.4);
+  color: #9fd6a8;
+  font-weight: 700;
+  cursor: default;
+  filter: none;
+}
+
 .hub-hangar-list {
   display: grid;
   gap: 10px;

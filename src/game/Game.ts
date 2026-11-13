@@ -22,7 +22,7 @@ import { plannedLoad } from '../sim/LoadSheet';
 import { Weather } from '../sim/Weather';
 import { buildReport, evaluateTouchdown, failureReport, onRunway, type ScoreItem } from '../sim/Landing';
 import { initAds, showInterstitialThen } from '../ads/admob';
-import { initIap } from '../iap/playBilling';
+import { initIap, restoreAircraftPurchases } from '../iap/playBilling';
 import { acquireWakeLock, bindNativeLifecycle, releaseWakeLock } from '../native';
 import { FlightControls } from '../ui/FlightControls';
 import { HubMenu } from '../ui/HubMenu';
@@ -264,7 +264,7 @@ export class Game {
       },
     });
     void initAds();
-    void initIap();
+    void initIap().then(() => restoreAircraftPurchases());
 
     this.applyQuality();
     this.resize();

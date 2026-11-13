@@ -1,6 +1,7 @@
 import { adsAvailable, AD_REWARD_CREDITS, showRewarded } from '../ads/admob';
 import { hasT, t } from '../i18n';
-import { aircraftPriceLabel, purchaseAircraft, restoreAircraftPurchases, type IapFail } from '../iap/playBilling';
+import { adsRemoved } from '../meta/adsPass';
+import { aircraftPriceLabel, purchaseAircraft, purchaseRemoveAds, removeAdsPriceLabel, restoreAircraftPurchases, type IapFail } from '../iap/playBilling';
 import { AIRPORTS, airportByIata, type Airport } from '../meta/airports';
 import {
   buyAircraft,
@@ -132,6 +133,7 @@ export class HubMenu {
     root.querySelector('[data-hub="hangarOpen"]')?.addEventListener('click', () => this.openHangar());
     root.querySelector('[data-hub="ship"]')?.addEventListener('click', () => this.openHangar());
     root.querySelector('[data-hub="hangarClose"]')?.addEventListener('click', () => this.closeHangar());
+    root.querySelector('[data-hub="removeAds"]')?.addEventListener('click', () => void this.buyRemoveAds());
     root.querySelector('[data-hub="careerReset"]')?.addEventListener('click', () => {
       if (this.tour.active) return;
       this.toggleCareerConfirm(true);
@@ -768,6 +770,7 @@ export class HubMenu {
 
   private renderHangar(): void {
     this.setText('hangarCredits', formatCredits(this.progress.credits));
+    this.renderAdsPass();
     this.hangarList.innerHTML = '';
     for (const craft of FLEET) {
       const owned = this.progress.ownedAircraft.includes(craft.id);
@@ -873,6 +876,37 @@ export class HubMenu {
       return;
     }
     this.onFleetUnlocked(id);
+  }
+
+  private renderAdsPass(): void {
+    const btn = this.root.querySelector<HTMLButtonElement>('[data-hub="removeAds"]');
+    if (!btn) return;
+    const owned = adsRemoved();
+    btn.classList.toggle('is-owned', owned);
+    btn.disabled = owned;
+    btn.textContent = owned ? t('hangar.ads.off') : t('hangar.ads.buy', { n: removeAdsPriceLabel() });
+    btn.title = t(owned ? 'hangar.ads.offHint' : 'hangar.ads.hint');
+  }
+
+  private async buyRemoveAds(): Promise<void> {
+    if (adsRemoved()) return;
+    if (this.iapBusy) {
+      this.toast(t('hangar.iap.busy'));
+      return;
+    }
+    this.iapBusy = true;
+    this.toast(t('hangar.iap.opening'));
+    try {
+      const result = await purchaseRemoveAds();
+      if (!result.ok) {
+        this.toast(this.iapFailCopy(result.reason));
+        return;
+      }
+      this.renderAdsPass();
+      this.toast(t('hangar.ads.bought'));
+    } finally {
+      this.iapBusy = false;
+    }
   }
 
   private async buyFleetEuro(id: string): Promise<void> {

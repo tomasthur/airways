@@ -4,6 +4,7 @@ import {
   RewardAdPluginEvents,
 } from '@capacitor-community/admob';
 import type { PluginListenerHandle } from '@capacitor/core';
+import { adsRemoved } from '../meta/adsPass';
 import { isNativePlatform } from '../native';
 
 /** Cash granted only after a completed rewarded ad. */
@@ -65,7 +66,7 @@ async function bootAds(): Promise<void> {
     canRequestAds = await resolveConsent();
   }
   if (!canRequestAds) return;
-  await Promise.all([preloadInterstitial(), preloadRewarded()]);
+  await Promise.all([adsRemoved() ? Promise.resolve(false) : preloadInterstitial(), preloadRewarded()]);
 }
 
 /**
@@ -103,7 +104,7 @@ function adOptions(adId: string): { adId: string; isTesting: boolean; npa: boole
  * timeout still starts the hop.
  */
 export async function showInterstitialThen(): Promise<void> {
-  if (!isNativePlatform()) return;
+  if (!isNativePlatform() || adsRemoved()) return;
   await initAds();
   if (!canRequestAds) return;
   const loaded = interstitialReady || (await preloadInterstitial());
@@ -162,7 +163,7 @@ export async function showRewarded(): Promise<boolean> {
 }
 
 function preloadInterstitial(): Promise<boolean> {
-  if (!isNativePlatform() || !canRequestAds) return Promise.resolve(false);
+  if (!isNativePlatform() || !canRequestAds || adsRemoved()) return Promise.resolve(false);
   if (preparingInterstitial) return preparingInterstitial;
   preparingInterstitial = loadFullScreen(() => AdMob.prepareInterstitial(adOptions(interstitialId)))
     .then((ok) => {

@@ -29,3 +29,7 @@ export function aircraftIdFromSku(sku: string): string | null {
 }
 
 export const AIRCRAFT_SKUS: string[] = Object.keys(AIRCRAFT_EUR).map((id) => `${AIRCRAFT_SKU_PREFIX}${id}`);
+
+/** One-time INAPP: skip interstitial ads. Rewarded More Money stays. */
+export const REMOVE_ADS_SKU = 'remove_ads';
+export const REMOVE_ADS_EUR = '€2.99';

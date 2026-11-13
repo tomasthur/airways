@@ -1,6 +1,6 @@
 {
   "name": "airline-pilot",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Airline Pilot – Prototype 01: Bratislava to Vienna. Side-scrolling 3D airplane game.",
   "type": "module",
