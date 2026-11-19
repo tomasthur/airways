@@ -484,7 +484,7 @@ button {
   --pad-b: max(10px, env(safe-area-inset-bottom));
   --pad-l: max(10px, env(safe-area-inset-left));
   /* Right rail = config column + gap + yoke. Keep this >= real child width. */
-  --rail-l: 128px;
+  --rail-l: 156px;
   --rail-r: 216px; /* cfg-w + 8 + yoke-w */
   --bar-b: 80px;
   --gap: 10px;
@@ -1370,7 +1370,7 @@ button {
   box-shadow: inset 0 0 0 1px rgba(99, 230, 161, 0.35);
 }
 
-/* One column: flaps / flaps / gear stack beside the yoke, never over the gauges. */
+/* One column: gear (and in-flight belts) beside the yoke, never over the gauges. */
 .ctl-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -1452,17 +1452,53 @@ button {
   overflow: hidden;
 }
 
-.throttle > .ctl-label {
-  display: none;
+.levers {
+  flex: 1 1 auto;
+  min-height: 120px;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 6px;
+  pointer-events: none;
+  min-width: 0;
 }
 
-.throttle-track {
-  position: relative;
+.flap-lever,
+.throttle-stack {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.throttle-stack {
   flex: 1 1 auto;
-  width: 58px;
-  min-height: 120px;
-  max-height: none;
-  height: auto;
+}
+
+.flap-lever > .ctl-label,
+.throttle-stack > .ctl-label {
+  display: block;
+  flex: 0 0 12px;
+  height: 12px;
+  line-height: 12px;
+  text-align: center;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.82);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.throttle-track,
+.flap-track {
+  position: relative;
+  flex: 1 1 0;
+  width: 100%;
+  min-height: 0;
   border-radius: 14px;
   border: 1px solid var(--line);
   background: var(--glass);
@@ -1470,6 +1506,106 @@ button {
   -webkit-backdrop-filter: blur(8px);
   touch-action: none;
   pointer-events: auto;
+}
+
+.flap-lever {
+  flex: 0 0 62px;
+  width: 62px;
+  min-width: 62px;
+}
+
+.flap-track.active,
+.flap-lever.is-extended .flap-track {
+  border-color: rgba(99, 230, 161, 0.45);
+}
+
+.flap-slot {
+  position: absolute;
+  left: 9px;
+  top: 10%;
+  bottom: 10%;
+  width: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+}
+
+.flap-knob {
+  position: absolute;
+  left: 3px;
+  bottom: 10%;
+  width: 16px;
+  height: 22px;
+  margin-bottom: -11px;
+  border-radius: 5px 8px 8px 5px;
+  background: linear-gradient(180deg, #3b4148, #15191d);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.flap-track.active .flap-knob,
+.flap-lever.is-extended .flap-knob {
+  border-color: var(--accent);
+}
+
+.flap-gates {
+  position: absolute;
+  inset: 0 3px 0 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.flap-gate {
+  position: absolute;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  line-height: 1;
+}
+
+.flap-gate::before {
+  content: '';
+  position: absolute;
+  left: -13px;
+  top: 50%;
+  width: 9px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.4);
+  transform: translateY(-50%);
+}
+
+.flap-gate.is-on::before {
+  background: var(--accent);
+}
+
+.flap-gate-name {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.88);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.flap-gate.is-on .flap-gate-name {
+  color: var(--accent);
+}
+
+.flap-gate-to {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 
 .throttle-fill {
@@ -1500,14 +1636,18 @@ button {
   border-color: var(--accent);
 }
 
+.flap-val,
 .throttle-val {
-  flex: 0 0 auto;
+  flex: 0 0 16px;
+  height: 16px;
+  line-height: 16px;
   font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-  line-height: 1;
-  padding-bottom: 2px;
+  text-align: center;
+  overflow: hidden;
 }
 
 /* Pedals share the bottom band with the instrument strip — never overlap it. */
@@ -3215,7 +3355,7 @@ kbd {
 /* Compact phones / landscape: rails stay sized to real controls. */
 @media (max-height: 480px) {
   .hud {
-    --rail-l: 120px;
+    --rail-l: 148px;
     --cfg-w: 76px;
     --yoke-w: 108px;
     --rail-r: 200px; /* cfg + gap + yoke */
@@ -3233,11 +3373,16 @@ kbd {
   .track {
     margin: 7px 4px 6px;
   }
-  .throttle > .ctl-label {
-    display: none;
+  .throttle-track,
+  .flap-track {
+    min-height: 0;
   }
-  .throttle-track {
+  .flap-lever {
+    flex-basis: 56px;
     width: 56px;
+    min-width: 56px;
+  }
+  .flap-track {
     min-height: 110px;
   }
   .throttle-knob {
@@ -3300,7 +3445,7 @@ kbd {
 @media (max-width: 700px) and (min-height: 520px) {
   /* Tall portrait phones: keep zone model, slightly taller gauges. */
   .hud {
-    --rail-l: 118px;
+    --rail-l: 146px;
     --cfg-w: 72px;
     --yoke-w: 118px;
     --rail-r: 210px;

@@ -180,8 +180,6 @@
           <div class="ctl-group config">
             <span class="ctl-label" data-i18n="hud.config">Config</span>
             <div class="ctl-grid">
-              <button type="button" class="ctl wide" data-action="flapsDown" data-i18n="hud.flapsDown">Flaps ▼</button>
-              <button type="button" class="ctl wide" data-action="flapsUp" data-i18n="hud.flapsUp">Flaps ▲</button>
               <button type="button" class="ctl wide" data-action="gear" data-i18n="hud.gearBtn">Gear</button>
               <button type="button" class="ctl wide is-hidden" data-action="belts" data-ref="beltsBtn">
                 <svg class="belt-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
@@ -206,12 +204,25 @@
         </section>
 
         <section class="throttle" data-i18n-aria="hud.throttleAria">
-          <span class="ctl-label" data-i18n="hud.throttle">Throttle</span>
-          <div class="throttle-track" data-ref="throttleTrack">
-            <div class="throttle-fill" data-ref="throttleFill"></div>
-            <div class="throttle-knob" data-ref="throttleKnob"></div>
+          <div class="levers">
+            <div class="flap-lever" data-ref="flapLever" data-i18n-aria="hud.flapsAria">
+              <span class="ctl-label" data-i18n="hud.flaps">Flaps</span>
+              <div class="flap-track" data-ref="flapTrack">
+                <ol class="flap-gates" data-ref="flapGates"></ol>
+                <div class="flap-slot" aria-hidden="true"></div>
+                <div class="flap-knob" data-ref="flapKnob"></div>
+              </div>
+              <span class="flap-val" data-ref="flapVal">UP</span>
+            </div>
+            <div class="throttle-stack">
+              <span class="ctl-label" data-i18n="hud.throttle">Throttle</span>
+              <div class="throttle-track" data-ref="throttleTrack">
+                <div class="throttle-fill" data-ref="throttleFill"></div>
+                <div class="throttle-knob" data-ref="throttleKnob"></div>
+              </div>
+              <span class="throttle-val" data-ref="throttleVal">0%</span>
+            </div>
           </div>
-          <span class="throttle-val" data-ref="throttleVal">0%</span>
           <div class="throttle-pedals">
             <button type="button" class="brake-pedal" data-hold="brake" data-ref="brakePedal" data-i18n="hud.brake" data-i18n-aria="hud.brakeAria">
               Brake

@@ -251,7 +251,7 @@ const scenarios = {
     return forcedTouchdown({ vy: -1, gear: 0 });
   },
 
-  /** Ground roll from 100 km/h at idle (auto-brake): stopping distance. */
+  /** Ground roll from 100 km/h at idle with wheel brakes held: stopping distance. */
   braking() {
     const fm = new FlightModel();
     fm.reset(VIE_RUNWAY.x0 + 300);
@@ -260,6 +260,7 @@ const scenarios = {
     const x0 = fm.x;
     const t = fly(fm, 60, (t, input, p) => {
       p.throttleTo(0);
+      input.brake = 1;
       input.pitch = -1;
       return fm.airspeed < 0.3;
     });
@@ -492,6 +493,7 @@ function mission() {
       p.pitchTo(6 * DEG);
     } else if (phase === 'rollout') {
       p.throttleTo(0);
+      input.brake = 1;
       input.pitch = -1;
       if (V < 0.3) return true;
     }

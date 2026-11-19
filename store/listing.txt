@@ -94,11 +94,13 @@ GRAPHICS — upload from store/graphics/
 ══════════════════════════════════════
 Hi-res icon:     icon-512.png          512 × 512 PNG
 Feature graphic: feature-graphic.png   1024 × 500 PNG (no transparency)
-Phone screenshots (landscape 1920 × 1080 PNG, at least 2, ideally 4):
-  01-hub.png       World map + selected flight
-  02-hangar.png    Fleet hangar
-  03-flight.png    In-flight HUD / world
-  04-cockpit.png   Checklist / cockpit if captured
+Phone screenshots (landscape 1920 × 1080 PNG, at least 2, up to 8):
+  01-hub.png        World map + Bratislava → Prague
+  02-hangar.png     ATR 72 / Dash 8 hangar cards
+  03-preflight.png  Runway checklist
+  04-castle.png     Takeoff over Bratislava castle
+  05-bridge.png     SNP bridge / Letisko Bratislava
+  06-rain.png       Cruise over Bohemian farmland
 
 Tablet 7" / 10" screenshots: reuse the same landscape shots.
 

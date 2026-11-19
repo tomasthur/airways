@@ -27,13 +27,13 @@ const SELECTOR: Record<CoachId, string> = {
   door: '[data-ref="clDoorBtn"]',
   boarding: '[data-cl="boarding"]',
   lights: '[data-ref="clLightsBtn"]',
-  flapsTakeoff: '[data-action="flapsTakeoff"]',
+  flapsTakeoff: '[data-ref="flapLever"]',
   beltsCl: '[data-ref="clBeltsBtn"]',
   engine: '[data-ref="clEngineBtn"]',
   belts: '[data-ref="beltsBtn"]',
   gear: '.ctl[data-action="gear"]',
-  flapsDown: '.ctl[data-action="flapsDown"]',
-  flapsUp: '.ctl[data-action="flapsUp"]',
+  flapsDown: '[data-ref="flapLever"]',
+  flapsUp: '[data-ref="flapLever"]',
   throttle: '[data-ref="throttleTrack"]',
   yoke: '[data-ref="yoke"]',
   brake: '[data-ref="brakePedal"]',
@@ -94,7 +94,7 @@ export class Coach {
       this.clear();
       return;
     }
-    const pad = cue.id === 'throttle' || cue.id === 'yoke' ? 8 : 5;
+    const pad = cue.id === 'throttle' || cue.id === 'yoke' || cue.id === 'flapsTakeoff' || cue.id === 'flapsDown' || cue.id === 'flapsUp' ? 8 : 5;
     const left = r.left - pad;
     const top = r.top - pad;
     const width = r.width + pad * 2;
@@ -104,7 +104,8 @@ export class Coach {
     this.ring.style.top = `${top}px`;
     this.ring.style.width = `${width}px`;
     this.ring.style.height = `${height}px`;
-    this.ring.style.borderRadius = cue.id === 'yoke' ? '20px' : cue.id === 'throttle' ? '16px' : '12px';
+    this.ring.style.borderRadius =
+      cue.id === 'yoke' ? '20px' : cue.id === 'throttle' || cue.id === 'flapsTakeoff' || cue.id === 'flapsDown' || cue.id === 'flapsUp' ? '16px' : '12px';
     if (this.last !== key) {
       this.msg.textContent = cue.text;
       this.last = key;

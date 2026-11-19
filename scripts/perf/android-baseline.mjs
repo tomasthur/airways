@@ -311,7 +311,7 @@ const PROBE = String.raw`(async (quality) => {
     else if (phase === 'cruise') { thrTo(0.7); pitchTo((350 - fm.y) * 0.002 - fm.vy * 0.01 + 0.5 * deg); if ((AIM - fm.x) * SLOPE < fm.y) phase = 'descent'; }
     else if (phase === 'descent') { const ta = (AIM - fm.x) * SLOPE, tv = -fm.vx * SLOPE; pitchTo((ta - fm.y) * 0.004 + (tv - fm.vy) * 0.02 + 1 * deg); const ts = AIM - fm.x < 3000 ? 32 : 45; thrTo(Math.max(0, Math.min(1, 0.35 + (ts - V) * 0.08))); if (AIM - fm.x < 4500 && fm.gearTarget < 0.5) tap('KeyG'); if (AIM - fm.x < 3200 && fm.flapIndex < 3) tap('KeyF'); if (fm.y < 7) phase = 'flare'; }
     else if (phase === 'flare') { thrTo(-0.1); pitchTo(6 * deg); if (fm.onGround) phase = 'rollout'; }
-    else if (phase === 'rollout') { thrTo(-0.1); key('KeyW', false); key('KeyS', true); }
+    else if (phase === 'rollout') { thrTo(-0.1); key('KeyB', true); key('KeyW', false); key('KeyS', true); }
   }, 1000 / 60);
 
   window.__perf = {

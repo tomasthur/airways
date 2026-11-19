@@ -31,7 +31,10 @@ export interface Assists {
   pitchHold: boolean;
   /** Centred stick slowly rolls the wings level. */
   wingLeveler: boolean;
-  /** Full brakes on the ground whenever the throttle lever is at idle. */
+  /**
+   * Full wheel brakes at idle on the ground (line-up hold). Leave off after
+   * landing so idle only coasts — the Brake pedal does the stopping.
+   */
   autoBrakeAtIdle: boolean;
 }
 
@@ -54,7 +57,7 @@ const approach = (v: number, target: number, step: number) =>
 export class FlightModel {
   config: AircraftConfig;
   engine: Engine;
-  readonly assists: Assists = { pitchHold: true, wingLeveler: true, autoBrakeAtIdle: true };
+  readonly assists: Assists = { pitchHold: true, wingLeveler: true, autoBrakeAtIdle: false };
   mass: number;
   /** Weather the aircraft flies through; null = calm air. */
   weather: Weather | null = null;

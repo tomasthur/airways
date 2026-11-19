@@ -17,7 +17,7 @@ import { Storms } from '../render/Storms';
 import { Trails } from '../render/Trails';
 import { World } from '../render/World';
 import { FlightModel, type Touchdown } from '../sim/FlightModel';
-import { fullThrust, maxFlapDeg } from '../sim/aircraft/AircraftConfig';
+import { flapGateLabel, fullThrust, maxFlapDeg } from '../sim/aircraft/AircraftConfig';
 import { plannedLoad } from '../sim/LoadSheet';
 import { Weather } from '../sim/Weather';
 import { buildReport, evaluateTouchdown, failureReport, onRunway, type ScoreItem } from '../sim/Landing';
@@ -108,6 +108,8 @@ export class Game {
   /** Smoothed glide angle for airliner PAPI (deg). Light types skip the filter. */
   private papiAngle = GLIDE_SLOPE_DEG;
   private papiWhitesHeld = 2;
+  /** HUD PAPI stays off until the first 2-white / 2-red intercept this hop. */
+  private papiHudLatched = false;
   /** Corridor x of a one-shot cruise engine failure; 0 = none this hop. */
   private engineFailX = 0;
   private engineFailed = false;
@@ -229,6 +231,7 @@ export class Game {
         this.input.yoke.pitch = pitch;
         this.input.yoke.roll = roll;
       },
+      (index) => this.applyFlapIndex(index),
     );
     this.input.onPress((a) => this.onPress(a));
     window.addEventListener('resize', () => this.resize());
@@ -430,6 +433,7 @@ export class Game {
     this.climbOutComplete = false;
     this.papiAngle = GLIDE_SLOPE_DEG;
     this.papiWhitesHeld = 2;
+    this.papiHudLatched = false;
   }
 
   // ------------------------------------------------------------------ input
@@ -467,8 +471,9 @@ export class Game {
         if (fm.flapIndex === before) this.flash(a === 'flapsDown' ? t('flash.flapsFullDown') : t('flash.flapsAlreadyUp'));
         else {
           this.sound.flapSelect();
-          this.flash(fm.flapIndex === 0 ? t('flash.flapsRetracting') : t('flash.flapsDeg', { deg: fm.flapTargetDeg }));
+          this.flashFlapGate();
         }
+        this.controlsUi.syncFlaps(fm.flapIndex);
         break;
       }
       case 'gear':
@@ -478,9 +483,7 @@ export class Game {
         break;
       case 'flapsTakeoff':
         if (this.state !== 'flying') break;
-        if (this.fm.flapIndex !== 1) this.sound.flapSelect();
-        this.fm.setFlapIndex(1);
-        this.flash(t('flash.flapsTakeoffNow', { deg: this.takeoffFlapDeg }));
+        this.applyFlapIndex(1);
         break;
       case 'door':
         if (this.state === 'flying' && this.phase === 'preflight') this.toggleDoor();
@@ -572,6 +575,7 @@ export class Game {
       this.fm.config.engineCount,
       !!this.fm.config.speedBrake,
     );
+    this.controlsUi.setFlapGates(this.fm.config.flaps.detents.length);
     this.hub.refreshLang();
   }
 
@@ -869,6 +873,30 @@ export class Game {
       cfg.engineCount,
       !!cfg.speedBrake,
     );
+    this.controlsUi.setFlapGates(cfg.flaps.detents.length);
+  }
+
+  /** Same detents as F / V and the checklist Set — the lever only chooses an existing gate. */
+  private applyFlapIndex(index: number): void {
+    if (this.state !== 'flying' && this.state !== 'paused') return;
+    const fm = this.fm;
+    if (fm.flapIndex === index) {
+      if (index === 1) this.flash(t('flash.flapsTakeoffNow', { deg: this.takeoffFlapDeg }));
+      return;
+    }
+    fm.setFlapIndex(index);
+    this.sound.flapSelect();
+    this.flashFlapGate();
+    this.controlsUi.syncFlaps(fm.flapIndex);
+  }
+
+  private flashFlapGate(): void {
+    const fm = this.fm;
+    const n = fm.config.flaps.detents.length;
+    const i = fm.flapIndex;
+    if (i === 0) this.flash(t('flash.flapsRetracting'));
+    else if (i === 1) this.flash(t('flash.flapsTakeoffNow', { deg: fm.flapTargetDeg }));
+    else this.flash(t('flash.flapsGate', { gate: flapGateLabel(i, n), deg: fm.flapTargetDeg }));
   }
 
   private async begin(from: string, to: string): Promise<void> {
@@ -960,6 +988,9 @@ export class Game {
     c.throttle = this.input.throttle;
     c.brake = this.input.brake;
     c.speedBrake = this.input.speedBrake;
+    // Hold on the line at idle until TOGA. After landing, idle only coasts —
+    // strong braking is the Brake pedal, like real toe brakes.
+    fm.assists.autoBrakeAtIdle = this.phase === 'preflight' || this.phase === 'takeoff';
     if (this.phase === 'preflight') {
       // Parked: brakes set, power stays at idle until the engine runs.
       c.brake = 1;
@@ -1441,7 +1472,7 @@ export class Game {
         }),
       );
     }
-    this.hud.setControlLit('flapsDown', fm.flapIndex > 0);
+    this.controlsUi.syncFlaps(fm.flapIndex);
     this.hud.setControlLit('gear', fm.gearTarget > 0.5);
     this.hud.setFlightBelts(
       (this.state === 'flying' || this.state === 'paused') && this.phase !== 'preflight',
@@ -1498,10 +1529,13 @@ export class Game {
     w.engine = flying && airborne && this.engineFailed && fm.engine.state !== 'running';
     this.hud.setWarnings(w, fm.engine.cht >= CHT_RED);
 
-    // Show PAPI from before top-of-descent: big jets start down much further out than a C172.
+    // Range is the same as before; the panel waits for the first on-path (2 white / 2 red)
+    // so four-red "too low" does not appear before the player has a glide path to follow.
     const glideRad = THREE.MathUtils.degToRad(GLIDE_SLOPE_DEG);
     const papiFar = Math.max(6500, this.route.layout.cruiseAltM / Math.tan(glideRad) + 4000);
-    this.hud.setPapi(flying && airborne && toAim > 30 && toAim < papiFar ? whites : -1);
+    const papiInRange = flying && airborne && toAim > 30 && toAim < papiFar && whites >= 0;
+    if (papiInRange && whites === 2) this.papiHudLatched = true;
+    this.hud.setPapi(papiInRange && this.papiHudLatched ? whites : -1);
 
     const camX = this.camera.position.x;
     const lm = flying || this.state === 'menu' ? this.route.landmarks.find((l) => camX >= l.x0 && camX <= l.x1) : undefined;

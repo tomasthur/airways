@@ -74,6 +74,7 @@ while (t < 600) {
     pitchTo(6 * deg);
   } else if (phase === 'rollout') {
     throttleTo(0);
+    input.brake = 1;
     input.pitch = -1;
     if (V < 0.5) {
       log('STOPPED');

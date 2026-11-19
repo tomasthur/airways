@@ -243,6 +243,18 @@ export function maxFlapDeg(c: AircraftConfig): number {
   return c.flaps.detents[c.flaps.detents.length - 1].deg;
 }
 
+/**
+ * Cockpit gate name for a detent index. UP at 0, then 1 / 2 / 3, last gate FULL.
+ * Detent 1 is take-off on every type; extra landing gates exist only if the type has them.
+ */
+export function flapGateLabel(index: number, detentCount: number): string {
+  const n = Math.max(1, detentCount);
+  const i = Math.max(0, Math.min(n - 1, Math.round(index)));
+  if (i <= 0) return 'UP';
+  if (n > 2 && i >= n - 1) return 'FULL';
+  return String(i);
+}
+
 /** Linearly interpolated flap effect at an arbitrary deflection (flaps move continuously between detents). */
 export function flapEffect(c: AircraftConfig, deg: number, out: Omit<FlapDetent, 'deg' | 'vfeKmh'>): void {
   const d = c.flaps.detents;
