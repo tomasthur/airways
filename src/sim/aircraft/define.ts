@@ -93,6 +93,13 @@ export function defineAircraft(s: AircraftSpec): AircraftConfig {
 
   const length = s.visual.lengthM;
   const h = s.heft;
+  // Span×0.6 is fine for light/medium types; on widebodies it became a 35–50 m
+  // cushion that floated past the runway then dropped through the 3.3 m/s limit.
+  // Cap only kicks in from A320-class heft upward — E190 and below stay unchanged.
+  const rawGeH = 0.6 * s.spanM;
+  const geCap = h >= 0.65 ? lerp(22, 18.5, Math.min(1, (h - 0.65) / 0.35)) : Infinity;
+  const geH = Math.min(rawGeH, geCap);
+  const geLift = h >= 0.8 ? lerp(0.065, 0.055, Math.min(1, (h - 0.8) / 0.2)) : 0.07;
   return {
     id: s.id,
     name: s.name,
@@ -136,8 +143,8 @@ export function defineAircraft(s: AircraftSpec): AircraftConfig {
       postStallFloor: 0.22,
       cd0,
       inducedK,
-      groundEffectHeightM: 0.6 * s.spanM,
-      groundEffectLiftGain: 0.07,
+      groundEffectHeightM: geH,
+      groundEffectLiftGain: geLift,
       cm0: 0,
       cmAlpha: -1.2,
       cmQ: -20,
@@ -151,8 +158,13 @@ export function defineAircraft(s: AircraftSpec): AircraftConfig {
       maxPitchRate: lerp(0.32, 0.15, h),
       elevatorRatePerS: lerp(4, 2.6, h),
       pitchHoldGain: lerp(6, 4, h),
-      // ATR 72 (heft 0.45) and up only — a little extra flare, not a handling rewrite.
-      flareBoost: h >= 0.4 ? lerp(0.08, 0.12, Math.min(1, (h - 0.4) / 0.6)) : 0,
+      // ATR 72+ get a little flare help; widebodies stay modest so the GE cushion doesn't float them.
+      flareBoost:
+        h >= 0.8
+          ? lerp(0.085, 0.095, Math.min(1, (h - 0.8) / 0.2))
+          : h >= 0.4
+            ? lerp(0.08, 0.12, Math.min(1, (h - 0.4) / 0.6))
+            : 0,
     },
     ground: { rollFriction: s.propulsion === 'jet' ? 0.02 : 0.025, brakeFriction: 0.42, bellyFriction: 0.6 },
     ...(s.speedBrake

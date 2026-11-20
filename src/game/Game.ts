@@ -1776,7 +1776,11 @@ export class Game {
       }
       const vApp = round10(lim.vrefKmh * 1.3);
       const decel = fm.config.propulsion === 'jet' ? 0.8 : 0.45;
-      const slowDist = Math.max(0, (fm.airspeed ** 2 - (vApp / 3.6) ** 2) / (2 * decel));
+      const physSlow = Math.max(0, (fm.airspeed ** 2 - (vApp / 3.6) ** 2) / (2 * decel));
+      // Full jet decel from cruise is tens of km — on a time-compressed long haul that would
+      // nag "slow down" through most of cruise. Keep a short level-decel window before TOD.
+      const hop = Math.max(2000, this.route.dest.x0 - this.route.origin.x1);
+      const slowDist = Math.min(physSlow, Math.max(2000, Math.min(hop * 0.12, glideStart * 0.55)));
       if (kmh > vApp + 20 && toAim < glideStart + slowDist + 1500) {
         if (fm.config.speedBrake && fm.speedBrake < 0.4) return t('hint.slowSpdBrk', { spd: vApp });
         return t('hint.slowApp', { spd: vApp });
